@@ -20,4 +20,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Robot Controller"
-include ':app'
+include(":app")
+include(":core:networking")
