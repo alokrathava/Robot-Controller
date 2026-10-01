@@ -1,6 +1,5 @@
 package me.alokrathava.robotcontroller
 
-import android.content.pm.ActivityInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -19,11 +18,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         enableEdgeToEdge()
 
         setContent {
-            RobotControllerTheme {
+            RobotControllerTheme(darkTheme = false) {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     containerColor = MonochromeTheme.colors.background,

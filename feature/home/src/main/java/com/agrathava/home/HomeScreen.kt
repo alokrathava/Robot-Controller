@@ -12,6 +12,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -27,28 +30,91 @@ import com.agrathava.theme.MonochromeStatusPill
 import com.agrathava.theme.MonochromeTheme
 import com.agrathava.theme.StatusLevel
 
+enum class ScreenFlow {
+    SPLASH,
+    CONNECTION,
+    DASHBOARD
+}
+
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
+    initialFlow: ScreenFlow = ScreenFlow.SPLASH
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var currentFlow by remember { mutableStateOf(initialFlow) }
 
-    HomeScreenContent(
-        uiState = uiState,
-        onMoveForward = viewModel::moveForward,
-        onMoveBackward = viewModel::moveBackward,
-        onMoveLeft = viewModel::moveLeft,
-        onMoveRight = viewModel::moveRight,
-        onGoToCharge = viewModel::goToCharge,
-        onCancelNavigation = viewModel::cancelNavigation,
-        onGetPosition = viewModel::getPosition,
-        onMoveToPosition = viewModel::moveToPosition,
-        onGetMap = viewModel::getMap,
-        onSaveMap = viewModel::saveMap,
-        onGetBatteryLevel = viewModel::getBatteryLevel,
-        modifier = modifier
-    )
+    when (currentFlow) {
+        ScreenFlow.SPLASH -> {
+            SplashScreen(
+                onConnectClick = {
+                    viewModel.setConnectionStep(RobotConnectionStep.NETWORK_SELECTION)
+                    currentFlow = ScreenFlow.CONNECTION
+                },
+                onSelectMode = {
+                    currentFlow = ScreenFlow.DASHBOARD
+                },
+                modifier = modifier
+            )
+        }
+
+        ScreenFlow.CONNECTION -> {
+            RobotConnectionScreen(
+                connectionStep = uiState.connectionStep,
+                availableNetworks = uiState.availableNetworks,
+                selectedNetwork = uiState.selectedNetwork,
+                ipAddress = uiState.ipAddress,
+                port = uiState.port,
+                ipError = uiState.ipError,
+                portError = uiState.portError,
+                connectionStatus = uiState.connectionStatus,
+                onSelectNetwork = viewModel::selectNetwork,
+                onRefreshNetworks = viewModel::refreshNetworks,
+                onUpdateIpAddress = viewModel::updateIpAddress,
+                onUpdatePort = viewModel::updatePort,
+                onNextStep = {
+                    viewModel.setConnectionStep(RobotConnectionStep.IP_PORT_CONFIG)
+                },
+                onPreviousStep = {
+                    if (uiState.connectionStep == RobotConnectionStep.IP_PORT_CONFIG) {
+                        viewModel.setConnectionStep(RobotConnectionStep.NETWORK_SELECTION)
+                    } else {
+                        currentFlow = ScreenFlow.SPLASH
+                    }
+                },
+                onConnectClick = {
+                    viewModel.connectToRobot {
+                        currentFlow = ScreenFlow.DASHBOARD
+                    }
+                },
+                onCancelClick = {
+                    currentFlow = ScreenFlow.SPLASH
+                },
+                modifier = modifier
+            )
+        }
+
+        ScreenFlow.DASHBOARD -> {
+            HomeScreenContent(
+                uiState = uiState,
+                onMoveForward = viewModel::moveForward,
+                onMoveBackward = viewModel::moveBackward,
+                onMoveLeft = viewModel::moveLeft,
+                onMoveRight = viewModel::moveRight,
+                onGoToCharge = viewModel::goToCharge,
+                onCancelNavigation = viewModel::cancelNavigation,
+                onGetPosition = viewModel::getPosition,
+                onMoveToPosition = viewModel::moveToPosition,
+                onGetMap = viewModel::getMap,
+                onSaveMap = viewModel::saveMap,
+                onGetBatteryLevel = viewModel::getBatteryLevel,
+                onShowSplash = { currentFlow = ScreenFlow.SPLASH },
+                onShowConnection = { currentFlow = ScreenFlow.CONNECTION },
+                modifier = modifier
+            )
+        }
+    }
 }
 
 @Composable
@@ -66,6 +132,8 @@ fun HomeScreenContent(
     onSaveMap: () -> Unit,
     onGetBatteryLevel: () -> Unit,
     modifier: Modifier = Modifier,
+    onShowSplash: () -> Unit = {},
+    onShowConnection: () -> Unit = {}
 ) {
     val colors = MonochromeTheme.colors
     val typography = MonochromeTheme.typography
@@ -103,10 +171,29 @@ fun HomeScreenContent(
                         style = typography.h3,
                         color = colors.primaryText
                     )
-                    MonochromeStatusPill(
-                        text = uiState.statusMessage,
-                        level = if (uiState.batteryStatus.isCharging) StatusLevel.Active else StatusLevel.Default
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(spacing.space2),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        MonochromeButton(
+                            onClick = onShowConnection,
+                            variant = MonochromeButtonVariant.Ghost,
+                            size = MonochromeButtonSize.Standard,
+                            icon = Icons.Default.Wifi,
+                            text = "Connection"
+                        )
+                        MonochromeButton(
+                            onClick = onShowSplash,
+                            variant = MonochromeButtonVariant.Ghost,
+                            size = MonochromeButtonSize.Standard,
+                            icon = Icons.Default.SmartToy,
+                            text = "Robot View"
+                        )
+                        MonochromeStatusPill(
+                            text = uiState.statusMessage,
+                            level = if (uiState.batteryStatus.isCharging) StatusLevel.Active else StatusLevel.Default
+                        )
+                    }
                 }
 
                 // Status Card
@@ -116,6 +203,18 @@ fun HomeScreenContent(
                     Column(
                         verticalArrangement = Arrangement.spacedBy(spacing.space3)
                     ) {
+                        HomeStatusRow(
+                            icon = Icons.Default.Wifi,
+                            label = "Connected Wi-Fi",
+                            value = uiState.selectedNetwork?.ssid ?: "Not Connected",
+                            isMono = false
+                        )
+                        HomeStatusRow(
+                            icon = Icons.Default.Router,
+                            label = "Robot Endpoint",
+                            value = "${uiState.ipAddress}:${uiState.port}",
+                            isMono = true
+                        )
                         HomeStatusRow(
                             icon = Icons.Default.BatteryFull,
                             label = "Battery Level",

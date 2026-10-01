@@ -1,6 +1,5 @@
 package com.agrathava.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -8,7 +7,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 
 @Composable
 fun MonochromeTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val monochromeColors = if (darkTheme) DarkMonochromeColors else LightMonochromeColors

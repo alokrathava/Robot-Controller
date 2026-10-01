@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -316,3 +317,55 @@ fun MonochromeStatusPill(
         }
     }
 }
+
+@Preview(showBackground = true)
+@Composable
+fun MonochromeButtonPreview() {
+    MonochromeTheme {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            MonochromeButton(onClick = {}, text = "Primary Button", variant = MonochromeButtonVariant.Primary)
+            MonochromeButton(onClick = {}, text = "Secondary Button", variant = MonochromeButtonVariant.Secondary)
+            MonochromeButton(onClick = {}, text = "Ghost Button", variant = MonochromeButtonVariant.Ghost)
+            MonochromeButton(onClick = {}, text = "Disabled Primary", variant = MonochromeButtonVariant.Primary, enabled = false)
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun MonochromeCardPreview() {
+    MonochromeTheme {
+        MonochromeCard(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
+            Text(text = "Card Title", style = MonochromeTheme.typography.h3)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = "This is some card content. It looks nice and clean in the monochrome design system.", style = MonochromeTheme.typography.body)
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun MonochromeTextFieldPreview() {
+    MonochromeTheme {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            MonochromeTextField(value = "", onValueChange = {}, label = "Empty Field", placeholder = "Enter text...")
+            MonochromeTextField(value = "Filled text", onValueChange = {}, label = "Filled Field")
+            MonochromeTextField(value = "Invalid input", onValueChange = {}, label = "Error Field", isError = true, helperText = "This is an error message")
+            MonochromeTextField(value = "Disabled", onValueChange = {}, label = "Disabled Field", enabled = false)
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun MonochromeStatusPillPreview() {
+    MonochromeTheme {
+        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MonochromeStatusPill(text = "Default", level = StatusLevel.Default)
+            MonochromeStatusPill(text = "Active", level = StatusLevel.Active)
+            MonochromeStatusPill(text = "Inactive", level = StatusLevel.Inactive)
+            MonochromeStatusPill(text = "Critical", level = StatusLevel.Critical)
+        }
+    }
+}
+

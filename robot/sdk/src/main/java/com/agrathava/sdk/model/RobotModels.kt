@@ -39,3 +39,24 @@ data class MapData(
     val displayText: String
         get() = if (isAvailable) name else "No map available"
 }
+
+data class WifiNetwork(
+    val ssid: String,
+    val signalPercent: Int = 80,
+    val isSecured: Boolean = true,
+    val isConnected: Boolean = false,
+    val frequency: String = "5 GHz"
+)
+
+data class ConnectionConfig(
+    val ipAddress: String = "192.168.1.100",
+    val port: Int = 8080,
+    val selectedSsid: String? = null
+)
+
+enum class ConnectionStatus {
+    DISCONNECTED,
+    CONNECTING,
+    CONNECTED,
+    FAILED
+}
