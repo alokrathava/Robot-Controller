@@ -1,241 +1,176 @@
 package com.agrathava.home
 
-import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.BatteryChargingFull
-import androidx.compose.material.icons.filled.Gamepad
+import androidx.compose.material.icons.automirrored.filled.AltRoute
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
-import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.agrathava.theme.MonochromeButton
-import com.agrathava.theme.MonochromeButtonSize
-import com.agrathava.theme.MonochromeButtonVariant
-import com.agrathava.theme.MonochromeCard
-import com.agrathava.theme.MonochromeStatusPill
-import com.agrathava.theme.MonochromeTheme
-import com.agrathava.theme.StatusLevel
 
-enum class SideMenuItem(
+import com.agrathava.theme.MonochromeTheme
+
+enum class SidebarNavItem(
     val title: String,
-    val icon: ImageVector,
-    val description: String
+    val icon: ImageVector
 ) {
-    DASHBOARD("Dashboard", Icons.Default.SmartToy, "Main Robot Controls"),
-    NAVIGATION("Map & Navigation", Icons.Default.Map, "Autonomous Navigation"),
-    CONNECTION("Network Setup", Icons.Default.Wifi, "IP & Wi-Fi Settings"),
-    BATTERY("System Status", Icons.Default.BatteryChargingFull, "Battery & Health"),
-    SETTINGS("Settings", Icons.Default.Settings, "Robot Preferences")
+    HOME("Home", Icons.Default.Home),
+    NAVIGATION("Navigation", Icons.Default.Place),
+    MANUAL_CONTROL("Manual Control", Icons.AutoMirrored.Filled.AltRoute),
+    ROBOT_STATUS("Robot Status", Icons.Default.SmartToy),
+    MAPS("Maps", Icons.Default.Map),
+    SETTINGS("Settings", Icons.Default.Settings)
 }
 
 @Composable
-fun SideMenu(
-    selectedItem: SideMenuItem,
-    onItemSelected: (SideMenuItem) -> Unit,
+fun Sidebar(
     modifier: Modifier = Modifier,
-    robotName: String = "ROBOT-01",
-    connectionStatusText: String = "Connected",
-    robotImagePainter: Painter = painterResource(id = R.drawable.robot_splash),
-    onDisconnectClick: () -> Unit = {},
-    isInitiallyCollapsed: Boolean = false
+    selectedItem: SidebarNavItem = SidebarNavItem.HOME,
+    onItemSelected: (SidebarNavItem) -> Unit = {},
+    isConnected: Boolean = true,
+    connectionAddress: String = "192.168.1.108:8080"
 ) {
-    var isCollapsed by remember { mutableStateOf(isInitiallyCollapsed) }
     val colors = MonochromeTheme.colors
     val typography = MonochromeTheme.typography
     val spacing = MonochromeTheme.spacing
     val shapes = MonochromeTheme.shapes
 
-    val menuWidth = if (isCollapsed) 72.dp else 240.dp
-
     Surface(
         modifier = modifier
-            .width(menuWidth)
-            .fillMaxHeight()
-            .animateContentSize()
-            .border(1.dp, colors.subtleBorder, RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp)),
-        color = colors.surface,
-        shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp)
+            .width(330.dp)
+            .fillMaxHeight(),
+        color = colors.background
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(vertical = spacing.space4, horizontal = spacing.space2),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .padding(vertical = spacing.space6 * 1.5f, horizontal = spacing.space4 * 1.5f),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Top Section: Robot Header & Collapse Toggle
+            // Top Section: App Title & Navigation Items
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(spacing.space3),
-                modifier = Modifier.fillMaxWidth()
+                verticalArrangement = Arrangement.spacedBy(spacing.space6 * 1.5f)
             ) {
-                // Header Toggle Button
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = spacing.space2),
-                    horizontalArrangement = if (isCollapsed) Arrangement.Center else Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                // Title: Robot Controller
+                Text(
+                    text = "Robot Controller",
+                    style = typography.h4.copy(
+                        fontSize = typography.h4.fontSize * 1.5f,
+                        lineHeight = typography.h4.lineHeight * 1.5f
+                    ),
+                    color = colors.primaryText,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(
+                        horizontal = spacing.space2 * 1.5f,
+                        vertical = spacing.space1 * 1.5f
+                    )
+                )
+
+                // Navigation Items List
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(spacing.space2 * 1.5f)
                 ) {
-                    if (!isCollapsed) {
-                        Text(
-                            text = "NAVIGATION",
-                            style = typography.caption,
-                            color = colors.mutedText,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    SidebarNavItem.entries.forEach { item ->
+                        val isSelected = selectedItem == item
+                        val bg = if (isSelected) colors.interactiveSurface else Color.Transparent
+                        val fg = if (isSelected) colors.primaryText else colors.secondaryText
 
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(colors.interactiveSurface)
-                            .clickable { isCollapsed = !isCollapsed },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (isCollapsed) Icons.AutoMirrored.Filled.KeyboardArrowRight else Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                            contentDescription = if (isCollapsed) "Expand Menu" else "Collapse Menu",
-                            tint = colors.primaryText,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-
-                // Robot Profile / Avatar Card
-                if (!isCollapsed) {
-                    MonochromeCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        backgroundColor = colors.interactiveSurface,
-                        borderColor = colors.defaultBorder
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(spacing.space3),
-                            modifier = Modifier.fillMaxWidth()
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(66.dp)
+                                .clip(shapes.buttons)
+                                .background(bg)
+                                .clickable { onItemSelected(item) }
+                                .padding(horizontal = spacing.space3 * 1.5f),
+                            contentAlignment = Alignment.CenterStart
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(shapes.smallControls)
-                                    .background(colors.hoverSurface)
-                                    .padding(4.dp),
-                                contentAlignment = Alignment.Center
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(spacing.space3 * 1.5f)
                             ) {
-                                Image(
-                                    painter = robotImagePainter,
-                                    contentDescription = "Robot Avatar",
-                                    modifier = Modifier.fillMaxSize()
+                                Icon(
+                                    imageVector = item.icon,
+                                    contentDescription = item.title,
+                                    tint = fg,
+                                    modifier = Modifier.size(30.dp)
                                 )
-                            }
-
-                            Column {
                                 Text(
-                                    text = robotName,
-                                    style = typography.label,
-                                    color = colors.primaryText,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                MonochromeStatusPill(
-                                    text = connectionStatusText,
-                                    level = StatusLevel.Active
+                                    text = item.title,
+                                    style = typography.bodySmall.copy(
+                                        fontSize = typography.bodySmall.fontSize * 1.5f,
+                                        lineHeight = typography.bodySmall.lineHeight * 1.5f
+                                    ),
+                                    color = fg,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                 )
                             }
                         }
                     }
-                } else {
-                    // Compact Avatar for Collapsed State
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(shapes.smallControls)
-                            .background(colors.interactiveSurface)
-                            .border(1.dp, colors.defaultBorder, shapes.smallControls)
-                            .padding(4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = robotImagePainter,
-                            contentDescription = "Robot Avatar",
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(spacing.space2))
-
-                // Navigation Item List
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(spacing.space2),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    SideMenuItem.entries.forEach { item ->
-                        val isSelected = selectedItem == item
-                        SideMenuItemRow(
-                            item = item,
-                            isSelected = isSelected,
-                            isCollapsed = isCollapsed,
-                            onClick = { onItemSelected(item) }
-                        )
-                    }
                 }
             }
 
-            // Bottom Section: Quick Disconnect Action Button
+            // Bottom Section: Connection Status
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier.fillMaxWidth()
             ) {
-                if (!isCollapsed) {
-                    MonochromeButton(
-                        onClick = onDisconnectClick,
-                        variant = MonochromeButtonVariant.Secondary,
-                        size = MonochromeButtonSize.Standard,
-                        icon = Icons.Default.PowerSettingsNew,
-                        text = "Disconnect",
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                } else {
+                HorizontalDivider(
+                    color = colors.subtleBorder,
+                    thickness = 1.5.dp
+                )
+
+                Spacer(modifier = Modifier.height(spacing.space4 * 1.5f))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(spacing.space3 * 1.5f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = spacing.space2 * 1.5f)
+                ) {
+                    // Green Connection Dot
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
-                            .clip(shapes.buttons)
-                            .background(colors.hoverSurface)
-                            .border(1.dp, colors.strongBorder, shapes.buttons)
-                            .clickable(onClick = onDisconnectClick),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PowerSettingsNew,
-                            contentDescription = "Disconnect Robot",
-                            tint = colors.primaryText,
-                            modifier = Modifier.size(18.dp)
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .background(if (isConnected) Color(0xFF22C55E) else colors.disabledText)
+                    )
+
+                    Column {
+                        Text(
+                            text = if (isConnected) "Connected" else "Disconnected",
+                            style = typography.label.copy(
+                                fontSize = typography.label.fontSize * 1.5f,
+                                lineHeight = typography.label.lineHeight * 1.5f
+                            ),
+                            color = colors.primaryText,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = connectionAddress,
+                            style = typography.monoCaption.copy(
+                                fontSize = typography.monoCaption.fontSize * 1.5f,
+                                lineHeight = typography.monoCaption.lineHeight * 1.5f
+                            ),
+                            color = colors.mutedText
                         )
                     }
                 }
@@ -244,78 +179,10 @@ fun SideMenu(
     }
 }
 
+@Preview(name = "Sidebar Preview", showBackground = true)
 @Composable
-private fun SideMenuItemRow(
-    item: SideMenuItem,
-    isSelected: Boolean,
-    isCollapsed: Boolean,
-    onClick: () -> Unit
-) {
-    val colors = MonochromeTheme.colors
-    val typography = MonochromeTheme.typography
-    val spacing = MonochromeTheme.spacing
-    val shapes = MonochromeTheme.shapes
-
-    val bg = if (isSelected) colors.primaryActionBg else Color.Transparent
-    val fg = if (isSelected) colors.primaryActionFg else colors.secondaryText
-    val border = if (isSelected) colors.primaryActionBg else Color.Transparent
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(44.dp)
-            .clip(shapes.buttons)
-            .background(bg)
-            .border(1.dp, border, shapes.buttons)
-            .clickable(onClick = onClick)
-            .padding(horizontal = spacing.space3),
-        contentAlignment = if (isCollapsed) Alignment.Center else Alignment.CenterStart
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = if (isCollapsed) Arrangement.Center else Arrangement.spacedBy(spacing.space3)
-        ) {
-            Icon(
-                imageVector = item.icon,
-                contentDescription = item.title,
-                tint = fg,
-                modifier = Modifier.size(20.dp)
-            )
-
-            if (!isCollapsed) {
-                Column {
-                    Text(
-                        text = item.title,
-                        style = typography.label,
-                        color = fg,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Preview(name = "SideMenu Expanded", showBackground = true)
-@Composable
-fun SideMenuExpandedPreview() {
+fun SidebarPreview() {
     MonochromeTheme(darkTheme = false) {
-        SideMenu(
-            selectedItem = SideMenuItem.DASHBOARD,
-            onItemSelected = {},
-            isInitiallyCollapsed = false
-        )
-    }
-}
-
-@Preview(name = "SideMenu Collapsed", showBackground = true)
-@Composable
-fun SideMenuCollapsedPreview() {
-    MonochromeTheme(darkTheme = false) {
-        SideMenu(
-            selectedItem = SideMenuItem.DASHBOARD,
-            onItemSelected = {},
-            isInitiallyCollapsed = true
-        )
+        Sidebar()
     }
 }

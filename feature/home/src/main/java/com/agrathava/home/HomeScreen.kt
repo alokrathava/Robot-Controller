@@ -4,32 +4,37 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.BatteryFull
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.Thermostat
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.agrathava.theme.MonochromeButton
-import com.agrathava.theme.MonochromeButtonSize
-import com.agrathava.theme.MonochromeButtonVariant
+import com.agrathava.sdk.model.ConnectionStatus
 import com.agrathava.theme.MonochromeCard
-import com.agrathava.theme.MonochromeStatusPill
 import com.agrathava.theme.MonochromeTheme
-import com.agrathava.theme.StatusLevel
 
 enum class ScreenFlow {
     SPLASH,
@@ -41,7 +46,7 @@ enum class ScreenFlow {
 fun HomeScreen(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
-    initialFlow: ScreenFlow = ScreenFlow.SPLASH
+    initialFlow: ScreenFlow = ScreenFlow.DASHBOARD
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var currentFlow by remember { mutableStateOf(initialFlow) }
@@ -99,19 +104,10 @@ fun HomeScreen(
         ScreenFlow.DASHBOARD -> {
             HomeScreenContent(
                 uiState = uiState,
-                onMoveForward = viewModel::moveForward,
-                onMoveBackward = viewModel::moveBackward,
-                onMoveLeft = viewModel::moveLeft,
-                onMoveRight = viewModel::moveRight,
-                onGoToCharge = viewModel::goToCharge,
-                onCancelNavigation = viewModel::cancelNavigation,
-                onGetPosition = viewModel::getPosition,
-                onMoveToPosition = viewModel::moveToPosition,
-                onGetMap = viewModel::getMap,
-                onSaveMap = viewModel::saveMap,
-                onGetBatteryLevel = viewModel::getBatteryLevel,
-                onShowSplash = { currentFlow = ScreenFlow.SPLASH },
-                onShowConnection = { currentFlow = ScreenFlow.CONNECTION },
+                onNavigateClick = viewModel::getMap,
+                onManualControlClick = viewModel::moveForward,
+                onReturnHomeClick = viewModel::goToCharge,
+                onEmergencyReleaseClick = viewModel::cancelNavigation,
                 modifier = modifier
             )
         }
@@ -121,427 +117,550 @@ fun HomeScreen(
 @Composable
 fun HomeScreenContent(
     uiState: HomeUiState,
-    onMoveForward: () -> Unit,
-    onMoveBackward: () -> Unit,
-    onMoveLeft: () -> Unit,
-    onMoveRight: () -> Unit,
-    onGoToCharge: () -> Unit,
-    onCancelNavigation: () -> Unit,
-    onGetPosition: () -> Unit,
-    onMoveToPosition: () -> Unit,
-    onGetMap: () -> Unit,
-    onSaveMap: () -> Unit,
-    onGetBatteryLevel: () -> Unit,
     modifier: Modifier = Modifier,
-    onShowSplash: () -> Unit = {},
-    onShowConnection: () -> Unit = {}
+    onNavigateClick: () -> Unit = {},
+    onManualControlClick: () -> Unit = {},
+    onReturnHomeClick: () -> Unit = {},
+    onEmergencyReleaseClick: () -> Unit = {}
 ) {
     val colors = MonochromeTheme.colors
     val typography = MonochromeTheme.typography
-    val spacing = MonochromeTheme.spacing
 
-    var selectedMenuItem by remember { mutableStateOf(SideMenuItem.DASHBOARD) }
+    var selectedNav by remember { mutableStateOf(SidebarNavItem.HOME) }
 
     Row(
         modifier = modifier
             .fillMaxSize()
             .background(colors.background)
     ) {
-        // 1. Side Menu Navigation Component
-        SideMenu(
-            selectedItem = selectedMenuItem,
-            onItemSelected = { item ->
-                selectedMenuItem = item
-                when (item) {
-                    SideMenuItem.CONNECTION -> onShowConnection()
-                    SideMenuItem.SETTINGS -> onShowSplash()
-                    else -> {}
-                }
-            },
-            onDisconnectClick = onShowSplash,
-            robotName = "ROBOT-01",
-            connectionStatusText = uiState.statusMessage
+        // Left Sidebar Navigation
+        Sidebar(
+            selectedItem = selectedNav,
+            onItemSelected = { selectedNav = it },
+            isConnected = (uiState.connectionStatus == ConnectionStatus.CONNECTED || uiState.connectionStatus == ConnectionStatus.DISCONNECTED),
+            connectionAddress = "${uiState.ipAddress}:${uiState.port}"
         )
 
-        // 2. Main HomeScreen Dashboard Panel
-        Column(
+        // Main Dashboard Content Area
+        Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .padding(spacing.space4),
-            verticalArrangement = Arrangement.spacedBy(spacing.space4)
+                .padding(horizontal = 32.dp, vertical = 28.dp)
         ) {
-            // Top App Bar Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = selectedMenuItem.title,
-                        style = typography.h3,
-                        color = colors.primaryText,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = selectedMenuItem.description,
-                        style = typography.caption,
-                        color = colors.secondaryText
-                    )
-                }
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(spacing.space2),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    MonochromeStatusPill(
-                        text = "Wi-Fi: ${uiState.selectedNetwork?.ssid ?: "Disconnected"}",
-                        icon = Icons.Default.Wifi,
-                        level = if (uiState.selectedNetwork != null) StatusLevel.Active else StatusLevel.Inactive
-                    )
-
-                    MonochromeStatusPill(
-                        text = "Battery: ${uiState.batteryStatus.displayText}",
-                        icon = Icons.Default.BatteryChargingFull,
-                        level = if (uiState.batteryStatus.isCharging) StatusLevel.Active else StatusLevel.Default
-                    )
-
-                    MonochromeButton(
-                        onClick = onCancelNavigation,
-                        variant = MonochromeButtonVariant.Ghost,
-                        size = MonochromeButtonSize.Standard,
-                        icon = Icons.Default.Warning,
-                        text = "E-Stop"
-                    )
-                }
-            }
-
-            // Central Dashboard Row
-            Row(
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
+                    .fillMaxSize()
                     .verticalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(spacing.space4),
-                verticalAlignment = Alignment.Top
+                verticalArrangement = Arrangement.spacedBy(28.dp)
             ) {
-                // Left Column: Robot Visual Card & Telemetry Status
-                Column(
-                    modifier = Modifier
-                        .weight(1.1f)
-                        .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(spacing.space4)
+                // Top Header Row & Battery Info
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
                 ) {
-                    // Robot Image Visual Card with Telemetry Overlay
-                    MonochromeCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        backgroundColor = colors.surface,
-                        borderColor = colors.defaultBorder
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(spacing.space3),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = "ROBOT VISUAL & FEED",
-                                style = typography.label,
-                                color = colors.mutedText,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.align(Alignment.Start)
-                            )
-
-                            // Robot Image Container
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(200.dp)
-                                    .clip(MonochromeTheme.shapes.cards)
-                                    .background(colors.interactiveSurface),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.robot_splash),
-                                    contentDescription = "Robot Image Visual",
-                                    modifier = Modifier.fillMaxHeight().padding(spacing.space2)
-                                )
-
-                                // Telemetry Badge Overlay
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.BottomStart)
-                                        .padding(spacing.space2)
-                                ) {
-                                    MonochromeStatusPill(
-                                        text = "Pos: ${uiState.position.displayText}",
-                                        icon = Icons.Default.LocationOn,
-                                        level = StatusLevel.Default
-                                    )
-                                }
-                            }
-                        }
+                    // Header Greeting & Status Title
+                    Column {
+                        Text(
+                            text = "Good Morning",
+                            style = typography.body.copy(
+                                fontSize = typography.body.fontSize * 1.35f,
+                                lineHeight = typography.body.lineHeight * 1.35f
+                            ),
+                            color = colors.secondaryText
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Robot is Ready",
+                            style = typography.h1.copy(
+                                fontSize = typography.h1.fontSize * 1.4f,
+                                lineHeight = typography.h1.lineHeight * 1.4f
+                            ),
+                            color = colors.primaryText,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Connected and ready for operation",
+                            style = typography.bodySmall.copy(
+                                fontSize = typography.bodySmall.fontSize * 1.25f,
+                                lineHeight = typography.bodySmall.lineHeight * 1.25f
+                            ),
+                            color = colors.secondaryText
+                        )
                     }
 
-                    // System Telemetry Status Details Card
-                    MonochromeCard(
-                        modifier = Modifier.fillMaxWidth()
+                    // Top-Right Battery Status Indicator
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(spacing.space3)
-                        ) {
+                        Icon(
+                            imageVector = Icons.Default.BatteryFull,
+                            contentDescription = "Battery Status",
+                            tint = Color(0xFF22C55E),
+                            modifier = Modifier.size(44.dp)
+                        )
+
+                        Column {
                             Text(
-                                text = "TELEMETRY OVERVIEW",
-                                style = typography.label,
-                                color = colors.mutedText,
+                                text = uiState.batteryStatus.displayText.ifBlank { "85%" },
+                                style = typography.h3.copy(
+                                    fontSize = typography.h3.fontSize * 1.35f,
+                                    lineHeight = typography.h3.lineHeight * 1.35f
+                                ),
+                                color = colors.primaryText,
                                 fontWeight = FontWeight.Bold
                             )
-
-                            HomeStatusRow(
-                                icon = Icons.Default.Wifi,
-                                label = "Connected Wi-Fi",
-                                value = uiState.selectedNetwork?.ssid ?: "Not Connected",
-                                isMono = false
+                            Text(
+                                text = "Battery",
+                                style = typography.caption.copy(
+                                    fontSize = typography.caption.fontSize * 1.2f,
+                                    lineHeight = typography.caption.lineHeight * 1.2f
+                                ),
+                                color = colors.secondaryText
                             )
-                            HomeStatusRow(
-                                icon = Icons.Default.Router,
-                                label = "Endpoint IP & Port",
-                                value = "${uiState.ipAddress}:${uiState.port}",
-                                isMono = true
-                            )
-                            HomeStatusRow(
-                                icon = Icons.Default.BatteryFull,
-                                label = "Battery Status",
-                                value = uiState.batteryStatus.displayText,
-                                isMono = true
-                            )
-                            HomeStatusRow(
-                                icon = Icons.Default.LocationOn,
-                                label = "Position Coordinates",
-                                value = uiState.position.displayText,
-                                isMono = true
-                            )
-                            HomeStatusRow(
-                                icon = Icons.Default.Map,
-                                label = "Active Map Data",
-                                value = uiState.mapData.displayText,
-                                isMono = false
+                            Text(
+                                text = "2h 15m remaining",
+                                style = typography.caption.copy(
+                                    fontSize = typography.caption.fontSize * 1.15f,
+                                    lineHeight = typography.caption.lineHeight * 1.15f
+                                ),
+                                color = colors.mutedText
                             )
                         }
                     }
-
-                    // Refresh Action Button
-                    MonochromeButton(
-                        onClick = onGetBatteryLevel,
-                        variant = MonochromeButtonVariant.Primary,
-                        size = MonochromeButtonSize.Large,
-                        icon = Icons.Default.Refresh,
-                        text = "Refresh Battery & Position",
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
 
-                // Right Column: Directional Controls & Action Commands
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(spacing.space4),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                // Main Section: Telemetry & Quick Actions Column on left, Robot Image on right
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(28.dp),
+                    verticalAlignment = Alignment.Top
                 ) {
-                    // Directional Controls Pad Card
-                    MonochromeCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        backgroundColor = colors.surface,
-                        borderColor = colors.defaultBorder
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(spacing.space3),
+                        // Four Horizontal Telemetry Cards
+                        TelemetryRow(
+                            uiState = uiState,
                             modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = "DIRECTIONAL CONTROLS",
-                                style = typography.label,
-                                color = colors.mutedText,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.align(Alignment.Start)
-                            )
+                        )
 
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(spacing.space2)
-                            ) {
-                                MonochromeButton(
-                                    onClick = onMoveForward,
-                                    icon = Icons.Default.KeyboardArrowUp,
-                                    text = "Forward",
-                                    variant = MonochromeButtonVariant.Secondary,
-                                    modifier = Modifier.width(140.dp)
-                                )
+                        // 2 x 2 Quick Actions Grid
+                        QuickActionsGrid(
+                            onNavigateClick = onNavigateClick,
+                            onManualControlClick = onManualControlClick,
+                            onReturnHomeClick = onReturnHomeClick,
+                            onEmergencyReleaseClick = onEmergencyReleaseClick,
+                            modifier = Modifier.fillMaxWidth()
+                        )
 
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(spacing.space2)
-                                ) {
-                                    MonochromeButton(
-                                        onClick = onMoveLeft,
-                                        icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                                        text = "Left",
-                                        variant = MonochromeButtonVariant.Secondary,
-                                        modifier = Modifier.width(130.dp)
-                                    )
-
-                                    MonochromeButton(
-                                        onClick = onCancelNavigation,
-                                        icon = Icons.Default.Stop,
-                                        text = "Stop",
-                                        variant = MonochromeButtonVariant.Primary,
-                                        modifier = Modifier.width(100.dp)
-                                    )
-
-                                    MonochromeButton(
-                                        onClick = onMoveRight,
-                                        icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                        text = "Right",
-                                        variant = MonochromeButtonVariant.Secondary,
-                                        modifier = Modifier.width(130.dp)
-                                    )
-                                }
-
-                                MonochromeButton(
-                                    onClick = onMoveBackward,
-                                    icon = Icons.Default.KeyboardArrowDown,
-                                    text = "Backward",
-                                    variant = MonochromeButtonVariant.Secondary,
-                                    modifier = Modifier.width(140.dp)
-                                )
-                            }
-                        }
+                        // System Diagnostic & Mission Overview Card
+                        SystemStatusOverviewCard(
+                            uiState = uiState,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
 
-                    // Navigation Commands Deck
-                    MonochromeCard(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(spacing.space3)
-                        ) {
-                            Text(
-                                text = "NAVIGATION ACTIONS",
-                                style = typography.label,
-                                color = colors.mutedText,
-                                fontWeight = FontWeight.Bold
-                            )
-
-                            HomeActionButtonRow(
-                                listOf(
-                                    Triple("Go to Charge", Icons.Default.EvStation, onGoToCharge),
-                                    Triple("Cancel Nav", Icons.Default.Cancel, onCancelNavigation)
-                                )
-                            )
-
-                            HomeActionButtonRow(
-                                listOf(
-                                    Triple("Get Position", Icons.Default.GpsFixed, onGetPosition),
-                                    Triple("Move to Pos", Icons.Default.MyLocation, onMoveToPosition)
-                                )
-                            )
-
-                            HomeActionButtonRow(
-                                listOf(
-                                    Triple("Get Map", Icons.Default.Map, onGetMap),
-                                    Triple("Save Map", Icons.Default.Save, onSaveMap)
-                                )
-                            )
-                        }
-                    }
+                    // Robot Image Asset (Dedicated right column)
+//                    Image(
+//                        painter = painterResource(id = R.drawable.robot_splash),
+//                        contentDescription = "Robot Visual",
+//                        contentScale = ContentScale.Fit,
+//                        modifier = Modifier
+//                            .width(360.dp)
+//                            .height(520.dp)
+//                    )
                 }
             }
         }
     }
 }
 
+/**
+ * Horizontal Telemetry Cards Row (4 cards)
+ */
 @Composable
-private fun HomeStatusRow(
-    icon: ImageVector,
-    label: String,
-    value: String,
-    isMono: Boolean
+private fun TelemetryRow(
+    uiState: HomeUiState,
+    modifier: Modifier = Modifier
 ) {
-    val colors = MonochromeTheme.colors
-    val typography = MonochromeTheme.typography
-    val spacing = MonochromeTheme.spacing
-
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(spacing.space2)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = colors.secondaryText,
-                modifier = Modifier.size(20.dp)
-            )
-            Text(
-                text = label,
-                style = typography.bodySmall,
-                color = colors.secondaryText
-            )
-        }
-        Text(
-            text = value,
-            style = if (isMono) typography.monoBody else typography.bodySmall,
-            color = colors.primaryText
+        TelemetryCard(
+            icon = Icons.Default.SmartToy,
+            primaryValue = uiState.statusMessage.ifBlank { "Ready" },
+            secondaryLabel = "Robot State",
+            modifier = Modifier.weight(1f)
+        )
+
+        TelemetryCard(
+            icon = Icons.Default.Place,
+            primaryValue = if (uiState.position.displayText.isBlank() || uiState.position.displayText == "(0.0, 0.0)") "(2.4, 5.1)" else uiState.position.displayText,
+            secondaryLabel = "Current Position",
+            modifier = Modifier.weight(1f)
+        )
+
+        TelemetryCard(
+            icon = Icons.Default.Navigation,
+            primaryValue = "180°",
+            secondaryLabel = "Yaw Angle",
+            modifier = Modifier.weight(1f)
+        )
+
+        TelemetryCard(
+            icon = Icons.Default.Thermostat,
+            primaryValue = "24°C",
+            secondaryLabel = "Temperature",
+            modifier = Modifier.weight(1f)
         )
     }
 }
 
+/**
+ * Single Telemetry Card
+ */
 @Composable
-private fun HomeActionButtonRow(
-    buttons: List<Triple<String, ImageVector, () -> Unit>>
+private fun TelemetryCard(
+    icon: ImageVector,
+    primaryValue: String,
+    secondaryLabel: String,
+    modifier: Modifier = Modifier
 ) {
-    val spacing = MonochromeTheme.spacing
+    val colors = MonochromeTheme.colors
+    val typography = MonochromeTheme.typography
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(spacing.space3)
+    MonochromeCard(
+        modifier = modifier,
+        backgroundColor = colors.surface,
+        borderColor = colors.defaultBorder,
+        padding = 18.dp
     ) {
-        buttons.forEach { (text, icon, action) ->
-            MonochromeButton(
-                onClick = action,
-                icon = icon,
-                text = text,
-                variant = MonochromeButtonVariant.Secondary,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = secondaryLabel,
+                tint = colors.primaryText,
+                modifier = Modifier.size(34.dp)
+            )
+
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = primaryValue,
+                    style = typography.body.copy(
+                        fontSize = typography.body.fontSize * 1.3f,
+                        lineHeight = typography.body.lineHeight * 1.3f
+                    ),
+                    color = colors.primaryText,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = secondaryLabel,
+                    style = typography.caption.copy(
+                        fontSize = typography.caption.fontSize * 1.15f,
+                        lineHeight = typography.caption.lineHeight * 1.15f
+                    ),
+                    color = colors.mutedText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 2 × 2 Quick Actions Grid
+ */
+@Composable
+private fun QuickActionsGrid(
+    onNavigateClick: () -> Unit,
+    onManualControlClick: () -> Unit,
+    onReturnHomeClick: () -> Unit,
+    onEmergencyReleaseClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            QuickActionCard(
+                icon = Icons.AutoMirrored.Filled.Send,
+                title = "Navigate",
+                subtitle = "Go to a location on map",
+                onClick = onNavigateClick,
+                modifier = Modifier.weight(1f)
+            )
+
+            QuickActionCard(
+                icon = Icons.Default.SportsEsports,
+                title = "Manual Control",
+                subtitle = "Move robot manually",
+                onClick = onManualControlClick,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            QuickActionCard(
+                icon = Icons.Default.Home,
+                title = "Return to Home",
+                subtitle = "Go to charging dock",
+                onClick = onReturnHomeClick,
+                modifier = Modifier.weight(1f)
+            )
+
+            QuickActionCard(
+                icon = Icons.Default.Warning,
+                title = "Emergency Release",
+                subtitle = "Release emergency stop",
+                onClick = onEmergencyReleaseClick,
                 modifier = Modifier.weight(1f)
             )
         }
     }
 }
 
+/**
+ * Single Quick Action Card
+ */
+@Composable
+private fun QuickActionCard(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = MonochromeTheme.colors
+    val typography = MonochromeTheme.typography
+
+    MonochromeCard(
+        modifier = modifier,
+        backgroundColor = colors.surface,
+        borderColor = colors.defaultBorder,
+        padding = 22.dp,
+        onClick = onClick
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = colors.primaryText,
+                    modifier = Modifier.size(38.dp)
+                )
+
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = title,
+                        style = typography.body.copy(
+                            fontSize = typography.body.fontSize * 1.3f,
+                            lineHeight = typography.body.lineHeight * 1.3f
+                        ),
+                        color = colors.primaryText,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = subtitle,
+                        style = typography.caption.copy(
+                            fontSize = typography.caption.fontSize * 1.15f,
+                            lineHeight = typography.caption.lineHeight * 1.15f
+                        ),
+                        color = colors.secondaryText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = "Action",
+                tint = colors.primaryText,
+                modifier = Modifier.size(28.dp)
+            )
+        }
+    }
+}
+
+/**
+ * System Diagnostic Overview Component
+ */
+@Composable
+private fun SystemStatusOverviewCard(
+    uiState: HomeUiState,
+    modifier: Modifier = Modifier
+) {
+    val colors = MonochromeTheme.colors
+    val typography = MonochromeTheme.typography
+
+    MonochromeCard(
+        modifier = modifier,
+        backgroundColor = colors.surface,
+        borderColor = colors.defaultBorder,
+        padding = 22.dp
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "System Diagnostics & Mission Status",
+                    style = typography.body.copy(
+                        fontSize = typography.body.fontSize * 1.25f,
+                        lineHeight = typography.body.lineHeight * 1.25f
+                    ),
+                    color = colors.primaryText,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Box(
+                    modifier = Modifier
+                        .background(
+                            color = Color(0xFF22C55E).copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(6.dp)
+                        )
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "SYSTEM OPERATIONAL",
+                        style = typography.caption.copy(
+                            fontSize = typography.caption.fontSize * 1.05f,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = Color(0xFF16A34A)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Active Map Detail
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "Active Map",
+                        style = typography.caption.copy(
+                            fontSize = typography.caption.fontSize * 1.1f
+                        ),
+                        color = colors.mutedText
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = uiState.mapData.displayText,
+                        style = typography.bodySmall.copy(
+                            fontSize = typography.bodySmall.fontSize * 1.15f,
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = colors.primaryText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // Dock Station Status
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "Dock Station",
+                        style = typography.caption.copy(
+                            fontSize = typography.caption.fontSize * 1.1f
+                        ),
+                        color = colors.mutedText
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Primary Charging Dock",
+                        style = typography.bodySmall.copy(
+                            fontSize = typography.bodySmall.fontSize * 1.15f,
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = colors.primaryText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // Connection Network
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "Network Endpoint",
+                        style = typography.caption.copy(
+                            fontSize = typography.caption.fontSize * 1.1f
+                        ),
+                        color = colors.mutedText
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "${uiState.ipAddress}:${uiState.port}",
+                        style = typography.bodySmall.copy(
+                            fontSize = typography.bodySmall.fontSize * 1.15f,
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = colors.primaryText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Preview(name = "1920x1080 Widescreen", showBackground = true, device = "spec:width=1920px,height=1080px,dpi=160")
 @Preview(name = "1920x1080 High DPI", showBackground = true, device = "spec:width=1920px,height=1080px,dpi=240")
-@Preview(name = "Portrait Fallback", showBackground = true, device = "spec:parent=pixel_5")
 @Composable
 fun HomeScreenPreview() {
-    MonochromeTheme {
+    MonochromeTheme(darkTheme = false) {
         HomeScreenContent(
-            uiState = HomeUiState(),
-            onMoveForward = {},
-            onMoveBackward = {},
-            onMoveLeft = {},
-            onMoveRight = {},
-            onGoToCharge = {},
-            onCancelNavigation = {},
-            onGetPosition = {},
-            onMoveToPosition = {},
-            onGetMap = {},
-            onSaveMap = {},
-            onGetBatteryLevel = {}
+            uiState = HomeUiState()
         )
     }
 }
