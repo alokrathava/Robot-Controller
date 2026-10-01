@@ -60,12 +60,17 @@ interface RobotRepository {
 }
 
 @Singleton
-class DefaultRobotRepository @Inject constructor(
+class DefaultRobotRepository internal constructor(
     private val robotLogDao: RobotLogDao,
-    private val deviceBatteryDataSource: DeviceBatteryDataSource
+    private val deviceBatteryDataSource: DeviceBatteryDataSource,
+    private val scope: CoroutineScope
 ) : RobotRepository {
 
-    private val scope = CoroutineScope(Dispatchers.IO)
+    @Inject
+    constructor(
+        robotLogDao: RobotLogDao,
+        deviceBatteryDataSource: DeviceBatteryDataSource
+    ) : this(robotLogDao, deviceBatteryDataSource, CoroutineScope(Dispatchers.IO))
 
     private val _batteryStatus = MutableStateFlow(BatteryStatus(levelPercent = 85, isCharging = false))
     override val batteryStatus: StateFlow<BatteryStatus> = _batteryStatus.asStateFlow()

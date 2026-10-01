@@ -11,6 +11,8 @@ import com.agrathava.sdk.model.DockingStatus
 import com.agrathava.sdk.model.NavigationStatus
 import com.agrathava.sdk.model.RobotSimulationConfig
 import com.agrathava.sdk.model.ThermalState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -30,7 +32,7 @@ class RobotRepositoryTest {
     fun setUp() {
         fakeDao = FakeRobotLogDao()
         fakeBatteryDataSource = FakeBatteryDataSource()
-        repository = DefaultRobotRepository(fakeDao, fakeBatteryDataSource)
+        repository = DefaultRobotRepository(fakeDao, fakeBatteryDataSource, CoroutineScope(Dispatchers.Unconfined))
     }
 
     @Test

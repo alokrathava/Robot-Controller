@@ -9,32 +9,36 @@ The **Robot SDK** (`:robot:sdk`) provides a high-performance **Digital Twin** an
 ### 1.1 High-Level Component Diagram
 
 ```mermaid
-graph TD
-    subgraph Android OS / Host Device
-        OS_Battery[Android BatteryManager Broadcasts]
+flowchart TD
+
+    subgraph ANDROID["Android OS / Host Device"]
+        OS_Battery["Android BatteryManager Broadcasts"]
     end
 
-    subgraph Robot SDK (:robot:sdk)
-        B_Source[DeviceBatteryDataSource]
-        Repo[DefaultRobotRepository<br>Digital Twin State Engine]
-        DI[RepositoryModule<br>Hilt DI Bindings]
+    subgraph SDK["Robot SDK (:robot:sdk)"]
+        B_Source["DeviceBatteryDataSource"]
+        Repo["DefaultRobotRepository<br/>Digital Twin State Engine"]
+        DI["RepositoryModule<br/>Hilt DI Bindings"]
     end
 
-    subgraph Core Storage (:core:database)
-        Room_DB[(Room Database)]
-        Dao[RobotLogDao]
+    subgraph DATABASE["Core Storage (:core:database)"]
+        Room_DB[("Room Database")]
+        Dao["RobotLogDao"]
     end
 
-    subgraph Integrator Application
-        App_VM[App ViewModel / Service]
+    subgraph APP["Integrator Application"]
+        App_VM["App ViewModel / Service"]
     end
 
-    OS_Battery -->|ACTION_BATTERY_CHANGED| B_Source
-    B_Source -->|BatteryStatus Flow| Repo
-    Repo -->|Insert Logs| Dao
+    OS_Battery -->|"ACTION_BATTERY_CHANGED"| B_Source
+    B_Source -->|"BatteryStatus Flow"| Repo
+
+    DI -->|"Binds RobotRepository"| Repo
+
+    Repo -->|"Insert Logs"| Dao
     Dao --> Room_DB
-    DI -->|Binds RobotRepository| Repo
-    Repo -->|Exposes StateFlows & APIs| App_VM
+
+    Repo -->|"Exposes StateFlows & APIs"| App_VM
 ```
 
 ### 1.2 Core Components Breakdown
