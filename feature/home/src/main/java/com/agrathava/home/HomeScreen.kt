@@ -46,7 +46,9 @@ enum class ScreenFlow {
 fun HomeScreen(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
-    initialFlow: ScreenFlow = ScreenFlow.DASHBOARD
+    initialFlow: ScreenFlow = ScreenFlow.DASHBOARD,
+    selectedNav: SidebarNavItem = SidebarNavItem.HOME,
+    onSidebarItemSelected: (SidebarNavItem) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var currentFlow by remember { mutableStateOf(initialFlow) }
@@ -104,7 +106,12 @@ fun HomeScreen(
         ScreenFlow.DASHBOARD -> {
             HomeScreenContent(
                 uiState = uiState,
-                onNavigateClick = viewModel::getMap,
+                selectedNav = selectedNav,
+                onSidebarItemSelected = onSidebarItemSelected,
+                onNavigateClick = {
+                    viewModel.getMap()
+                    onSidebarItemSelected(SidebarNavItem.NAVIGATION)
+                },
                 onManualControlClick = viewModel::moveForward,
                 onReturnHomeClick = viewModel::goToCharge,
                 onEmergencyReleaseClick = viewModel::cancelNavigation,
@@ -118,6 +125,8 @@ fun HomeScreen(
 fun HomeScreenContent(
     uiState: HomeUiState,
     modifier: Modifier = Modifier,
+    selectedNav: SidebarNavItem = SidebarNavItem.HOME,
+    onSidebarItemSelected: (SidebarNavItem) -> Unit = {},
     onNavigateClick: () -> Unit = {},
     onManualControlClick: () -> Unit = {},
     onReturnHomeClick: () -> Unit = {},
@@ -125,8 +134,6 @@ fun HomeScreenContent(
 ) {
     val colors = MonochromeTheme.colors
     val typography = MonochromeTheme.typography
-
-    var selectedNav by remember { mutableStateOf(SidebarNavItem.HOME) }
 
     Row(
         modifier = modifier
@@ -136,7 +143,7 @@ fun HomeScreenContent(
         // Left Sidebar Navigation
         Sidebar(
             selectedItem = selectedNav,
-            onItemSelected = { selectedNav = it },
+            onItemSelected = onSidebarItemSelected,
             isConnected = (uiState.connectionStatus == ConnectionStatus.CONNECTED || uiState.connectionStatus == ConnectionStatus.DISCONNECTED),
             connectionAddress = "${uiState.ipAddress}:${uiState.port}"
         )

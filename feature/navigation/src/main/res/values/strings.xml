@@ -1,0 +1,30 @@
+<resources>
+    <string name="app_name">navigation</string>
+    <string name="nav_title">Navigate to Location</string>
+    <string name="nav_subtitle">Select a location from the map or enter coordinates</string>
+    <string name="tab_saved_locations">Saved Locations</string>
+    <string name="tab_coordinates">Coordinates</string>
+    <string name="btn_start_navigation">Start Navigation</string>
+
+    <!-- Saved Locations -->
+    <string name="loc_lobby">Lobby</string>
+    <string name="loc_dining_area">Dining Area</string>
+    <string name="loc_activity_room">Activity Room</string>
+    <string name="loc_reception">Reception</string>
+
+    <!-- Charging Dock System Destination -->
+    <string name="loc_charging_dock">Charging Dock</string>
+    <string name="charging_dock_subtitle">Fixed position • (0, 0, 0)</string>
+
+    <!-- Empty Saved Locations State -->
+    <string name="empty_locations_title">No saved locations</string>
+    <string name="empty_locations_subtitle">Saved locations will appear here.</string>
+
+    <!-- Coordinates Form -->
+    <string name="label_x_coordinate">X Coordinate</string>
+    <string name="label_y_coordinate">Y Coordinate</string>
+    <string name="label_yaw">Yaw</string>
+    <string name="placeholder_x">e.g. 2.4</string>
+    <string name="placeholder_y">e.g. 5.1</string>
+    <string name="placeholder_yaw">e.g. 180</string>
+</resources>
