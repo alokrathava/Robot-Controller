@@ -1,5 +1,6 @@
 package com.agrathava.home
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -10,14 +11,14 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -139,197 +140,322 @@ fun HomeScreenContent(
     val typography = MonochromeTheme.typography
     val spacing = MonochromeTheme.spacing
 
-    Box(
+    var selectedMenuItem by remember { mutableStateOf(SideMenuItem.DASHBOARD) }
+
+    Row(
         modifier = modifier
             .fillMaxSize()
             .background(colors.background)
-            .padding(spacing.space4),
-        contentAlignment = Alignment.TopCenter
     ) {
-        Row(
+        // 1. Side Menu Navigation Component
+        SideMenu(
+            selectedItem = selectedMenuItem,
+            onItemSelected = { item ->
+                selectedMenuItem = item
+                when (item) {
+                    SideMenuItem.CONNECTION -> onShowConnection()
+                    SideMenuItem.SETTINGS -> onShowSplash()
+                    else -> {}
+                }
+            },
+            onDisconnectClick = onShowSplash,
+            robotName = "ROBOT-01",
+            connectionStatusText = uiState.statusMessage
+        )
+
+        // 2. Main HomeScreen Dashboard Panel
+        Column(
             modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(spacing.space5),
-            verticalAlignment = Alignment.Top
+                .weight(1f)
+                .fillMaxHeight()
+                .padding(spacing.space4),
+            verticalArrangement = Arrangement.spacedBy(spacing.space4)
         ) {
-            // Left Pane: Status Overview & Primary Refresh Action
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(spacing.space4)
+            // Top App Bar Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Header Row
+                Column {
+                    Text(
+                        text = selectedMenuItem.title,
+                        style = typography.h3,
+                        color = colors.primaryText,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = selectedMenuItem.description,
+                        style = typography.caption,
+                        color = colors.secondaryText
+                    )
+                }
+
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(spacing.space2),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Robot Navigation",
-                        style = typography.h3,
-                        color = colors.primaryText
+                    MonochromeStatusPill(
+                        text = "Wi-Fi: ${uiState.selectedNetwork?.ssid ?: "Disconnected"}",
+                        icon = Icons.Default.Wifi,
+                        level = if (uiState.selectedNetwork != null) StatusLevel.Active else StatusLevel.Inactive
                     )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(spacing.space2),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        MonochromeButton(
-                            onClick = onShowConnection,
-                            variant = MonochromeButtonVariant.Ghost,
-                            size = MonochromeButtonSize.Standard,
-                            icon = Icons.Default.Wifi,
-                            text = "Connection"
-                        )
-                        MonochromeButton(
-                            onClick = onShowSplash,
-                            variant = MonochromeButtonVariant.Ghost,
-                            size = MonochromeButtonSize.Standard,
-                            icon = Icons.Default.SmartToy,
-                            text = "Robot View"
-                        )
-                        MonochromeStatusPill(
-                            text = uiState.statusMessage,
-                            level = if (uiState.batteryStatus.isCharging) StatusLevel.Active else StatusLevel.Default
-                        )
-                    }
-                }
 
-                // Status Card
-                MonochromeCard(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(spacing.space3)
-                    ) {
-                        HomeStatusRow(
-                            icon = Icons.Default.Wifi,
-                            label = "Connected Wi-Fi",
-                            value = uiState.selectedNetwork?.ssid ?: "Not Connected",
-                            isMono = false
-                        )
-                        HomeStatusRow(
-                            icon = Icons.Default.Router,
-                            label = "Robot Endpoint",
-                            value = "${uiState.ipAddress}:${uiState.port}",
-                            isMono = true
-                        )
-                        HomeStatusRow(
-                            icon = Icons.Default.BatteryFull,
-                            label = "Battery Level",
-                            value = uiState.batteryStatus.displayText,
-                            isMono = true
-                        )
-                        HomeStatusRow(
-                            icon = Icons.Default.LocationOn,
-                            label = "Current Position",
-                            value = uiState.position.displayText,
-                            isMono = true
-                        )
-                        HomeStatusRow(
-                            icon = Icons.Default.Map,
-                            label = "Map Data",
-                            value = uiState.mapData.displayText,
-                            isMono = false
-                        )
-                    }
-                }
+                    MonochromeStatusPill(
+                        text = "Battery: ${uiState.batteryStatus.displayText}",
+                        icon = Icons.Default.BatteryChargingFull,
+                        level = if (uiState.batteryStatus.isCharging) StatusLevel.Active else StatusLevel.Default
+                    )
 
-                // Primary Battery Refresh Action
-                MonochromeButton(
-                    onClick = onGetBatteryLevel,
-                    variant = MonochromeButtonVariant.Primary,
-                    size = MonochromeButtonSize.Large,
-                    icon = Icons.Default.BatteryChargingFull,
-                    text = "Refresh Battery Status",
-                    modifier = Modifier.fillMaxWidth()
-                )
+                    MonochromeButton(
+                        onClick = onCancelNavigation,
+                        variant = MonochromeButtonVariant.Ghost,
+                        size = MonochromeButtonSize.Standard,
+                        icon = Icons.Default.Warning,
+                        text = "E-Stop"
+                    )
+                }
             }
 
-            // Right Pane: Directional Controls & Navigation Actions
-            Column(
+            // Central Dashboard Row
+            Row(
                 modifier = Modifier
+                    .fillMaxWidth()
                     .weight(1f)
-                    .fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(spacing.space4),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .verticalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(spacing.space4),
+                verticalAlignment = Alignment.Top
             ) {
-                // Directional Movement
-                Text(
-                    text = "Directional Controls",
-                    style = typography.label,
-                    color = colors.secondaryText
-                )
-
+                // Left Column: Robot Visual Card & Telemetry Status
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(spacing.space2)
+                    modifier = Modifier
+                        .weight(1.1f)
+                        .fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(spacing.space4)
                 ) {
-                    MonochromeButton(
-                        onClick = onMoveForward,
-                        icon = Icons.Default.KeyboardArrowUp,
-                        text = "Forward",
-                        variant = MonochromeButtonVariant.Secondary,
-                        modifier = Modifier.width(140.dp)
-                    )
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(spacing.space2)
+                    // Robot Image Visual Card with Telemetry Overlay
+                    MonochromeCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        backgroundColor = colors.surface,
+                        borderColor = colors.defaultBorder
                     ) {
-                        MonochromeButton(
-                            onClick = onMoveLeft,
-                            icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                            text = "Left",
-                            variant = MonochromeButtonVariant.Secondary,
-                            modifier = Modifier.width(140.dp)
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(spacing.space3),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "ROBOT VISUAL & FEED",
+                                style = typography.label,
+                                color = colors.mutedText,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.align(Alignment.Start)
+                            )
 
-                        MonochromeButton(
-                            onClick = onMoveRight,
-                            icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            text = "Right",
-                            variant = MonochromeButtonVariant.Secondary,
-                            modifier = Modifier.width(140.dp)
-                        )
+                            // Robot Image Container
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp)
+                                    .clip(MonochromeTheme.shapes.cards)
+                                    .background(colors.interactiveSurface),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.robot_splash),
+                                    contentDescription = "Robot Image Visual",
+                                    modifier = Modifier.fillMaxHeight().padding(spacing.space2)
+                                )
+
+                                // Telemetry Badge Overlay
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomStart)
+                                        .padding(spacing.space2)
+                                ) {
+                                    MonochromeStatusPill(
+                                        text = "Pos: ${uiState.position.displayText}",
+                                        icon = Icons.Default.LocationOn,
+                                        level = StatusLevel.Default
+                                    )
+                                }
+                            }
+                        }
                     }
 
+                    // System Telemetry Status Details Card
+                    MonochromeCard(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(spacing.space3)
+                        ) {
+                            Text(
+                                text = "TELEMETRY OVERVIEW",
+                                style = typography.label,
+                                color = colors.mutedText,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            HomeStatusRow(
+                                icon = Icons.Default.Wifi,
+                                label = "Connected Wi-Fi",
+                                value = uiState.selectedNetwork?.ssid ?: "Not Connected",
+                                isMono = false
+                            )
+                            HomeStatusRow(
+                                icon = Icons.Default.Router,
+                                label = "Endpoint IP & Port",
+                                value = "${uiState.ipAddress}:${uiState.port}",
+                                isMono = true
+                            )
+                            HomeStatusRow(
+                                icon = Icons.Default.BatteryFull,
+                                label = "Battery Status",
+                                value = uiState.batteryStatus.displayText,
+                                isMono = true
+                            )
+                            HomeStatusRow(
+                                icon = Icons.Default.LocationOn,
+                                label = "Position Coordinates",
+                                value = uiState.position.displayText,
+                                isMono = true
+                            )
+                            HomeStatusRow(
+                                icon = Icons.Default.Map,
+                                label = "Active Map Data",
+                                value = uiState.mapData.displayText,
+                                isMono = false
+                            )
+                        }
+                    }
+
+                    // Refresh Action Button
                     MonochromeButton(
-                        onClick = onMoveBackward,
-                        icon = Icons.Default.KeyboardArrowDown,
-                        text = "Backward",
-                        variant = MonochromeButtonVariant.Secondary,
-                        modifier = Modifier.width(140.dp)
+                        onClick = onGetBatteryLevel,
+                        variant = MonochromeButtonVariant.Primary,
+                        size = MonochromeButtonSize.Large,
+                        icon = Icons.Default.Refresh,
+                        text = "Refresh Battery & Position",
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
 
-                // Navigation Actions
-                Text(
-                    text = "Navigation & Actions",
-                    style = typography.label,
-                    color = colors.secondaryText
-                )
+                // Right Column: Directional Controls & Action Commands
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(spacing.space4),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Directional Controls Pad Card
+                    MonochromeCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        backgroundColor = colors.surface,
+                        borderColor = colors.defaultBorder
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(spacing.space3),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "DIRECTIONAL CONTROLS",
+                                style = typography.label,
+                                color = colors.mutedText,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.align(Alignment.Start)
+                            )
 
-                HomeActionButtonRow(
-                    listOf(
-                        Triple("Go to Charge", Icons.Default.EvStation, onGoToCharge),
-                        Triple("Cancel Navigation", Icons.Default.Cancel, onCancelNavigation)
-                    )
-                )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(spacing.space2)
+                            ) {
+                                MonochromeButton(
+                                    onClick = onMoveForward,
+                                    icon = Icons.Default.KeyboardArrowUp,
+                                    text = "Forward",
+                                    variant = MonochromeButtonVariant.Secondary,
+                                    modifier = Modifier.width(140.dp)
+                                )
 
-                HomeActionButtonRow(
-                    listOf(
-                        Triple("Get Position", Icons.Default.GpsFixed, onGetPosition),
-                        Triple("Move to Position", Icons.Default.MyLocation, onMoveToPosition)
-                    )
-                )
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(spacing.space2)
+                                ) {
+                                    MonochromeButton(
+                                        onClick = onMoveLeft,
+                                        icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                                        text = "Left",
+                                        variant = MonochromeButtonVariant.Secondary,
+                                        modifier = Modifier.width(130.dp)
+                                    )
 
-                HomeActionButtonRow(
-                    listOf(
-                        Triple("Get Map", Icons.Default.Map, onGetMap),
-                        Triple("Save Map", Icons.Default.Save, onSaveMap)
-                    )
-                )
+                                    MonochromeButton(
+                                        onClick = onCancelNavigation,
+                                        icon = Icons.Default.Stop,
+                                        text = "Stop",
+                                        variant = MonochromeButtonVariant.Primary,
+                                        modifier = Modifier.width(100.dp)
+                                    )
+
+                                    MonochromeButton(
+                                        onClick = onMoveRight,
+                                        icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                        text = "Right",
+                                        variant = MonochromeButtonVariant.Secondary,
+                                        modifier = Modifier.width(130.dp)
+                                    )
+                                }
+
+                                MonochromeButton(
+                                    onClick = onMoveBackward,
+                                    icon = Icons.Default.KeyboardArrowDown,
+                                    text = "Backward",
+                                    variant = MonochromeButtonVariant.Secondary,
+                                    modifier = Modifier.width(140.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Navigation Commands Deck
+                    MonochromeCard(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(spacing.space3)
+                        ) {
+                            Text(
+                                text = "NAVIGATION ACTIONS",
+                                style = typography.label,
+                                color = colors.mutedText,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            HomeActionButtonRow(
+                                listOf(
+                                    Triple("Go to Charge", Icons.Default.EvStation, onGoToCharge),
+                                    Triple("Cancel Nav", Icons.Default.Cancel, onCancelNavigation)
+                                )
+                            )
+
+                            HomeActionButtonRow(
+                                listOf(
+                                    Triple("Get Position", Icons.Default.GpsFixed, onGetPosition),
+                                    Triple("Move to Pos", Icons.Default.MyLocation, onMoveToPosition)
+                                )
+                            )
+
+                            HomeActionButtonRow(
+                                listOf(
+                                    Triple("Get Map", Icons.Default.Map, onGetMap),
+                                    Triple("Save Map", Icons.Default.Save, onSaveMap)
+                                )
+                            )
+                        }
+                    }
+                }
             }
         }
     }
