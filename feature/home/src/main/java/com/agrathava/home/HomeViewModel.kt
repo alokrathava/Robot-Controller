@@ -20,7 +20,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val robotRepository: RobotRepository
+    private val robotRepository: RobotRepository,
 ) : ViewModel() {
 
     private val _connectionStep = MutableStateFlow(RobotConnectionStep.NETWORK_SELECTION)
@@ -32,7 +32,7 @@ class HomeViewModel @Inject constructor(
 
     private val _networkSelectionFlow = combine(
         _connectionStep,
-        _selectedNetwork
+        _selectedNetwork,
     ) { step, selectedNet ->
         step to selectedNet
     }
@@ -41,14 +41,14 @@ class HomeViewModel @Inject constructor(
         _ipAddress,
         _port,
         _ipError,
-        _portError
+        _portError,
     ) { ip, port, ipErr, portErr ->
         IpPortForm(ip, port, ipErr, portErr)
     }
 
     private val _formFlow = combine(
         _networkSelectionFlow,
-        _ipPortFormFlow
+        _ipPortFormFlow,
     ) { (step, selectedNet), form ->
         ConnectionFormState(step, selectedNet, form.ip, form.port, form.ipErr, form.portErr)
     }
@@ -58,7 +58,7 @@ class HomeViewModel @Inject constructor(
         robotRepository.position,
         robotRepository.navigationStatus,
         robotRepository.mapData,
-        robotRepository.connectionStatus
+        robotRepository.connectionStatus,
     ) { battery, position, navStatus, mapData, connStatus ->
         RobotBaseState(battery, position, navStatus, mapData, connStatus)
     }
@@ -66,7 +66,7 @@ class HomeViewModel @Inject constructor(
     val uiState: StateFlow<HomeUiState> = combine(
         _robotStateFlow,
         robotRepository.availableNetworks,
-        _formFlow
+        _formFlow,
     ) { robotState, availableNets, formState ->
         HomeUiState(
             batteryStatus = robotState.battery,
@@ -81,12 +81,12 @@ class HomeViewModel @Inject constructor(
             port = formState.port,
             ipError = formState.ipError,
             portError = formState.portError,
-            connectionStatus = robotState.connStatus
+            connectionStatus = robotState.connStatus,
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = HomeUiState()
+        initialValue = HomeUiState(),
     )
 
     fun selectNetwork(network: WifiNetwork) {
@@ -126,6 +126,7 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    @Suppress("unused")
     fun disconnectRobot() {
         robotRepository.disconnectRobot()
     }
@@ -192,7 +193,7 @@ class HomeViewModel @Inject constructor(
         return if (portStr.isBlank()) {
             _portError.value = "Port number cannot be empty"
             false
-        } else if (portInt == null || portInt !in 1..65535) {
+        } else if (portInt == null || portInt < 1 || portInt > 65535) {
             _portError.value = "Port must be a number between 1 and 65535"
             false
         } else {
@@ -217,6 +218,7 @@ class HomeViewModel @Inject constructor(
             NavigationStatus.CANCELLED -> "Navigation Cancelled"
             NavigationStatus.SAVING_MAP -> "Saving Map Data"
             NavigationStatus.FETCHING_MAP -> "Fetching Map Data"
+            NavigationStatus.EMERGENCY_STOP -> "Emergency Stop"
         }
     }
 

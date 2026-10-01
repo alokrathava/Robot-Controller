@@ -1,0 +1,73 @@
+name: Robot SDK Build & Release
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*'
+      - 'sdk-v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build & Test Robot SDK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      - name: Run SDK Unit Tests
+        run: ./gradlew :robot:sdk:testDebugUnitTest --stacktrace
+
+      - name: Assemble Release AAR
+        run: ./gradlew :robot:sdk:assembleRelease --stacktrace
+
+      - name: Upload SDK AAR Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: robot-sdk-release-aar
+          path: robot/sdk/build/outputs/aar/*.aar
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: build-and-test
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download SDK AAR Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: robot-sdk-release-aar
+          path: ./aar-output
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./aar-output/*.aar
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
