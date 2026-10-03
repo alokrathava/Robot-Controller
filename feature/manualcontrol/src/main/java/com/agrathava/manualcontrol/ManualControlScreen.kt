@@ -39,9 +39,11 @@ import com.agrathava.theme.MonochromeTheme
 import com.agrathava.theme.White100
 import kotlin.math.roundToInt
 
-enum class ManualControlTab {
-    MOVEMENT,
-    ROTATION
+enum class ManualControlTab(val title: String) {
+    MOVEMENT("Movement"),
+    ROTATION("Rotation"),
+    TELEMETRY("Telemetry"),
+    DIAGNOSTICS("Diagnostics")
 }
 
 enum class ManualDirection {
@@ -126,10 +128,18 @@ fun ManualControlContent(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Emergency Brake Active Alert Banner
+            // Alert Banners
             if (uiState.isEmergencyStopped) {
                 EmergencyBrakeActiveBanner(
                     onResetEmergencyBrake = onResetEmergencyBrake
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            } else if (uiState.isConnectionLost) {
+                ConnectionLostBanner()
+                Spacer(modifier = Modifier.height(16.dp))
+            } else if (uiState.isObstacleNear) {
+                ObstacleWarningBanner(
+                    distanceMeters = uiState.obstacleDistanceMeters
                 )
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -251,6 +261,91 @@ private fun EmergencyBrakeActiveBanner(
 }
 
 @Composable
+private fun ObstacleWarningBanner(
+    distanceMeters: Double,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFFFFFBEB),
+        border = BorderStroke(1.dp, Color(0xFFFCD34D))
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = "Obstacle Warning",
+                tint = Color(0xFFD97706),
+                modifier = Modifier.size(24.dp)
+            )
+            Column {
+                Text(
+                    text = "PROXIMITY WARNING",
+                    style = MonochromeTheme.typography.body.copy(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = Color(0xFFB45309)
+                )
+                Text(
+                    text = "Obstacle detected within ${"%.1f".format(distanceMeters)}m. Proceed with caution.",
+                    style = MonochromeTheme.typography.caption.copy(fontSize = 12.sp),
+                    color = Color(0xFF92400E)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConnectionLostBanner(
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFFFEF2F2),
+        border = BorderStroke(1.dp, Color(0xFFFCA5A5))
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = "Connection Lost",
+                tint = RedEmergency,
+                modifier = Modifier.size(24.dp)
+            )
+            Column {
+                Text(
+                    text = "ROBOT DISCONNECTED",
+                    style = MonochromeTheme.typography.body.copy(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = RedEmergency
+                )
+                Text(
+                    text = "Connection lost. Re-establish Wi-Fi/IP connection to control robot.",
+                    style = MonochromeTheme.typography.caption.copy(fontSize = 12.sp),
+                    color = Color(0xFF991B1B)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ManualControlHeader() {
     val colors = MonochromeTheme.colors
     val typography = MonochromeTheme.typography
@@ -291,16 +386,13 @@ private fun ManualControlTabSwitcher(
             modifier = Modifier.padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            TabButton(
-                title = "Movement",
-                isSelected = selectedTab == ManualControlTab.MOVEMENT,
-                onClick = { onTabSelected(ManualControlTab.MOVEMENT) }
-            )
-            TabButton(
-                title = "Rotation",
-                isSelected = selectedTab == ManualControlTab.ROTATION,
-                onClick = { onTabSelected(ManualControlTab.ROTATION) }
-            )
+            ManualControlTab.entries.forEach { tab ->
+                TabButton(
+                    title = tab.title,
+                    isSelected = selectedTab == tab,
+                    onClick = { onTabSelected(tab) }
+                )
+            }
         }
     }
 }

@@ -17,11 +17,19 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,6 +44,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agrathava.home.Sidebar
 import com.agrathava.home.SidebarNavItem
 import com.agrathava.theme.Black900
@@ -46,59 +57,39 @@ import com.agrathava.theme.MonochromeTextField
 import com.agrathava.theme.MonochromeTheme
 import com.agrathava.theme.White100
 
-sealed interface NavigationDestinationUi {
-    data object None : NavigationDestinationUi
-
-    data class SavedLocation(
-        val id: String,
-        val name: String,
-        val x: Double,
-        val y: Double,
-    ) : NavigationDestinationUi
-
-    data class Coordinates(
-        val x: String,
-        val y: String,
-        val yaw: String
-    ) : NavigationDestinationUi
-
-    data object ChargingDock : NavigationDestinationUi
-}
-
-enum class NavigationTab {
-    SavedLocations,
-    Coordinates
-}
-
-data class SavedLocationUi(
-    val id: String,
-    val name: String,
-    val x: Double,
-    val y: Double
-) {
-    val coordinatesFormatted: String
-        get() = "($x, $y)"
-}
-
-val sampleLocations = listOf(
-    SavedLocationUi(id = "1", name = "Lobby", x = 1.2, y = 3.4),
-    SavedLocationUi(id = "2", name = "Dining Area", x = 5.6, y = 2.1),
-    SavedLocationUi(id = "3", name = "Activity Room", x = 3.8, y = 6.5),
-    SavedLocationUi(id = "4", name = "Reception", x = 7.1, y = 4.2)
-)
-
-data class NavigationUiState(
-    val selectedTab: NavigationTab = NavigationTab.SavedLocations,
-    val savedLocations: List<SavedLocationUi> = sampleLocations,
-    val selectedDestination: NavigationDestinationUi = NavigationDestinationUi.None,
-    val xInput: String = "",
-    val yInput: String = "",
-    val yawInput: String = ""
-)
-
 @Composable
 fun NavigationScreen(
     modifier: Modifier = Modifier,
+    viewModel: NavigationViewModel? = null,
+    onSidebarItemSelected: (SidebarNavItem) -> Unit = {}
+) {
+    if (viewModel != null) {
+        val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+        NavigationScreenContent(
+            uiState = uiState,
+            onTabSelected = viewModel::selectTab,
+            onDestinationSelected = viewModel::selectDestination,
+            onXInputChanged = viewModel::updateXInput,
+            onYInputChanged = viewModel::updateYInput,
+            onYawInputChanged = viewModel::updateYawInput,
+            onStartNavigationClick = viewModel::startNavigation,
+            onCancelNavigationClick = viewModel::cancelNavigation,
+            onOpenAddLocationDialog = viewModel::openAddLocationDialog,
+            onSaveNewLocation = viewModel::saveNewLocation,
+            onSidebarItemSelected = onSidebarItemSelected,
+            modifier = modifier
+        )
+    } else {
+        NavigationScreenContent(
+            onSidebarItemSelected = onSidebarItemSelected,
+            modifier = modifier
+        )
+    }
+}
+
+@Composable
+fun NavigationScreenContent(
     uiState: NavigationUiState = NavigationUiState(),
     onTabSelected: (NavigationTab) -> Unit = {},
     onDestinationSelected: (NavigationDestinationUi) -> Unit = {},
@@ -106,7 +97,11 @@ fun NavigationScreen(
     onYInputChanged: (String) -> Unit = {},
     onYawInputChanged: (String) -> Unit = {},
     onStartNavigationClick: () -> Unit = {},
-    onSidebarItemSelected: (SidebarNavItem) -> Unit = {}
+    onCancelNavigationClick: () -> Unit = {},
+    onOpenAddLocationDialog: (Boolean) -> Unit = {},
+    onSaveNewLocation: (String, Double, Double) -> Unit = { _, _, _ -> },
+    onSidebarItemSelected: (SidebarNavItem) -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
     val colors = MonochromeTheme.colors
 
@@ -115,7 +110,6 @@ fun NavigationScreen(
             .fillMaxSize()
             .background(colors.background)
     ) {
-        // Left Sidebar (reused exact design from Home screen)
         Sidebar(
             selectedItem = SidebarNavItem.NAVIGATION,
             onItemSelected = onSidebarItemSelected,
@@ -123,17 +117,23 @@ fun NavigationScreen(
             connectionAddress = "192.168.1.108:8080"
         )
 
-        // Main Navigation Area
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
                 .padding(start = 28.dp, top = 24.dp, end = 28.dp, bottom = 24.dp)
         ) {
-            // Header
             NavigationHeader()
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Navigation Execution Alert Banner
+            NavigationExecutionBanner(
+                executionStatus = uiState.executionStatus,
+                onCancelClick = onCancelNavigationClick
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Main Content: Map (Left) + Right Control Panel
             Row(
@@ -142,7 +142,6 @@ fun NavigationScreen(
                     .weight(1f),
                 horizontalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                // Map Panel (~60% width)
                 NavigationMapPanel(
                     modifier = Modifier
                         .weight(1.4f)
@@ -150,7 +149,6 @@ fun NavigationScreen(
                     selectedDestination = uiState.selectedDestination
                 )
 
-                // Right Panel (~40% width)
                 NavigationDestinationPanel(
                     modifier = Modifier
                         .weight(1f)
@@ -161,10 +159,113 @@ fun NavigationScreen(
                     onXInputChanged = onXInputChanged,
                     onYInputChanged = onYInputChanged,
                     onYawInputChanged = onYawInputChanged,
-                    onStartNavigationClick = onStartNavigationClick
+                    onStartNavigationClick = onStartNavigationClick,
+                    onOpenAddLocationDialog = { onOpenAddLocationDialog(true) }
                 )
             }
         }
+    }
+
+    if (uiState.isAddLocationDialogOpen) {
+        AddLocationDialog(
+            onDismiss = { onOpenAddLocationDialog(false) },
+            onSave = onSaveNewLocation
+        )
+    }
+}
+
+@Composable
+fun NavigationExecutionBanner(
+    executionStatus: NavigationExecutionStatus,
+    onCancelClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    when (executionStatus) {
+        is NavigationExecutionStatus.Navigating -> {
+            Surface(
+                modifier = modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFFEFF6FF),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF93C5FD))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "NAVIGATING TO DESTINATION",
+                            style = MonochromeTheme.typography.body.copy(fontWeight = FontWeight.Bold),
+                            color = Color(0xFF1E40AF)
+                        )
+                        Text(
+                            text = "ETA: ${executionStatus.etaSeconds}s • Distance: ${executionStatus.distanceMeters}m",
+                            style = MonochromeTheme.typography.caption,
+                            color = Color(0xFF1D4ED8)
+                        )
+                    }
+                    Button(
+                        onClick = onCancelClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
+                    ) {
+                        Text("Cancel Navigation", color = White100)
+                    }
+                }
+            }
+        }
+
+        is NavigationExecutionStatus.ObstacleDetected -> {
+            Surface(
+                modifier = modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFFFFFBEB),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFCD34D))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFD97706))
+                    Text(executionStatus.message, style = MonochromeTheme.typography.body.copy(fontWeight = FontWeight.Bold), color = Color(0xFFB45309))
+                }
+            }
+        }
+
+        is NavigationExecutionStatus.Arrived -> {
+            Surface(
+                modifier = modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFFECFDF5),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF6EE7B7))
+            ) {
+                Text(
+                    text = "Arrived at ${executionStatus.destinationName}",
+                    modifier = Modifier.padding(16.dp),
+                    style = MonochromeTheme.typography.body.copy(fontWeight = FontWeight.Bold),
+                    color = Color(0xFF047857)
+                )
+            }
+        }
+
+        is NavigationExecutionStatus.Failed -> {
+            Surface(
+                modifier = modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFFFEF2F2),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFCA5A5))
+            ) {
+                Text(
+                    text = "Navigation Error: ${executionStatus.errorMessage}",
+                    modifier = Modifier.padding(16.dp),
+                    style = MonochromeTheme.typography.body.copy(fontWeight = FontWeight.Bold),
+                    color = Color(0xFFDC2626)
+                )
+            }
+        }
+
+        else -> {}
     }
 }
 
@@ -211,7 +312,6 @@ fun NavigationMapPanel(
             .background(colors.surface)
             .border(1.dp, colors.subtleBorder, shapes.largeCards)
     ) {
-        // Markers DP coordinates inside map Box
         val robotXDp = 155.dp
         val robotYDp = 235.dp
 
@@ -220,16 +320,13 @@ fun NavigationMapPanel(
 
         val hasDestination = selectedDestination != NavigationDestinationUi.None
 
-        // Floorplan Canvas Background & Dashed Route Path
         Canvas(modifier = Modifier.fillMaxSize()) {
             val width = size.width
             val height = size.height
 
-            // 1. Light grayscale floorplan wall lines
             val wallColor = Color(0xFFD3D3D3)
             val strokeW = 1.8f
 
-            // Outer perimeter walls
             drawRect(
                 color = wallColor,
                 topLeft = Offset(width * 0.08f, height * 0.08f),
@@ -237,7 +334,6 @@ fun NavigationMapPanel(
                 style = Stroke(width = 2.5f)
             )
 
-            // Horizontal floorplan wall segments
             val hWalls = listOf(0.22f, 0.38f, 0.54f, 0.70f, 0.84f)
             hWalls.forEach { yRatio ->
                 drawLine(
@@ -248,8 +344,7 @@ fun NavigationMapPanel(
                 )
             }
 
-            // Vertical floorplan wall segments
-            val vWalls = listOf(0.22f, 0.36f, 0.50f, 0.64f, 0.78f)
+            val vWalls = listOf(0.28f, 0.48f, 0.68f, 0.88f)
             vWalls.forEach { xRatio ->
                 drawLine(
                     color = wallColor,
@@ -259,45 +354,17 @@ fun NavigationMapPanel(
                 )
             }
 
-            // Room blocks and doorways
-            drawRect(
-                color = Color(0xFFF0F0F0),
-                topLeft = Offset(width * 0.36f, height * 0.22f),
-                size = Size(width * 0.28f, height * 0.32f)
-            )
-            drawRect(
-                color = wallColor,
-                topLeft = Offset(width * 0.36f, height * 0.22f),
-                size = Size(width * 0.28f, height * 0.32f),
-                style = Stroke(width = strokeW)
-            )
-
-            // 2. Black dashed route line from Robot center to Destination Pin center
             if (hasDestination) {
-                val robotPxX = robotXDp.toPx() + 27.dp.toPx() // center of 54.dp marker
-                val robotPxY = robotYDp.toPx() + 27.dp.toPx()
-
-                val destPxX = destXDp.toPx() + 20.dp.toPx() // center of pin
-                val destPxY = destYDp.toPx() + 32.dp.toPx() // bottom tip/center of pin
-
-                val turnY = robotPxY - 90.dp.toPx()
-
-                val routePath = Path().apply {
-                    moveTo(robotPxX, robotPxY)
-                    // Go vertically up
-                    lineTo(robotPxX, turnY + 16f)
-                    // Rounded corner turning right
-                    quadraticTo(robotPxX, turnY, robotPxX + 16f, turnY)
-                    // Go horizontally right to destination X
-                    lineTo(destPxX - 16f, turnY)
-                    // Rounded corner turning up to destination pin
-                    quadraticTo(destPxX, turnY, destPxX, turnY - 16f)
-                    // Go vertically up to destination
-                    lineTo(destPxX, destPxY)
+                val path = Path().apply {
+                    moveTo(robotXDp.toPx(), robotYDp.toPx())
+                    lineTo(robotXDp.toPx(), 180.dp.toPx())
+                    lineTo(220.dp.toPx(), 180.dp.toPx())
+                    lineTo(220.dp.toPx(), destYDp.toPx())
+                    lineTo(destXDp.toPx(), destYDp.toPx())
                 }
 
                 drawPath(
-                    path = routePath,
+                    path = path,
                     color = Color.Black,
                     style = Stroke(
                         width = 3.5f,
@@ -307,154 +374,99 @@ fun NavigationMapPanel(
             }
         }
 
-        // Robot Position Marker
         Box(
             modifier = Modifier
-                .offset(x = robotXDp, y = robotYDp)
-        ) {
-            RobotMarker()
-        }
-
-        // Destination Pin Marker
-        if (hasDestination) {
-            Box(
-                modifier = Modifier
-                    .offset(x = destXDp, y = destYDp)
-            ) {
-                DestinationMarker()
-            }
-        }
-
-        // Map Controls (+, −, Target) in Bottom-Left
-        MapControls(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(20.dp)
-        )
-    }
-}
-
-@Composable
-fun RobotMarker(
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier.size(54.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        // Outer black circular outline
-        Box(
-            modifier = Modifier
-                .size(54.dp)
-                .clip(CircleShape)
-                .border(2.5.dp, Black900, CircleShape)
-        )
-
-        // Inner dark circular badge with robot icon
-        Box(
-            modifier = Modifier
-                .size(36.dp)
+                .offset(x = robotXDp - 24.dp, y = robotYDp - 24.dp)
+                .size(48.dp)
                 .clip(CircleShape)
                 .background(Black900),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Default.SmartToy,
-                contentDescription = "Robot Location",
+                contentDescription = "Robot Position",
                 tint = White100,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(24.dp)
             )
         }
-    }
-}
 
-@Composable
-fun DestinationMarker(
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier.size(44.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.Place,
-            contentDescription = "Destination Pin",
-            tint = Black900,
-            modifier = Modifier.size(42.dp)
+        if (hasDestination) {
+            Box(
+                modifier = Modifier
+                    .offset(x = destXDp - 20.dp, y = destYDp - 20.dp)
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(White100)
+                    .border(2.dp, Black900, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Place,
+                    contentDescription = "Destination Target",
+                    tint = Black900,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+        }
+
+        MapControlsOverlay(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(20.dp)
         )
     }
 }
 
 @Composable
-fun MapControls(
-    modifier: Modifier = Modifier,
-    onZoomInClick: () -> Unit = {},
-    onZoomOutClick: () -> Unit = {},
-    onRecenterClick: () -> Unit = {}
+fun MapControlsOverlay(
+    modifier: Modifier = Modifier
 ) {
+    val colors = MonochromeTheme.colors
+
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        MapControlButton(
-            onClick = onZoomInClick,
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Zoom In",
-                    tint = Black900,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-        )
-
-        MapControlButton(
-            onClick = onZoomOutClick,
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.Remove,
-                    contentDescription = "Zoom Out",
-                    tint = Black900,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-        )
-
-        MapControlButton(
-            onClick = onRecenterClick,
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.MyLocation,
-                    contentDescription = "Recenter",
-                    tint = Black900,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        )
-    }
-}
-
-@Composable
-private fun MapControlButton(
-    onClick: () -> Unit,
-    icon: @Composable () -> Unit
-) {
-    val colors = MonochromeTheme.colors
-
-    Surface(
-        modifier = Modifier
-            .size(46.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .border(1.dp, colors.defaultBorder, RoundedCornerShape(10.dp))
-            .clickable { onClick() },
-        color = White100,
-        shape = RoundedCornerShape(10.dp)
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = colors.surface,
+            border = androidx.compose.foundation.BorderStroke(1.dp, colors.subtleBorder)
         ) {
-            icon()
+            Column(modifier = Modifier.padding(2.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clickable { },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Zoom In", tint = colors.primaryText)
+                }
+
+                HorizontalDivider(modifier = Modifier.width(36.dp), color = colors.subtleBorder)
+
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clickable { },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Remove, contentDescription = "Zoom Out", tint = colors.primaryText)
+                }
+            }
+        }
+
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = colors.surface,
+            border = androidx.compose.foundation.BorderStroke(1.dp, colors.subtleBorder),
+            modifier = Modifier.clickable { }
+        ) {
+            Box(
+                modifier = Modifier.size(40.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.MyLocation, contentDescription = "Center Map", tint = colors.primaryText)
+            }
         }
     }
 }
@@ -463,80 +475,99 @@ private fun MapControlButton(
 fun NavigationDestinationPanel(
     modifier: Modifier = Modifier,
     uiState: NavigationUiState,
-    onTabSelected: (NavigationTab) -> Unit = {},
-    onDestinationSelected: (NavigationDestinationUi) -> Unit = {},
-    onXInputChanged: (String) -> Unit = {},
-    onYInputChanged: (String) -> Unit = {},
-    onYawInputChanged: (String) -> Unit = {},
-    onStartNavigationClick: () -> Unit = {}
+    onTabSelected: (NavigationTab) -> Unit,
+    onDestinationSelected: (NavigationDestinationUi) -> Unit,
+    onXInputChanged: (String) -> Unit,
+    onYInputChanged: (String) -> Unit,
+    onYawInputChanged: (String) -> Unit,
+    onStartNavigationClick: () -> Unit,
+    onOpenAddLocationDialog: () -> Unit
 ) {
-    Column(
+    val colors = MonochromeTheme.colors
+    val shapes = MonochromeTheme.shapes
+
+    Surface(
         modifier = modifier,
-        verticalArrangement = Arrangement.SpaceBetween
+        shape = shapes.largeCards,
+        color = colors.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, colors.subtleBorder)
     ) {
         Column(
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.weight(1f, fill = false)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Segmented Control Tabs (Saved Locations / Coordinates)
-            DestinationTabs(
-                selectedTab = uiState.selectedTab,
-                onTabSelected = onTabSelected
-            )
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.weight(1f, fill = false)
+            ) {
+                DestinationTabs(
+                    selectedTab = uiState.selectedTab,
+                    onTabSelected = onTabSelected
+                )
 
-            // Content Area based on Tab
-            when (uiState.selectedTab) {
-                NavigationTab.SavedLocations -> {
-                    if (uiState.savedLocations.isEmpty()) {
-                        EmptySavedLocationsView()
-                    } else {
-                        SavedLocationsList(
-                            locations = uiState.savedLocations,
-                            selectedDestination = uiState.selectedDestination,
-                            onLocationSelected = { location ->
-                                val dest = NavigationDestinationUi.SavedLocation(
-                                    id = location.id,
-                                    name = location.name,
-                                    x = location.x,
-                                    y = location.y
-                                )
-                                onDestinationSelected(dest)
-                            }
+                when (uiState.selectedTab) {
+                    NavigationTab.SavedLocations -> {
+                        if (uiState.savedLocations.isEmpty()) {
+                            EmptySavedLocationsView()
+                        } else {
+                            SavedLocationsList(
+                                locations = uiState.savedLocations,
+                                selectedDestination = uiState.selectedDestination,
+                                onLocationSelected = { location ->
+                                    val dest = NavigationDestinationUi.SavedLocation(
+                                        id = location.id,
+                                        name = location.name,
+                                        x = location.x,
+                                        y = location.y
+                                    )
+                                    onDestinationSelected(dest)
+                                },
+                                onOpenAddLocationDialog = onOpenAddLocationDialog
+                            )
+                        }
+                    }
+
+                    NavigationTab.Coordinates -> {
+                        CoordinatesInputPanel(
+                            xInput = uiState.xInput,
+                            yInput = uiState.yInput,
+                            yawInput = uiState.yawInput,
+                            onXInputChanged = onXInputChanged,
+                            onYInputChanged = onYInputChanged,
+                            onYawInputChanged = onYawInputChanged
                         )
                     }
-                }
-                NavigationTab.Coordinates -> {
-                    CoordinatesInputPanel(
-                        xInput = uiState.xInput,
-                        yInput = uiState.yInput,
-                        yawInput = uiState.yawInput,
-                        onXInputChanged = onXInputChanged,
-                        onYInputChanged = onYInputChanged,
-                        onYawInputChanged = onYawInputChanged
-                    )
+
+                    NavigationTab.MapPicker -> {
+                        MapPickerHelpView()
+                    }
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        // Bottom section: Charging Dock Shortcut + Primary Start Navigation Button
-        Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // Charging Dock System Destination Action
-            ChargingDockCard(
-                isSelected = uiState.selectedDestination == NavigationDestinationUi.ChargingDock,
-                onClick = {
-                    onDestinationSelected(NavigationDestinationUi.ChargingDock)
-                }
-            )
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                ChargingDockCard(
+                    isSelected = uiState.selectedDestination == NavigationDestinationUi.ChargingDock,
+                    onClick = {
+                        onDestinationSelected(NavigationDestinationUi.ChargingDock)
+                    }
+                )
 
-            // Primary Start Navigation Action Button
-            StartNavigationButton(
-                enabled = uiState.selectedDestination != NavigationDestinationUi.None,
-                onClick = onStartNavigationClick
-            )
+                MonochromeButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    text = stringResource(R.string.btn_start_navigation),
+                    variant = MonochromeButtonVariant.Primary,
+                    size = MonochromeButtonSize.Large,
+                    icon = Icons.AutoMirrored.Filled.Send,
+                    enabled = uiState.selectedDestination != NavigationDestinationUi.None,
+                    onClick = onStartNavigationClick
+                )
+            }
         }
     }
 }
@@ -560,7 +591,6 @@ fun DestinationTabs(
         Row(
             modifier = Modifier.fillMaxSize()
         ) {
-            // Saved Locations Tab
             val isSavedSelected = selectedTab == NavigationTab.SavedLocations
             Box(
                 modifier = Modifier
@@ -581,7 +611,6 @@ fun DestinationTabs(
                 )
             }
 
-            // Coordinates Tab
             val isCoordsSelected = selectedTab == NavigationTab.Coordinates
             Box(
                 modifier = Modifier
@@ -601,6 +630,42 @@ fun DestinationTabs(
                     color = if (isCoordsSelected) White100 else colors.primaryText
                 )
             }
+
+            val isMapPickerSelected = selectedTab == NavigationTab.MapPicker
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isMapPickerSelected) Black900 else Color.Transparent)
+                    .clickable { onTabSelected(NavigationTab.MapPicker) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Map Picker",
+                    style = MonochromeTheme.typography.label.copy(
+                        fontSize = 13.sp,
+                        fontWeight = if (isMapPickerSelected) FontWeight.Bold else FontWeight.Medium
+                    ),
+                    color = if (isMapPickerSelected) White100 else colors.primaryText
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun MapPickerHelpView() {
+    val colors = MonochromeTheme.colors
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = colors.interactiveSurface,
+        modifier = Modifier.fillMaxWidth().padding(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Tap Anywhere On Map", style = MonochromeTheme.typography.body.copy(fontWeight = FontWeight.Bold))
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("Tap directly on the floorplan map on the left to set custom navigation waypoints.", style = MonochromeTheme.typography.caption)
         }
     }
 }
@@ -610,144 +675,141 @@ fun SavedLocationsList(
     locations: List<SavedLocationUi>,
     selectedDestination: NavigationDestinationUi,
     onLocationSelected: (SavedLocationUi) -> Unit,
-    modifier: Modifier = Modifier
+    onOpenAddLocationDialog: () -> Unit
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "SAVED WAYPOINTS (${locations.size})",
+                style = MonochromeTheme.typography.label.copy(fontSize = 11.sp),
+                color = MonochromeTheme.colors.secondaryText
+            )
+            MonochromeButton(
+                text = "Add Waypoint",
+                variant = MonochromeButtonVariant.Ghost,
+                size = MonochromeButtonSize.Standard,
+                icon = Icons.Default.Add,
+                onClick = onOpenAddLocationDialog
+            )
+        }
+
+        locations.forEach { location ->
+            val isSelected = selectedDestination is NavigationDestinationUi.SavedLocation && selectedDestination.id == location.id
+            SavedLocationCard(
+                location = location,
+                isSelected = isSelected,
+                onClick = { onLocationSelected(location) }
+            )
+        }
+    }
+}
+
+@Composable
+fun SavedLocationCard(
+    location: SavedLocationUi,
+    isSelected: Boolean,
+    onClick: () -> Unit
 ) {
     val colors = MonochromeTheme.colors
-    val shapes = MonochromeTheme.shapes
 
     Surface(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .clip(shapes.cards)
-            .border(1.dp, colors.defaultBorder, shapes.cards),
-        color = White100,
-        shape = shapes.cards
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        color = if (isSelected) colors.interactiveSurface else colors.surface,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isSelected) Black900 else colors.subtleBorder
+        )
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth()
+        Row(
+            modifier = Modifier
+                .padding(14.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            locations.forEachIndexed { index, location ->
-                val isSelected = (selectedDestination is NavigationDestinationUi.SavedLocation) &&
-                        (selectedDestination.id == location.id)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(if (isSelected) Black900 else colors.interactiveSurface),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Place,
+                        contentDescription = null,
+                        tint = if (isSelected) White100 else colors.primaryText,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
 
-                SavedLocationRow(
-                    location = location,
-                    isSelected = isSelected,
-                    onClick = { onLocationSelected(location) }
-                )
-
-                if (index < locations.size - 1) {
-                    HorizontalDivider(
-                        color = colors.subtleBorder,
-                        thickness = 1.dp
+                Column {
+                    Text(
+                        text = location.name,
+                        style = MonochromeTheme.typography.body.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        ),
+                        color = colors.primaryText
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Coordinates: ${location.coordinatesFormatted}",
+                        style = MonochromeTheme.typography.caption.copy(fontSize = 12.sp),
+                        color = colors.secondaryText
                     )
                 }
             }
+
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = colors.mutedText,
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }
 
 @Composable
-fun SavedLocationRow(
-    location: SavedLocationUi,
-    isSelected: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit = {}
-) {
+fun EmptySavedLocationsView() {
     val colors = MonochromeTheme.colors
-    val typography = MonochromeTheme.typography
 
-    Row(
-        modifier = modifier
+    Box(
+        modifier = Modifier
             .fillMaxWidth()
-            .background(if (isSelected) colors.interactiveSurface else Color.Transparent)
-            .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .height(180.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.interactiveSurface),
+        contentAlignment = Alignment.Center
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Location Pin Icon
             Icon(
                 imageVector = Icons.Default.Place,
                 contentDescription = null,
-                tint = colors.primaryText,
-                modifier = Modifier.size(24.dp)
+                tint = colors.mutedText,
+                modifier = Modifier.size(32.dp)
             )
-
-            // Location Name and Coordinates
-            Column(
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Text(
-                    text = location.name,
-                    style = typography.body.copy(
-                        fontSize = 15.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold
-                    ),
-                    color = colors.primaryText
-                )
-                Text(
-                    text = location.coordinatesFormatted,
-                    style = typography.monoCaption.copy(
-                        fontSize = 12.sp
-                    ),
-                    color = colors.mutedText
-                )
-            }
-        }
-
-        // More Options Menu Icon
-        Icon(
-            imageVector = Icons.Default.MoreVert,
-            contentDescription = "More options",
-            tint = colors.primaryText,
-            modifier = Modifier.size(20.dp)
-        )
-    }
-}
-
-@Composable
-fun EmptySavedLocationsView(
-    modifier: Modifier = Modifier
-) {
-    val colors = MonochromeTheme.colors
-    val shapes = MonochromeTheme.shapes
-    val typography = MonochromeTheme.typography
-
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(shapes.cards)
-            .border(1.dp, colors.defaultBorder, shapes.cards),
-        color = White100,
-        shape = shapes.cards
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
             Text(
-                text = stringResource(R.string.empty_locations_title),
-                style = typography.body.copy(
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold
-                ),
-                color = colors.primaryText
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = stringResource(R.string.empty_locations_subtitle),
-                style = typography.bodySmall.copy(
-                    fontSize = 13.sp
-                ),
-                color = colors.mutedText
+                text = "No saved locations yet",
+                style = MonochromeTheme.typography.bodySmall,
+                color = colors.secondaryText
             )
         }
     }
@@ -760,125 +822,105 @@ fun CoordinatesInputPanel(
     yawInput: String,
     onXInputChanged: (String) -> Unit,
     onYInputChanged: (String) -> Unit,
-    onYawInputChanged: (String) -> Unit,
-    modifier: Modifier = Modifier
+    onYawInputChanged: (String) -> Unit
 ) {
-    val colors = MonochromeTheme.colors
-    val shapes = MonochromeTheme.shapes
-
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(shapes.cards)
-            .border(1.dp, colors.defaultBorder, shapes.cards),
-        color = White100,
-        shape = shapes.cards
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            MonochromeTextField(
-                value = xInput,
-                onValueChange = onXInputChanged,
-                label = stringResource(R.string.label_x_coordinate),
-                placeholder = stringResource(R.string.placeholder_x),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            MonochromeTextField(
-                value = yInput,
-                onValueChange = onYInputChanged,
-                label = stringResource(R.string.label_y_coordinate),
-                placeholder = stringResource(R.string.placeholder_y),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            MonochromeTextField(
-                value = yawInput,
-                onValueChange = onYawInputChanged,
-                label = stringResource(R.string.label_yaw),
-                placeholder = stringResource(R.string.placeholder_yaw),
-                trailingIcon = {
-                    Text(
-                        text = "°",
-                        style = MonochromeTheme.typography.bodySmall,
-                        color = colors.secondaryText
-                    )
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
+            Box(modifier = Modifier.weight(1f)) {
+                MonochromeTextField(
+                    value = xInput,
+                    onValueChange = onXInputChanged,
+                    label = "X Position (m)",
+                    placeholder = "0.0"
+                )
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                MonochromeTextField(
+                    value = yInput,
+                    onValueChange = onYInputChanged,
+                    label = "Y Position (m)",
+                    placeholder = "0.0"
+                )
+            }
         }
+
+        MonochromeTextField(
+            value = yawInput,
+            onValueChange = onYawInputChanged,
+            label = "Yaw Heading (°)",
+            placeholder = "0.0°"
+        )
     }
 }
 
 @Composable
 fun ChargingDockCard(
     isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    onClick: () -> Unit
 ) {
     val colors = MonochromeTheme.colors
-    val shapes = MonochromeTheme.shapes
-    val typography = MonochromeTheme.typography
 
     Surface(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .clip(shapes.cards)
-            .border(
-                width = if (isSelected) 1.5.dp else 1.dp,
-                color = if (isSelected) colors.strongBorder else colors.defaultBorder,
-                shape = shapes.cards
-            )
+            .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() },
-        color = if (isSelected) colors.interactiveSurface else White100,
-        shape = shapes.cards
+        shape = RoundedCornerShape(12.dp),
+        color = if (isSelected) colors.interactiveSurface else colors.surface,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isSelected) Black900 else colors.subtleBorder
+        )
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(14.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Home/Dock Monochrome Icon
-                Icon(
-                    imageVector = Icons.Default.Home,
-                    contentDescription = null,
-                    tint = colors.primaryText,
-                    modifier = Modifier.size(24.dp)
-                )
-
-                // Location Title and Subtitle
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(if (isSelected) Black900 else colors.interactiveSurface),
+                    contentAlignment = Alignment.Center
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.Home,
+                        contentDescription = null,
+                        tint = if (isSelected) White100 else colors.primaryText,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                Column {
                     Text(
-                        text = stringResource(R.string.loc_charging_dock),
-                        style = typography.body.copy(
-                            fontSize = 15.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold
+                        text = "Primary Charging Dock",
+                        style = MonochromeTheme.typography.body.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
                         ),
                         color = colors.primaryText
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = stringResource(R.string.charging_dock_subtitle),
-                        style = typography.monoCaption.copy(
-                            fontSize = 12.sp
-                        ),
-                        color = colors.mutedText
+                        text = "Available • Standard Dock",
+                        style = MonochromeTheme.typography.caption.copy(fontSize = 12.sp),
+                        color = colors.secondaryText
                     )
                 }
             }
 
-            // Trailing Chevron Indicator
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,
@@ -890,112 +932,86 @@ fun ChargingDockCard(
 }
 
 @Composable
-fun StartNavigationButton(
-    enabled: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit = {}
+fun AddLocationDialog(
+    onDismiss: () -> Unit,
+    onSave: (String, Double, Double) -> Unit
 ) {
-    MonochromeButton(
-        onClick = onClick,
-        modifier = modifier
-            .fillMaxWidth()
-            .height(52.dp),
-        variant = MonochromeButtonVariant.Primary,
-        size = MonochromeButtonSize.Large,
-        enabled = enabled,
-        icon = Icons.AutoMirrored.Filled.Send,
-        text = stringResource(R.string.btn_start_navigation)
-    )
-}
+    var name by remember { mutableStateOf("") }
+    var xStr by remember { mutableStateOf("") }
+    var yStr by remember { mutableStateOf("") }
 
-// ====================================================================
-// Compose Previews
-// ====================================================================
-
-@Preview(name = "State 1 — Saved Locations / Nothing Selected", widthDp = 1080, heightDp = 680, showBackground = true)
-@Composable
-fun NavigationScreen_Default_Preview() {
-    MonochromeTheme(darkTheme = false) {
-        NavigationScreen(
-            uiState = NavigationUiState(
-                selectedTab = NavigationTab.SavedLocations,
-                selectedDestination = NavigationDestinationUi.None
-            )
-        )
-    }
-}
-
-@Preview(name = "State 2 — Saved Location Selected", widthDp = 1080, heightDp = 680, showBackground = true)
-@Composable
-fun NavigationScreen_LocationSelected_Preview() {
-    val selectedLoc = sampleLocations[2] // Activity Room
-    MonochromeTheme(darkTheme = false) {
-        NavigationScreen(
-            uiState = NavigationUiState(
-                selectedTab = NavigationTab.SavedLocations,
-                selectedDestination = NavigationDestinationUi.SavedLocation(
-                    id = selectedLoc.id,
-                    name = selectedLoc.name,
-                    x = selectedLoc.x,
-                    y = selectedLoc.y
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MonochromeTheme.colors.surface,
+            modifier = Modifier.padding(16.dp).fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Add Saved Location",
+                    style = MonochromeTheme.typography.h3,
+                    color = MonochromeTheme.colors.primaryText
                 )
-            )
-        )
+
+                MonochromeTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = "Location Name",
+                    placeholder = "e.g. Conference Room"
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        MonochromeTextField(
+                            value = xStr,
+                            onValueChange = { xStr = it },
+                            label = "X Coordinate",
+                            placeholder = "2.5"
+                        )
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        MonochromeTextField(
+                            value = yStr,
+                            onValueChange = { yStr = it },
+                            label = "Y Coordinate",
+                            placeholder = "4.0"
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    MonochromeButton(
+                        text = "Cancel",
+                        variant = MonochromeButtonVariant.Ghost,
+                        onClick = onDismiss
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    MonochromeButton(
+                        text = "Save",
+                        variant = MonochromeButtonVariant.Primary,
+                        enabled = name.isNotBlank(),
+                        onClick = {
+                            val x = xStr.toDoubleOrNull() ?: 0.0
+                            val y = yStr.toDoubleOrNull() ?: 0.0
+                            onSave(name, x, y)
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 
-@Preview(name = "State 4 — Coordinates Tab / Empty", widthDp = 1080, heightDp = 680, showBackground = true)
+@Preview(name = "Navigation Screen Preview", showBackground = true, widthDp = 1280, heightDp = 800)
 @Composable
-fun NavigationScreen_CoordinatesEmpty_Preview() {
+fun NavigationScreenPreview() {
     MonochromeTheme(darkTheme = false) {
-        NavigationScreen(
-            uiState = NavigationUiState(
-                selectedTab = NavigationTab.Coordinates,
-                selectedDestination = NavigationDestinationUi.None
-            )
-        )
-    }
-}
-
-@Preview(name = "State 5 — Coordinates Entered", widthDp = 1080, heightDp = 680, showBackground = true)
-@Composable
-fun NavigationScreen_CoordinatesEntered_Preview() {
-    MonochromeTheme(darkTheme = false) {
-        NavigationScreen(
-            uiState = NavigationUiState(
-                selectedTab = NavigationTab.Coordinates,
-                xInput = "2.4",
-                yInput = "5.1",
-                yawInput = "180",
-                selectedDestination = NavigationDestinationUi.Coordinates("2.4", "5.1", "180")
-            )
-        )
-    }
-}
-
-@Preview(name = "State 6 — Charging Dock Selected", widthDp = 1080, heightDp = 680, showBackground = true)
-@Composable
-fun NavigationScreen_ChargingDockSelected_Preview() {
-    MonochromeTheme(darkTheme = false) {
-        NavigationScreen(
-            uiState = NavigationUiState(
-                selectedTab = NavigationTab.SavedLocations,
-                selectedDestination = NavigationDestinationUi.ChargingDock
-            )
-        )
-    }
-}
-
-@Preview(name = "State 7 — Saved Locations Empty", widthDp = 1080, heightDp = 680, showBackground = true)
-@Composable
-fun NavigationScreen_EmptySavedLocations_Preview() {
-    MonochromeTheme(darkTheme = false) {
-        NavigationScreen(
-            uiState = NavigationUiState(
-                selectedTab = NavigationTab.SavedLocations,
-                savedLocations = emptyList(),
-                selectedDestination = NavigationDestinationUi.None
-            )
-        )
+        NavigationScreenContent()
     }
 }

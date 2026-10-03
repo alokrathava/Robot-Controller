@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.agrathava.home.HomeScreen
 import com.agrathava.home.Sidebar
 import com.agrathava.home.SidebarNavItem
@@ -53,6 +54,7 @@ fun MainAppScreen() {
             when (selectedNav) {
                 SidebarNavItem.HOME -> {
                     HomeScreen(
+                        viewModel = hiltViewModel(),
                         selectedNav = selectedNav,
                         onSidebarItemSelected = { selectedNav = it }
                     )
@@ -60,12 +62,14 @@ fun MainAppScreen() {
 
                 SidebarNavItem.NAVIGATION -> {
                     NavigationScreen(
+                        viewModel = hiltViewModel(),
                         onSidebarItemSelected = { selectedNav = it }
                     )
                 }
 
                 SidebarNavItem.MANUAL_CONTROL -> {
                     ManualControlScreen(
+                        viewModel = hiltViewModel(),
                         onSidebarItemSelected = { selectedNav = it }
                     )
                 }

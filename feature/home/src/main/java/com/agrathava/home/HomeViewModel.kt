@@ -23,18 +23,24 @@ class HomeViewModel @Inject constructor(
     private val robotRepository: RobotRepository,
 ) : ViewModel() {
 
+    private val _screenFlow = MutableStateFlow(ScreenFlow.DASHBOARD)
     private val _connectionStep = MutableStateFlow(RobotConnectionStep.NETWORK_SELECTION)
     private val _selectedNetwork = MutableStateFlow<WifiNetwork?>(null)
+    private val _isScanningNetworks = MutableStateFlow(false)
+    private val _networkScanError = MutableStateFlow<String?>(null)
     private val _ipAddress = MutableStateFlow("192.168.1.100")
     private val _port = MutableStateFlow("8080")
     private val _ipError = MutableStateFlow<String?>(null)
     private val _portError = MutableStateFlow<String?>(null)
+    private val _connectionErrorMessage = MutableStateFlow<String?>(null)
 
     private val _networkSelectionFlow = combine(
         _connectionStep,
         _selectedNetwork,
-    ) { step, selectedNet ->
-        step to selectedNet
+        _isScanningNetworks,
+        _networkScanError
+    ) { step, selectedNet, isScanning, scanErr ->
+        NetworkSelectionState(step, selectedNet, isScanning, scanErr)
     }
 
     private val _ipPortFormFlow = combine(
@@ -42,15 +48,17 @@ class HomeViewModel @Inject constructor(
         _port,
         _ipError,
         _portError,
-    ) { ip, port, ipErr, portErr ->
-        IpPortForm(ip, port, ipErr, portErr)
+        _connectionErrorMessage
+    ) { ip, port, ipErr, portErr, connErr ->
+        IpPortForm(ip, port, ipErr, portErr, connErr)
     }
 
     private val _formFlow = combine(
+        _screenFlow,
         _networkSelectionFlow,
         _ipPortFormFlow,
-    ) { (step, selectedNet), form ->
-        ConnectionFormState(step, selectedNet, form.ip, form.port, form.ipErr, form.portErr)
+    ) { flow, netState, form ->
+        ConnectionFormState(flow, netState, form)
     }
 
     private val _robotStateFlow = combine(
@@ -66,22 +74,29 @@ class HomeViewModel @Inject constructor(
     val uiState: StateFlow<HomeUiState> = combine(
         _robotStateFlow,
         robotRepository.availableNetworks,
+        robotRepository.telemetry,
         _formFlow,
-    ) { robotState, availableNets, formState ->
+    ) { robotState, availableNets, telemetry, formState ->
         HomeUiState(
             batteryStatus = robotState.battery,
             position = robotState.position,
             navigationStatus = robotState.navStatus,
             mapData = robotState.mapData,
             statusMessage = getStatusMessage(robotState.navStatus),
-            connectionStep = formState.step,
+            screenFlow = formState.screenFlow,
+            connectionStep = formState.netState.step,
             availableNetworks = availableNets,
-            selectedNetwork = formState.selectedNetwork ?: availableNets.firstOrNull(),
-            ipAddress = formState.ipAddress,
-            port = formState.port,
-            ipError = formState.ipError,
-            portError = formState.portError,
+            selectedNetwork = formState.netState.selectedNetwork ?: availableNets.firstOrNull(),
+            isScanningNetworks = formState.netState.isScanning,
+            networkScanError = formState.netState.scanError,
+            ipAddress = formState.ipForm.ip,
+            port = formState.ipForm.port,
+            ipError = formState.ipForm.ipErr,
+            portError = formState.ipForm.portErr,
+            connectionErrorMessage = formState.ipForm.connErr,
             connectionStatus = robotState.connStatus,
+            isEmergencyStopped = telemetry.isEmergencyStopped,
+            isLowBatteryWarning = robotState.battery.isLowBattery || robotState.battery.levelPercent <= 15
         )
     }.stateIn(
         scope = viewModelScope,
@@ -89,12 +104,19 @@ class HomeViewModel @Inject constructor(
         initialValue = HomeUiState(),
     )
 
+    fun setScreenFlow(flow: ScreenFlow) {
+        _screenFlow.value = flow
+    }
+
     fun selectNetwork(network: WifiNetwork) {
         _selectedNetwork.value = network
     }
 
     fun refreshNetworks() {
+        _isScanningNetworks.value = true
+        _networkScanError.value = null
         robotRepository.refreshAvailableNetworks()
+        _isScanningNetworks.value = false
     }
 
     fun updateIpAddress(ip: String) {
@@ -120,9 +142,16 @@ class HomeViewModel @Inject constructor(
         val isPortValid = validatePort(currentPort)
 
         if (isIpValid && isPortValid) {
+            _connectionStep.value = RobotConnectionStep.CONNECTING
+            _connectionErrorMessage.value = null
             val portInt = currentPort.toIntOrNull() ?: 8080
             robotRepository.connectToRobot(currentIp, portInt, currentSsid)
+            _screenFlow.value = ScreenFlow.DASHBOARD
+            _connectionStep.value = RobotConnectionStep.NETWORK_SELECTION
             onConnected()
+        } else {
+            _connectionStep.value = RobotConnectionStep.CONNECTION_FAILED
+            _connectionErrorMessage.value = "Please fix configuration errors before connecting"
         }
     }
 
@@ -222,20 +251,25 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    private data class NetworkSelectionState(
+        val step: RobotConnectionStep,
+        val selectedNetwork: WifiNetwork?,
+        val isScanning: Boolean,
+        val scanError: String?
+    )
+
     private data class IpPortForm(
         val ip: String,
         val port: String,
         val ipErr: String?,
-        val portErr: String?
+        val portErr: String?,
+        val connErr: String?
     )
 
     private data class ConnectionFormState(
-        val step: RobotConnectionStep,
-        val selectedNetwork: WifiNetwork?,
-        val ipAddress: String,
-        val port: String,
-        val ipError: String?,
-        val portError: String?
+        val screenFlow: ScreenFlow,
+        val netState: NetworkSelectionState,
+        val ipForm: IpPortForm
     )
 
     private data class RobotBaseState(

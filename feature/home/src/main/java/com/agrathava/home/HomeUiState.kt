@@ -13,12 +13,18 @@ data class HomeUiState(
     val navigationStatus: NavigationStatus = NavigationStatus.IDLE,
     val mapData: MapData = MapData(),
     val statusMessage: String = "Ready",
+    val screenFlow: ScreenFlow = ScreenFlow.DASHBOARD,
     val connectionStep: RobotConnectionStep = RobotConnectionStep.NETWORK_SELECTION,
     val availableNetworks: List<WifiNetwork> = emptyList(),
     val selectedNetwork: WifiNetwork? = null,
+    val isScanningNetworks: Boolean = false,
+    val networkScanError: String? = null,
     val ipAddress: String = "192.168.1.100",
     val port: String = "8080",
     val ipError: String? = null,
     val portError: String? = null,
-    val connectionStatus: ConnectionStatus = ConnectionStatus.DISCONNECTED
+    val connectionErrorMessage: String? = null,
+    val connectionStatus: ConnectionStatus = ConnectionStatus.DISCONNECTED,
+    val isEmergencyStopped: Boolean = false,
+    val isLowBatteryWarning: Boolean = false
 )

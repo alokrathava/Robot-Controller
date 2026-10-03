@@ -51,17 +51,22 @@ fun HomeScreen(
     onSidebarItemSelected: (SidebarNavItem) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var currentFlow by remember { mutableStateOf(initialFlow) }
 
-    when (currentFlow) {
+    LaunchedEffect(initialFlow) {
+        if (uiState.screenFlow != initialFlow) {
+            viewModel.setScreenFlow(initialFlow)
+        }
+    }
+
+    when (uiState.screenFlow) {
         ScreenFlow.SPLASH -> {
             SplashScreen(
                 onConnectClick = {
                     viewModel.setConnectionStep(RobotConnectionStep.NETWORK_SELECTION)
-                    currentFlow = ScreenFlow.CONNECTION
+                    viewModel.setScreenFlow(ScreenFlow.CONNECTION)
                 },
                 onSelectMode = {
-                    currentFlow = ScreenFlow.DASHBOARD
+                    viewModel.setScreenFlow(ScreenFlow.DASHBOARD)
                 },
                 modifier = modifier
             )
@@ -88,16 +93,16 @@ fun HomeScreen(
                     if (uiState.connectionStep == RobotConnectionStep.IP_PORT_CONFIG) {
                         viewModel.setConnectionStep(RobotConnectionStep.NETWORK_SELECTION)
                     } else {
-                        currentFlow = ScreenFlow.SPLASH
+                        viewModel.setScreenFlow(ScreenFlow.SPLASH)
                     }
                 },
                 onConnectClick = {
                     viewModel.connectToRobot {
-                        currentFlow = ScreenFlow.DASHBOARD
+                        viewModel.setScreenFlow(ScreenFlow.DASHBOARD)
                     }
                 },
                 onCancelClick = {
-                    currentFlow = ScreenFlow.SPLASH
+                    viewModel.setScreenFlow(ScreenFlow.SPLASH)
                 },
                 modifier = modifier
             )
