@@ -19,6 +19,7 @@ import com.agrathava.home.Sidebar
 import com.agrathava.home.SidebarNavItem
 import com.agrathava.manualcontrol.ManualControlScreen
 import com.agrathava.navigation.NavigationScreen
+import com.agrathava.robotstatus.RobotStatusScreen
 import com.agrathava.theme.MonochromeTheme
 import dagger.hilt.android.AndroidEntryPoint
 import me.alokrathava.robotcontroller.ui.theme.RobotControllerTheme
@@ -70,6 +71,14 @@ fun MainAppScreen() {
                 SidebarNavItem.MANUAL_CONTROL -> {
                     ManualControlScreen(
                         viewModel = hiltViewModel(),
+                        onSidebarItemSelected = { selectedNav = it }
+                    )
+                }
+
+                SidebarNavItem.ROBOT_STATUS -> {
+                    RobotStatusScreen(
+                        viewModel = hiltViewModel(),
+                        selectedNav = selectedNav,
                         onSidebarItemSelected = { selectedNav = it }
                     )
                 }
