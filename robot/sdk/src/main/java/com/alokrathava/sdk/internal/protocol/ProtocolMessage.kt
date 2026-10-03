@@ -46,6 +46,12 @@ internal data class NavigateToPayloadDto(
 )
 
 @Serializable
+internal data class NavigateThroughPayloadDto(
+    val waypoints: List<NavigateToPayloadDto>,
+    val stopOnFailure: Boolean = true
+)
+
+@Serializable
 internal data class ManualVelocityPayloadDto(
     val linearMps: Double,
     val angularRadPerSec: Double
@@ -57,8 +63,13 @@ internal data class MapInfoDto(
     val name: String,
     val isActive: Boolean = false,
     val resolution: Float? = null,
+    val resolutionMetersPerCell: Double? = null,
     val width: Int? = null,
-    val height: Int? = null
+    val widthCells: Int? = null,
+    val height: Int? = null,
+    val heightCells: Int? = null,
+    val createdAtEpochMs: Long? = null,
+    val updatedAtEpochMs: Long? = null
 )
 
 @Serializable
@@ -68,6 +79,32 @@ internal data class ListMapsAckPayloadDto(
 
 @Serializable
 internal data class SwitchMapPayloadDto(
+    val mapId: String
+)
+
+@Serializable
+internal data class SaveMapPayloadDto(
+    val name: String
+)
+
+@Serializable
+internal data class SaveMapAckPayloadDto(
+    val map: MapInfoDto
+)
+
+@Serializable
+internal data class RenameMapPayloadDto(
+    val mapId: String,
+    val newName: String
+)
+
+@Serializable
+internal data class RenameMapAckPayloadDto(
+    val map: MapInfoDto
+)
+
+@Serializable
+internal data class DeleteMapPayloadDto(
     val mapId: String
 )
 
@@ -154,4 +191,210 @@ internal data class RobotHealthPayloadDto(
     val overall: Int = 0,
     val subsystems: List<SubsystemHealthDto> = emptyList(),
     val activeErrors: List<ProtocolErrorDto> = emptyList()
+)
+
+@Serializable
+internal data class MapPointDto(
+    val xMeters: Double,
+    val yMeters: Double
+)
+
+@Serializable
+internal data class VirtualWallDto(
+    val id: String = "",
+    val mapId: String,
+    val name: String,
+    val type: String,
+    val points: List<MapPointDto>,
+    val thicknessMeters: Double? = null,
+    val enabled: Boolean = true
+)
+
+@Serializable
+internal data class ListVirtualWallsPayloadDto(
+    val mapId: String
+)
+
+@Serializable
+internal data class ListVirtualWallsAckPayloadDto(
+    val mapId: String = "",
+    val walls: List<VirtualWallDto> = emptyList()
+)
+
+@Serializable
+internal data class CreateVirtualWallPayloadDto(
+    val wall: VirtualWallDto
+)
+
+@Serializable
+internal data class CreateVirtualWallAckPayloadDto(
+    val wall: VirtualWallDto
+)
+
+@Serializable
+internal data class UpdateVirtualWallPayloadDto(
+    val wall: VirtualWallDto
+)
+
+@Serializable
+internal data class UpdateVirtualWallAckPayloadDto(
+    val wall: VirtualWallDto
+)
+
+@Serializable
+internal data class DeleteVirtualWallPayloadDto(
+    val wallId: String
+)
+
+@Serializable
+internal data class SetVirtualWallEnabledPayloadDto(
+    val wallId: String,
+    val enabled: Boolean
+)
+
+@Serializable
+internal data class ClearVirtualWallsPayloadDto(
+    val mapId: String
+)
+
+@Serializable
+internal data class SavedLocationDto(
+    val id: String = "",
+    val name: String,
+    val mapId: String,
+    val xMeters: Double,
+    val yMeters: Double,
+    val yawRadians: Double = 0.0
+)
+
+@Serializable
+internal data class ListSavedLocationsPayloadDto(
+    val mapId: String
+)
+
+@Serializable
+internal data class ListSavedLocationsAckPayloadDto(
+    val mapId: String = "",
+    val locations: List<SavedLocationDto> = emptyList()
+)
+
+@Serializable
+internal data class SaveLocationPayloadDto(
+    val name: String,
+    val pose: NavigateToPayloadDto,
+    val mapId: String? = null
+)
+
+@Serializable
+internal data class SaveLocationAckPayloadDto(
+    val location: SavedLocationDto
+)
+
+@Serializable
+internal data class RenameLocationPayloadDto(
+    val id: String,
+    val name: String
+)
+
+@Serializable
+internal data class RenameLocationAckPayloadDto(
+    val location: SavedLocationDto
+)
+
+@Serializable
+internal data class DeleteLocationPayloadDto(
+    val id: String
+)
+
+@Serializable
+internal data class NavigateToLocationPayloadDto(
+    val id: String
+)
+
+@Serializable
+internal data class CheckMapPointPayloadDto(
+    val xMeters: Double,
+    val yMeters: Double
+)
+
+@Serializable
+internal data class CheckMapPointAckPayloadDto(
+    val isValid: Boolean,
+    val reason: String? = null
+)
+
+@Serializable
+internal data class MissionStepDto(
+    val type: String,
+    val xMeters: Double? = null,
+    val yMeters: Double? = null,
+    val yawRadians: Double? = null,
+    val locationId: String? = null,
+    val durationMillis: Long? = null
+)
+
+@Serializable
+internal data class RobotMissionDto(
+    val id: String? = null,
+    val name: String,
+    val steps: List<MissionStepDto> = emptyList()
+)
+
+@Serializable
+internal data class SubmitMissionPayloadDto(
+    val mission: RobotMissionDto
+)
+
+@Serializable
+internal data class MissionProgressPayloadDto(
+    val missionId: String,
+    val status: String,
+    val currentStepIndex: Int = 0,
+    val totalSteps: Int = 0,
+    val detail: String = ""
+)
+
+@Serializable
+internal data class MotionLimitsDto(
+    val maxLinearVelocityMps: Double,
+    val maxAngularVelocityRadPerSec: Double
+)
+
+@Serializable
+internal data class RobotConfigurationDto(
+    val motionLimits: MotionLimitsDto,
+    val telemetryFrequencyHz: Double = 10.0
+)
+
+@Serializable
+internal data class UpdateMotionLimitsPayloadDto(
+    val limits: MotionLimitsDto
+)
+
+@Serializable
+internal data class RobotLogEntryDto(
+    val timestampEpochMs: Long,
+    val level: String,
+    val logger: String,
+    val message: String
+)
+
+@Serializable
+internal data class GetRecentLogsPayloadDto(
+    val limit: Int = 100
+)
+
+@Serializable
+internal data class GetRecentLogsAckPayloadDto(
+    val logs: List<RobotLogEntryDto> = emptyList()
+)
+
+@Serializable
+internal data class RobotStateSnapshotPayloadDto(
+    val telemetry: TelemetryPayloadDto? = null,
+    val battery: BatteryStatePayloadDto? = null,
+    val safety: SafetyStatePayloadDto? = null,
+    val docking: DockingStatePayloadDto? = null,
+    val health: RobotHealthPayloadDto? = null,
+    val activeMap: MapInfoDto? = null
 )

@@ -106,6 +106,7 @@ internal class RobotClientRepositoryImpl(
                     is ConnectionState.Connected -> ConnectionStatus.CONNECTED
                     is ConnectionState.Connecting -> ConnectionStatus.CONNECTING
                     is ConnectionState.Authenticating -> ConnectionStatus.CONNECTING
+                    is ConnectionState.Reconnecting -> ConnectionStatus.CONNECTING
                     is ConnectionState.Failed -> ConnectionStatus.FAILED
                     is ConnectionState.Disconnected -> ConnectionStatus.DISCONNECTED
                 }

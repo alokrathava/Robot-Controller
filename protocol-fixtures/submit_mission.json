@@ -1,0 +1,15 @@
+{
+  "type": "submit_mission",
+  "id": "cmd-mis-1",
+  "protocolVersion": 1,
+  "payload": {
+    "mission": {
+      "name": "Patrol Mission",
+      "steps": [
+        { "type": "NAVIGATE", "xMeters": 1.0, "yMeters": 2.0, "yawRadians": 0.0 },
+        { "type": "WAIT", "durationMillis": 2000 },
+        { "type": "DOCK" }
+      ]
+    }
+  }
+}

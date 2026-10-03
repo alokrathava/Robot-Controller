@@ -61,4 +61,52 @@ class ProtocolFixtureTest {
         assertEquals("CONTROL_SESSION_IN_USE", envelope.error?.code)
         assertEquals(true, envelope.error?.recoverable)
     }
+
+    @Test
+    fun testSaveMapFixture() {
+        val file = File(fixturesDir, "save_map.json")
+        assertTrue("Fixture file must exist: ${file.absolutePath}", file.exists())
+
+        val jsonText = file.readText()
+        val envelope = ProtocolCodec.decodeEnvelope(jsonText)
+
+        assertEquals("save_map", envelope.type)
+        assertEquals("cmd-save-1", envelope.id)
+    }
+
+    @Test
+    fun testCreateVirtualWallFixture() {
+        val file = File(fixturesDir, "create_virtual_wall.json")
+        assertTrue("Fixture file must exist: ${file.absolutePath}", file.exists())
+
+        val jsonText = file.readText()
+        val envelope = ProtocolCodec.decodeEnvelope(jsonText)
+
+        assertEquals("create_virtual_wall", envelope.type)
+        assertEquals("cmd-vw-1", envelope.id)
+    }
+
+    @Test
+    fun testSaveLocationFixture() {
+        val file = File(fixturesDir, "save_location.json")
+        assertTrue("Fixture file must exist: ${file.absolutePath}", file.exists())
+
+        val jsonText = file.readText()
+        val envelope = ProtocolCodec.decodeEnvelope(jsonText)
+
+        assertEquals("save_location", envelope.type)
+        assertEquals("cmd-loc-1", envelope.id)
+    }
+
+    @Test
+    fun testSubmitMissionFixture() {
+        val file = File(fixturesDir, "submit_mission.json")
+        assertTrue("Fixture file must exist: ${file.absolutePath}", file.exists())
+
+        val jsonText = file.readText()
+        val envelope = ProtocolCodec.decodeEnvelope(jsonText)
+
+        assertEquals("submit_mission", envelope.type)
+        assertEquals("cmd-mis-1", envelope.id)
+    }
 }

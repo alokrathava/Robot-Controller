@@ -1,0 +1,18 @@
+{
+  "type": "create_virtual_wall",
+  "id": "cmd-vw-1",
+  "protocolVersion": 1,
+  "payload": {
+    "wall": {
+      "mapId": "map_1",
+      "name": "Keepout",
+      "type": "LINE",
+      "points": [
+        { "xMeters": 0.0, "yMeters": 0.0 },
+        { "xMeters": 5.0, "yMeters": 0.0 }
+      ],
+      "thicknessMeters": 0.2,
+      "enabled": true
+    }
+  }
+}

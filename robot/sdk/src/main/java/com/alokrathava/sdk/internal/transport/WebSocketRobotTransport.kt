@@ -10,6 +10,8 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLSocketFactory
+import javax.net.ssl.X509TrustManager
 
 internal interface TransportListener {
     fun onOpen()
@@ -21,7 +23,9 @@ internal interface TransportListener {
 internal class WebSocketRobotTransport(
     private val endpoint: RobotEndpoint,
     private val logger: RobotLogger,
-    private val listener: TransportListener
+    private val listener: TransportListener,
+    private val sslSocketFactory: SSLSocketFactory? = null,
+    private val trustManager: X509TrustManager? = null
 ) {
     private var client: OkHttpClient? = null
     private var webSocket: WebSocket? = null
@@ -33,17 +37,22 @@ internal class WebSocketRobotTransport(
     fun connect() {
         if (_isConnected) return
 
-        // Shut down any previous client instance cleanly
         disconnectInternal(silent = true)
 
-        client = OkHttpClient.Builder()
+        val builder = OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.MILLISECONDS)
             .writeTimeout(10, TimeUnit.SECONDS)
             .pingInterval(15, TimeUnit.SECONDS)
-            .build()
 
-        val url = "ws://${endpoint.host}:${endpoint.port}"
+        if (sslSocketFactory != null && trustManager != null) {
+            builder.sslSocketFactory(sslSocketFactory, trustManager)
+        }
+
+        client = builder.build()
+
+        val scheme = if (endpoint.useTls) "wss" else "ws"
+        val url = "$scheme://${endpoint.host}:${endpoint.port}"
         logger.log(RobotLogEvent(RobotLogLevel.INFO, "TRANSPORT", "Connecting to WebSocket at $url"))
 
         val request = Request.Builder()

@@ -1,0 +1,14 @@
+{
+  "type": "save_location",
+  "id": "cmd-loc-1",
+  "protocolVersion": 1,
+  "payload": {
+    "name": "Reception",
+    "pose": {
+      "xMeters": 2.5,
+      "yMeters": 1.0,
+      "yawRadians": 0.0
+    },
+    "mapId": "map_1"
+  }
+}

@@ -1,10 +1,13 @@
 package com.alokrathava.sdk
 
 import com.alokrathava.sdk.model.ReconnectPolicy
+import javax.net.ssl.SSLSocketFactory
+import javax.net.ssl.X509TrustManager
 
 data class RobotEndpoint(
     val host: String,
-    val port: Int
+    val port: Int,
+    val useTls: Boolean = false
 )
 
 sealed interface RobotAuthentication {
@@ -41,5 +44,7 @@ data class RobotSdkConfig(
     val reconnectPolicy: ReconnectPolicy = ReconnectPolicy(),
     val heartbeatIntervalMs: Long = 5_000,
     val telemetryStaleTimeoutMs: Long = 3_000,
+    val sslSocketFactory: SSLSocketFactory? = null,
+    val trustManager: X509TrustManager? = null,
     val logger: RobotLogger = RobotLogger.NONE
 )
