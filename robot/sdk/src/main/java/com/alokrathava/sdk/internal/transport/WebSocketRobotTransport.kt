@@ -25,10 +25,16 @@ internal class WebSocketRobotTransport(
 ) {
     private var client: OkHttpClient? = null
     private var webSocket: WebSocket? = null
-    @Volatile private var isConnected = false
+    @Volatile private var _isConnected = false
+
+    val isConnected: Boolean
+        get() = _isConnected
 
     fun connect() {
-        if (isConnected) return
+        if (_isConnected) return
+
+        // Shut down any previous client instance cleanly
+        disconnectInternal(silent = true)
 
         client = OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
@@ -46,7 +52,7 @@ internal class WebSocketRobotTransport(
 
         webSocket = client?.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(ws: WebSocket, response: Response) {
-                isConnected = true
+                _isConnected = true
                 logger.log(RobotLogEvent(RobotLogLevel.INFO, "TRANSPORT", "WebSocket connected successfully"))
                 listener.onOpen()
             }
@@ -56,7 +62,7 @@ internal class WebSocketRobotTransport(
             }
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
-                isConnected = false
+                _isConnected = false
                 logger.log(RobotLogEvent(RobotLogLevel.ERROR, "TRANSPORT", "WebSocket failure: ${t.message}"))
                 listener.onFailure(t, response)
             }
@@ -66,7 +72,7 @@ internal class WebSocketRobotTransport(
             }
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
-                isConnected = false
+                _isConnected = false
                 logger.log(RobotLogEvent(RobotLogLevel.INFO, "TRANSPORT", "WebSocket closed: $code $reason"))
                 listener.onClose(code, reason)
             }
@@ -75,21 +81,25 @@ internal class WebSocketRobotTransport(
 
     fun send(text: String): Boolean {
         val ws = webSocket
-        if (!isConnected || ws == null) {
+        if (!_isConnected || ws == null) {
             return false
         }
         return ws.send(text)
     }
 
-    fun disconnect() {
-        isConnected = false
+    private fun disconnectInternal(silent: Boolean) {
+        _isConnected = false
         try {
-            webSocket?.close(1000, "Client disconnect")
+            webSocket?.close(1000, "Disconnect")
         } catch (_: Exception) { }
         webSocket = null
         try {
             client?.dispatcher?.executorService?.shutdown()
         } catch (_: Exception) { }
         client = null
+    }
+
+    fun disconnect() {
+        disconnectInternal(silent = false)
     }
 }

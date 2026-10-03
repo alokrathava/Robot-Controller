@@ -6,6 +6,7 @@ import com.alokrathava.sdk.internal.protocol.BatteryStatePayloadDto
 import com.alokrathava.sdk.internal.protocol.DockingStatePayloadDto
 import com.alokrathava.sdk.internal.protocol.HelloAckPayloadDto
 import com.alokrathava.sdk.internal.protocol.HelloPayloadDto
+import com.alokrathava.sdk.internal.protocol.ListMapsAckPayloadDto
 import com.alokrathava.sdk.internal.protocol.ManualVelocityPayloadDto
 import com.alokrathava.sdk.internal.protocol.NavigateToPayloadDto
 import com.alokrathava.sdk.internal.protocol.ProtocolEnvelope
@@ -13,6 +14,7 @@ import com.alokrathava.sdk.internal.protocol.ProtocolErrorDto
 import com.alokrathava.sdk.internal.protocol.ROBOT_PROTOCOL_VERSION
 import com.alokrathava.sdk.internal.protocol.RobotHealthPayloadDto
 import com.alokrathava.sdk.internal.protocol.SafetyStatePayloadDto
+import com.alokrathava.sdk.internal.protocol.SwitchMapPayloadDto
 import com.alokrathava.sdk.internal.protocol.TelemetryPayloadDto
 import com.alokrathava.sdk.model.BatteryState
 import com.alokrathava.sdk.model.DockingState
@@ -20,6 +22,7 @@ import com.alokrathava.sdk.model.Pose2D
 import com.alokrathava.sdk.model.RobotBatteryState
 import com.alokrathava.sdk.model.RobotHealth
 import com.alokrathava.sdk.model.RobotHealthStatus
+import com.alokrathava.sdk.model.RobotMap
 import com.alokrathava.sdk.model.RobotTelemetry
 import com.alokrathava.sdk.model.SafetyState
 import com.alokrathava.sdk.model.SubsystemHealth
@@ -54,6 +57,14 @@ internal object ProtocolCodec {
         )
     }
 
+    fun createPingEnvelope(id: String): ProtocolEnvelope {
+        return ProtocolEnvelope(
+            type = "ping",
+            id = id,
+            protocolVersion = ROBOT_PROTOCOL_VERSION
+        )
+    }
+
     fun createNavigateToEnvelope(id: String, pose: Pose2D): ProtocolEnvelope {
         val dto = NavigateToPayloadDto(pose.xMeters, pose.yMeters, pose.yawRadians)
         val payload = json.encodeToJsonElement(dto) as? kotlinx.serialization.json.JsonObject
@@ -76,6 +87,17 @@ internal object ProtocolCodec {
         )
     }
 
+    fun createSwitchMapEnvelope(id: String, mapId: String): ProtocolEnvelope {
+        val dto = SwitchMapPayloadDto(mapId = mapId)
+        val payload = json.encodeToJsonElement(dto) as? kotlinx.serialization.json.JsonObject
+        return ProtocolEnvelope(
+            type = "switch_map",
+            id = id,
+            protocolVersion = ROBOT_PROTOCOL_VERSION,
+            payload = payload
+        )
+    }
+
     fun createSimpleCommandEnvelope(type: String, id: String): ProtocolEnvelope {
         return ProtocolEnvelope(
             type = type,
@@ -88,6 +110,25 @@ internal object ProtocolCodec {
         val payload = envelope.payload ?: return null
         return try {
             json.decodeFromJsonElement<HelloAckPayloadDto>(payload)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun decodeListMapsAck(envelope: ProtocolEnvelope): List<RobotMap>? {
+        val payload = envelope.payload ?: return null
+        return try {
+            val dto = json.decodeFromJsonElement<ListMapsAckPayloadDto>(payload)
+            dto.maps.map { item ->
+                RobotMap(
+                    id = item.id,
+                    name = item.name,
+                    isActive = item.isActive,
+                    resolution = item.resolution,
+                    width = item.width,
+                    height = item.height
+                )
+            }
         } catch (_: Exception) {
             null
         }

@@ -11,18 +11,19 @@ import java.util.concurrent.atomic.AtomicLong
 internal class PendingCommandRegistry {
 
     private val idCounter = AtomicLong(1000)
-    private val pendingMap = ConcurrentHashMap<String, CompletableDeferred<RobotResult<Unit>>>()
+    private val pendingMap = ConcurrentHashMap<String, CompletableDeferred<RobotResult<Any>>>()
 
     fun generateCommandId(): String {
         return "cmd-${idCounter.incrementAndGet()}"
     }
 
-    suspend fun registerAndAwait(
+    @Suppress("UNCHECKED_CAST")
+    suspend fun <T : Any> registerAndAwaitTyped(
         commandId: String,
         timeoutMs: Long,
         onSend: () -> Unit
-    ): RobotResult<Unit> {
-        val deferred = CompletableDeferred<RobotResult<Unit>>()
+    ): RobotResult<T> {
+        val deferred = CompletableDeferred<RobotResult<Any>>()
         pendingMap[commandId] = deferred
 
         try {
@@ -31,7 +32,10 @@ internal class PendingCommandRegistry {
                 deferred.await()
             }
             if (result != null) {
-                return result
+                return when (result) {
+                    is RobotResult.Success -> RobotResult.Success(result.value as T)
+                    is RobotResult.Failure -> RobotResult.Failure(result.error)
+                }
             }
             pendingMap.remove(commandId)
             return RobotResult.Failure(
@@ -57,9 +61,22 @@ internal class PendingCommandRegistry {
         }
     }
 
+    suspend fun registerAndAwait(
+        commandId: String,
+        timeoutMs: Long,
+        onSend: () -> Unit
+    ): RobotResult<Unit> {
+        return registerAndAwaitTyped<Unit>(commandId, timeoutMs, onSend)
+    }
+
     fun completeSuccess(commandId: String) {
         val deferred = pendingMap.remove(commandId)
         deferred?.complete(RobotResult.Success(Unit))
+    }
+
+    fun <T : Any> completeSuccessPayload(commandId: String, payload: T) {
+        val deferred = pendingMap.remove(commandId)
+        deferred?.complete(RobotResult.Success(payload))
     }
 
     fun completeError(commandId: String, error: RobotError) {

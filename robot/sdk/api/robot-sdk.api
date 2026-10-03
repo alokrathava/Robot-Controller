@@ -1,0 +1,37 @@
+public final class com.alokrathava.sdk.RobotSdk {
+	public static final field INSTANCE Lcom/alokrathava/sdk/RobotSdk;
+	public fun create (Lcom/alokrathava/sdk/RobotSdkConfig;)Lcom/alokrathava/sdk/RobotClient;
+}
+
+public interface com.alokrathava.sdk.RobotClient : java.lang.AutoCloseable {
+	public abstract fun getActiveMap ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getBatteryState ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getConnectionMetrics ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getConnectionState ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getDockingState ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getEvents ()Lkotlinx/coroutines/flow/SharedFlow;
+	public abstract fun getHealth ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getSafetyState ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getTelemetry ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getTelemetryFreshness ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun connect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun disconnect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun navigateTo (Lcom/alokrathava/sdk/model/Pose2D;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun cancelNavigation (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun setManualVelocity (DDLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun stop (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun dock (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun undock (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun cancelDocking (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun emergencyStop (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun releaseEmergencyStop (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun listMaps (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun switchMap (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun close ()V
+}
+
+public final class com.alokrathava.sdk.RobotSdkBuildVersion {
+	public static final field INSTANCE Lcom/alokrathava/sdk/RobotSdkBuildVersion;
+	public static final field PROTOCOL_VERSION I = 1
+	public static final field SDK_VERSION Ljava/lang/String; = "0.2.0"
+}

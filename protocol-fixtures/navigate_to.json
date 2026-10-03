@@ -1,0 +1,10 @@
+{
+  "type": "navigate_to",
+  "id": "cmd-1002",
+  "protocolVersion": 1,
+  "payload": {
+    "xMeters": 5.0,
+    "yMeters": 2.5,
+    "yawRadians": 1.57
+  }
+}

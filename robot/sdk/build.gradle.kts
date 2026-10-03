@@ -1,7 +1,11 @@
+import org.gradle.api.publish.PublishingExtension
+import org.gradle.api.publish.maven.MavenPublication
+
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
+    id("maven-publish")
 }
 
 android {
@@ -12,6 +16,12 @@ android {
         minSdk = 24
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
+    }
+
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+        }
     }
 
     buildTypes {
@@ -29,6 +39,38 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
+    }
+}
+
+afterEvaluate {
+    configure<PublishingExtension> {
+        publications {
+            create<MavenPublication>("release") {
+                groupId = "com.alokrathava"
+                artifactId = "robot-sdk"
+                version = "0.2.0"
+
+                from(components["release"])
+
+                pom {
+                    name.set("Robot SDK")
+                    description.set("Android Client SDK for Robot Navigation & Gateway")
+                    url.set("https://github.com/alokrathava/Robot-Controller")
+                    licenses {
+                        license {
+                            name.set("Apache-2.0")
+                            url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                        }
+                    }
+                    developers {
+                        developer {
+                            id.set("alokrathava")
+                            name.set("Alok Rathava")
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

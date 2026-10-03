@@ -1,0 +1,19 @@
+{
+  "type": "hello_ack",
+  "id": "cmd-1001",
+  "protocolVersion": 1,
+  "payload": {
+    "gatewayVersion": "0.2.0",
+    "capabilities": [
+      "navigation",
+      "manual_control",
+      "docking",
+      "safety",
+      "telemetry",
+      "battery",
+      "health",
+      "map_switching"
+    ],
+    "sessionId": "sess-1234"
+  }
+}

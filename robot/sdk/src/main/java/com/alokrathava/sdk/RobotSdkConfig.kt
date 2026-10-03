@@ -1,5 +1,7 @@
 package com.alokrathava.sdk
 
+import com.alokrathava.sdk.model.ReconnectPolicy
+
 data class RobotEndpoint(
     val host: String,
     val port: Int
@@ -36,5 +38,8 @@ data class RobotSdkConfig(
     val endpoint: RobotEndpoint,
     val authentication: RobotAuthentication? = null,
     val commandTimeoutMs: Long = 10_000,
+    val reconnectPolicy: ReconnectPolicy = ReconnectPolicy(),
+    val heartbeatIntervalMs: Long = 5_000,
+    val telemetryStaleTimeoutMs: Long = 3_000,
     val logger: RobotLogger = RobotLogger.NONE
 )

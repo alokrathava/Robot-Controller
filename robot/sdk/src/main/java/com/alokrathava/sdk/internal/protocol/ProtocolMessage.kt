@@ -26,15 +26,16 @@ internal data class ProtocolErrorDto(
 
 @Serializable
 internal data class HelloPayloadDto(
-    val sdkVersion: String = "0.1.0-alpha.1",
+    val sdkVersion: String = "0.2.0",
     val clientId: String = "android-client",
     val token: String? = null
 )
 
 @Serializable
 internal data class HelloAckPayloadDto(
-    val gatewayVersion: String = "0.1.0",
-    val capabilities: List<String> = emptyList()
+    val gatewayVersion: String = "0.2.0",
+    val capabilities: List<String> = emptyList(),
+    val sessionId: String? = null
 )
 
 @Serializable
@@ -48,6 +49,26 @@ internal data class NavigateToPayloadDto(
 internal data class ManualVelocityPayloadDto(
     val linearMps: Double,
     val angularRadPerSec: Double
+)
+
+@Serializable
+internal data class MapInfoDto(
+    val id: String,
+    val name: String,
+    val isActive: Boolean = false,
+    val resolution: Float? = null,
+    val width: Int? = null,
+    val height: Int? = null
+)
+
+@Serializable
+internal data class ListMapsAckPayloadDto(
+    val maps: List<MapInfoDto> = emptyList()
+)
+
+@Serializable
+internal data class SwitchMapPayloadDto(
+    val mapId: String
 )
 
 @Serializable

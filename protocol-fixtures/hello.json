@@ -1,0 +1,10 @@
+{
+  "type": "hello",
+  "id": "cmd-1001",
+  "protocolVersion": 1,
+  "payload": {
+    "sdkVersion": "0.2.0",
+    "clientId": "android-client",
+    "token": "secret-token"
+  }
+}
