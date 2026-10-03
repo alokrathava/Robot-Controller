@@ -117,8 +117,8 @@ package com.example.app
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.agrathava.sdk.RobotRepository
-import com.agrathava.sdk.model.DirectionCommand
+import com.alokrathava.sdk.RobotRepository
+import com.alokrathava.sdk.model.DirectionCommand
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn

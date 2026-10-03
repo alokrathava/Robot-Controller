@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.agrathava.manualcontrol"
+    namespace = "com.alokrathava.manualcontrol"
     compileSdk = 35
 
     defaultConfig {

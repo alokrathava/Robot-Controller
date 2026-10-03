@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.agrathava.robotstatus"
+    namespace = "com.alokrathava.robotstatus"
     compileSdk = 35
 
     defaultConfig {

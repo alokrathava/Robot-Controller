@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.agrathava.database"
+    namespace = "com.alokrathava.database"
     compileSdk = 35
 
     defaultConfig {

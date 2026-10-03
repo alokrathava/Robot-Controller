@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "me.alokrathava.robotcontroller"
+    namespace = "com.alokrathava.robotcontroller"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "me.alokrathava.robotcontroller"
+        applicationId = "com.alokrathava.robotcontroller"
         minSdk = 24
         targetSdk = 35
         versionCode = 1

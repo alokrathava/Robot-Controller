@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.agrathava.navigation"
+    namespace = "com.alokrathava.navigation"
     compileSdk = 35
 
     defaultConfig {

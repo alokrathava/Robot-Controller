@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.agrathava.home"
+    namespace = "com.alokrathava.home"
     compileSdk = 35
 
     defaultConfig {

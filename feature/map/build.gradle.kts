@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.agrathava.map"
+    namespace = "com.alokrathava.map"
     compileSdk = 35
 
     defaultConfig {

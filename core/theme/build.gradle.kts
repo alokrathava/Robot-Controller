@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.agrathava.theme"
+    namespace = "com.alokrathava.theme"
     compileSdk = 35
 
     defaultConfig {
