@@ -18,6 +18,7 @@ import com.agrathava.home.HomeScreen
 import com.agrathava.home.Sidebar
 import com.agrathava.home.SidebarNavItem
 import com.agrathava.manualcontrol.ManualControlScreen
+import com.agrathava.map.MapScreen
 import com.agrathava.navigation.NavigationScreen
 import com.agrathava.robotstatus.RobotStatusScreen
 import com.agrathava.theme.MonochromeTheme
@@ -77,6 +78,14 @@ fun MainAppScreen() {
 
                 SidebarNavItem.ROBOT_STATUS -> {
                     RobotStatusScreen(
+                        viewModel = hiltViewModel(),
+                        selectedNav = selectedNav,
+                        onSidebarItemSelected = { selectedNav = it }
+                    )
+                }
+
+                SidebarNavItem.MAPS -> {
+                    MapScreen(
                         viewModel = hiltViewModel(),
                         selectedNav = selectedNav,
                         onSidebarItemSelected = { selectedNav = it }

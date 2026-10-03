@@ -50,15 +50,24 @@ class ManualControlViewModel @Inject constructor(
         LocalControlsState(tab, speed, preset, joystick, lastCmd)
     }
 
+    private val _connectionInfoState = combine(
+        robotRepository.connectionStatus,
+        robotRepository.connectionConfig
+    ) { connStatus, connConfig ->
+        Pair(connStatus, connConfig)
+    }
+
     val uiState: StateFlow<ManualControlUiState> = combine(
         _controlsState,
         robotRepository.telemetry,
         robotRepository.position,
         robotRepository.batteryStatus,
-        robotRepository.connectionStatus
-    ) { controls, telemetry, position, battery, connStatus ->
+        _connectionInfoState
+    ) { controls, telemetry, position, battery, connInfo ->
+        val (connStatus, connConfig) = connInfo
         val isObstacle = telemetry.obstacleDistanceMeters < 0.8
         val isConnLost = connStatus == ConnectionStatus.DISCONNECTED || connStatus == ConnectionStatus.FAILED
+        val address = "${connConfig.ipAddress}:${connConfig.port}"
 
         ManualControlUiState(
             selectedTab = controls.tab,
@@ -76,9 +85,11 @@ class ManualControlViewModel @Inject constructor(
             robotPosition = position,
             batteryStatus = battery,
             connectionStatus = connStatus,
+            connectionAddress = address,
             telemetry = telemetry,
             statusMessage = when {
                 telemetry.isEmergencyStopped -> "EMERGENCY BRAKE ENGAGED!"
+                connStatus == ConnectionStatus.CONNECTING -> "Connecting to robot..."
                 isConnLost -> "Connection lost! Controls disabled."
                 isObstacle -> "WARNING: Obstacle detected within ${"%.1f".format(telemetry.obstacleDistanceMeters)}m"
                 telemetry.thermalState == ThermalState.CRITICAL -> "CRITICAL THERMAL WARNING!"
@@ -91,6 +102,14 @@ class ManualControlViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = ManualControlUiState()
     )
+
+    fun reconnect() {
+        val config = robotRepository.connectionConfig.value
+        val ip = config.ipAddress.ifBlank { "192.168.1.100" }
+        val port = if (config.port > 0) config.port else 8080
+        val ssid = config.selectedSsid ?: "ROBOT_HOTSPOT_5G"
+        robotRepository.connectToRobot(ip, port, ssid)
+    }
 
     fun selectTab(tab: ManualControlTab) {
         _selectedTab.value = tab

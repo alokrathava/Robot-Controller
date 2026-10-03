@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agrathava.home.Sidebar
 import com.agrathava.home.SidebarNavItem
+import com.agrathava.sdk.model.ConnectionStatus
 import com.agrathava.theme.Black900
 import com.agrathava.theme.MonochromeTheme
 import com.agrathava.theme.White100
@@ -71,6 +72,7 @@ fun ManualControlScreen(
             onDirectionClick = viewModel::moveDirection,
             onEmergencyBrake = viewModel::triggerEmergencyBrake,
             onResetEmergencyBrake = viewModel::resetEmergencyBrake,
+            onReconnect = viewModel::reconnect,
             onSidebarItemSelected = onSidebarItemSelected,
             modifier = modifier
         )
@@ -90,10 +92,13 @@ fun ManualControlContent(
     onDirectionClick: (ManualDirection) -> Unit = {},
     onEmergencyBrake: () -> Unit = {},
     onResetEmergencyBrake: () -> Unit = {},
+    onReconnect: () -> Unit = {},
     onSidebarItemSelected: (SidebarNavItem) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val colors = MonochromeTheme.colors
+    val isConnected = uiState.connectionStatus == ConnectionStatus.CONNECTED
+    val controlsEnabled = isConnected && !uiState.isEmergencyStopped
 
     Row(
         modifier = modifier
@@ -104,8 +109,8 @@ fun ManualControlContent(
         Sidebar(
             selectedItem = SidebarNavItem.MANUAL_CONTROL,
             onItemSelected = onSidebarItemSelected,
-            isConnected = true,
-            connectionAddress = "192.168.1.108:8080"
+            isConnected = isConnected,
+            connectionAddress = uiState.connectionAddress
         )
 
         // Main Manual Control Area
@@ -135,7 +140,9 @@ fun ManualControlContent(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
             } else if (uiState.isConnectionLost) {
-                ConnectionLostBanner()
+                ConnectionLostBanner(
+                    onReconnect = onReconnect
+                )
                 Spacer(modifier = Modifier.height(16.dp))
             } else if (uiState.isObstacleNear) {
                 ObstacleWarningBanner(
@@ -159,7 +166,7 @@ fun ManualControlContent(
                     contentAlignment = Alignment.Center
                 ) {
                     JoystickControlWheel(
-                        enabled = !uiState.isEmergencyStopped,
+                        enabled = controlsEnabled,
                         onDirectionClick = onDirectionClick
                     )
                 }
@@ -174,13 +181,13 @@ fun ManualControlContent(
                     // Speed Control Card
                     SpeedControlCard(
                         speedPercent = uiState.speedPercent,
-                        enabled = !uiState.isEmergencyStopped,
+                        enabled = controlsEnabled,
                         onSpeedChanged = onSpeedChanged
                     )
 
                     // 2x2 Directional Grid
                     DirectionGrid(
-                        enabled = !uiState.isEmergencyStopped,
+                        enabled = controlsEnabled,
                         onDirectionClick = onDirectionClick
                     )
 
@@ -305,6 +312,7 @@ private fun ObstacleWarningBanner(
 
 @Composable
 private fun ConnectionLostBanner(
+    onReconnect: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -317,28 +325,48 @@ private fun ConnectionLostBanner(
             modifier = Modifier
                 .padding(horizontal = 16.dp, vertical = 12.dp)
                 .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.Warning,
-                contentDescription = "Connection Lost",
-                tint = RedEmergency,
-                modifier = Modifier.size(24.dp)
-            )
-            Column {
-                Text(
-                    text = "ROBOT DISCONNECTED",
-                    style = MonochromeTheme.typography.body.copy(
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = RedEmergency
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = "Connection Lost",
+                    tint = RedEmergency,
+                    modifier = Modifier.size(24.dp)
                 )
+                Column {
+                    Text(
+                        text = "ROBOT DISCONNECTED",
+                        style = MonochromeTheme.typography.body.copy(
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = RedEmergency
+                    )
+                    Text(
+                        text = "Connection lost. Re-establish Wi-Fi/IP connection to control robot.",
+                        style = MonochromeTheme.typography.caption.copy(fontSize = 12.sp),
+                        color = Color(0xFF991B1B)
+                    )
+                }
+            }
+
+            Button(
+                onClick = onReconnect,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = RedEmergency,
+                    contentColor = White100
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
                 Text(
-                    text = "Connection lost. Re-establish Wi-Fi/IP connection to control robot.",
-                    style = MonochromeTheme.typography.caption.copy(fontSize = 12.sp),
-                    color = Color(0xFF991B1B)
+                    text = "Reconnect",
+                    style = MonochromeTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
                 )
             }
         }

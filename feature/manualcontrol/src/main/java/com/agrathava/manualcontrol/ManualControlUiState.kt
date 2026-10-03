@@ -30,6 +30,7 @@ data class ManualControlUiState(
     val robotPosition: RobotPosition = RobotPosition(),
     val batteryStatus: BatteryStatus = BatteryStatus(),
     val connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED,
+    val connectionAddress: String = "192.168.1.100:8080",
     val telemetry: RobotTelemetry = RobotTelemetry(),
     val statusMessage: String = "Ready for manual control"
 )

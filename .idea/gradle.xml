@@ -17,6 +17,7 @@
             <option value="$PROJECT_DIR$/feature" />
             <option value="$PROJECT_DIR$/feature/home" />
             <option value="$PROJECT_DIR$/feature/manualcontrol" />
+            <option value="$PROJECT_DIR$/feature/map" />
             <option value="$PROJECT_DIR$/feature/navigation" />
             <option value="$PROJECT_DIR$/feature/robotstatus" />
             <option value="$PROJECT_DIR$/robot" />
