@@ -1,12 +1,10 @@
 package com.agrathava.manualcontrol
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
@@ -30,14 +28,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agrathava.home.Sidebar
 import com.agrathava.home.SidebarNavItem
 import com.agrathava.sdk.model.ConnectionStatus
-import com.agrathava.theme.Black900
-import com.agrathava.theme.MonochromeTheme
-import com.agrathava.theme.White100
+import com.agrathava.theme.*
 import kotlin.math.roundToInt
 
 enum class ManualControlTab(val title: String) {
@@ -53,8 +48,6 @@ enum class ManualDirection {
     LEFT,
     RIGHT
 }
-
-private val RedEmergency = Color(0xFFDC2626)
 
 @Composable
 fun ManualControlScreen(
@@ -97,6 +90,7 @@ fun ManualControlContent(
     modifier: Modifier = Modifier
 ) {
     val colors = MonochromeTheme.colors
+    val spacing = MonochromeTheme.spacing
     val isConnected = uiState.connectionStatus == ConnectionStatus.CONNECTED
     val controlsEnabled = isConnected && !uiState.isEmergencyStopped
 
@@ -118,37 +112,68 @@ fun ManualControlContent(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .padding(start = 28.dp, top = 24.dp, end = 28.dp, bottom = 24.dp)
+                .padding(
+                    start = spacing.space6,
+                    top = spacing.cardPadding,
+                    end = spacing.space6,
+                    bottom = spacing.cardPadding
+                )
         ) {
             // Header Title & Subtitle
             ManualControlHeader()
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(spacing.space4))
 
-            // Tab Switcher (Movement / Rotation)
-            ManualControlTabSwitcher(
-                selectedTab = uiState.selectedTab,
-                onTabSelected = onTabSelected
+            // Tab Switcher (Movement / Rotation / Telemetry / Diagnostics)
+            MonochromeSegmentedControl(
+                items = ManualControlTab.entries,
+                selectedItem = uiState.selectedTab,
+                onItemSelected = onTabSelected,
+                itemLabel = { it.title },
+                modifier = Modifier.fillMaxWidth(0.6f)
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(spacing.space4))
 
             // Alert Banners
             if (uiState.isEmergencyStopped) {
-                EmergencyBrakeActiveBanner(
-                    onResetEmergencyBrake = onResetEmergencyBrake
+                MonochromeBanner(
+                    title = "EMERGENCY BRAKE ENGAGED",
+                    description = "Robot controls are currently disabled for safety.",
+                    variant = BannerVariant.Critical,
+                    icon = Icons.Default.Warning,
+                    action = {
+                        MonochromeButton(
+                            onClick = onResetEmergencyBrake,
+                            text = "Reset Brake",
+                            variant = MonochromeButtonVariant.Primary
+                        )
+                    }
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(spacing.space4))
             } else if (uiState.isConnectionLost) {
-                ConnectionLostBanner(
-                    onReconnect = onReconnect
+                MonochromeBanner(
+                    title = "ROBOT DISCONNECTED",
+                    description = "Connection lost. Re-establish Wi-Fi/IP connection to control robot.",
+                    variant = BannerVariant.Critical,
+                    icon = Icons.Default.Warning,
+                    action = {
+                        MonochromeButton(
+                            onClick = onReconnect,
+                            text = "Reconnect",
+                            variant = MonochromeButtonVariant.Primary
+                        )
+                    }
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(spacing.space4))
             } else if (uiState.isObstacleNear) {
-                ObstacleWarningBanner(
-                    distanceMeters = uiState.obstacleDistanceMeters
+                MonochromeBanner(
+                    title = "PROXIMITY WARNING",
+                    description = "Obstacle detected within ${"%.1f".format(uiState.obstacleDistanceMeters)}m. Proceed with caution.",
+                    variant = BannerVariant.Warning,
+                    icon = Icons.Default.Warning
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(spacing.space4))
             }
 
             // Main Interactive Panel: Speed/Direction Controls (Left) + Joystick (Right)
@@ -156,14 +181,14 @@ fun ManualControlContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(28.dp)
+                horizontalArrangement = Arrangement.spacedBy(spacing.space6)
             ) {
                 // Left Control Panel (Speed Slider, 2x2 Grid, Emergency Stop)
                 Column(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(spacing.space4)
                 ) {
                     // Speed Control Card
                     SpeedControlCard(
@@ -180,8 +205,8 @@ fun ManualControlContent(
 
                     Spacer(modifier = Modifier.weight(1f))
 
-                    // Red Emergency Brake Button
-                    RedEmergencyBrakeButton(
+                    // Emergency Brake Button
+                    EmergencyBrakeButton(
                         isEmergencyStopped = uiState.isEmergencyStopped,
                         onEmergencyBrake = onEmergencyBrake,
                         onResetEmergencyBrake = onResetEmergencyBrake
@@ -206,174 +231,6 @@ fun ManualControlContent(
 }
 
 @Composable
-private fun EmergencyBrakeActiveBanner(
-    onResetEmergencyBrake: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = Color(0xFFFEF2F2),
-        border = BorderStroke(1.dp, Color(0xFFFCA5A5))
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = "Emergency Brake",
-                    tint = RedEmergency,
-                    modifier = Modifier.size(24.dp)
-                )
-                Column {
-                    Text(
-                        text = "EMERGENCY BRAKE ENGAGED",
-                        style = MonochromeTheme.typography.body.copy(
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = RedEmergency
-                    )
-                    Text(
-                        text = "Robot controls are currently disabled for safety.",
-                        style = MonochromeTheme.typography.caption.copy(fontSize = 12.sp),
-                        color = Color(0xFF991B1B)
-                    )
-                }
-            }
-
-            Button(
-                onClick = onResetEmergencyBrake,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = RedEmergency,
-                    contentColor = White100
-                ),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                    text = "Reset Brake",
-                    style = MonochromeTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ObstacleWarningBanner(
-    distanceMeters: Double,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = Color(0xFFFFFBEB),
-        border = BorderStroke(1.dp, Color(0xFFFCD34D))
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Warning,
-                contentDescription = "Obstacle Warning",
-                tint = Color(0xFFD97706),
-                modifier = Modifier.size(24.dp)
-            )
-            Column {
-                Text(
-                    text = "PROXIMITY WARNING",
-                    style = MonochromeTheme.typography.body.copy(
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = Color(0xFFB45309)
-                )
-                Text(
-                    text = "Obstacle detected within ${"%.1f".format(distanceMeters)}m. Proceed with caution.",
-                    style = MonochromeTheme.typography.caption.copy(fontSize = 12.sp),
-                    color = Color(0xFF92400E)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ConnectionLostBanner(
-    onReconnect: () -> Unit = {},
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = Color(0xFFFEF2F2),
-        border = BorderStroke(1.dp, Color(0xFFFCA5A5))
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = "Connection Lost",
-                    tint = RedEmergency,
-                    modifier = Modifier.size(24.dp)
-                )
-                Column {
-                    Text(
-                        text = "ROBOT DISCONNECTED",
-                        style = MonochromeTheme.typography.body.copy(
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = RedEmergency
-                    )
-                    Text(
-                        text = "Connection lost. Re-establish Wi-Fi/IP connection to control robot.",
-                        style = MonochromeTheme.typography.caption.copy(fontSize = 12.sp),
-                        color = Color(0xFF991B1B)
-                    )
-                }
-            }
-
-            Button(
-                onClick = onReconnect,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = RedEmergency,
-                    contentColor = White100
-                ),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                    text = "Reconnect",
-                    style = MonochromeTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun ManualControlHeader() {
     val colors = MonochromeTheme.colors
     val typography = MonochromeTheme.typography
@@ -381,74 +238,16 @@ private fun ManualControlHeader() {
     Column {
         Text(
             text = "Manual Control",
-            style = typography.h2.copy(
-                fontSize = 28.sp,
-                lineHeight = 34.sp
-            ),
+            style = typography.h2,
             color = colors.primaryText,
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = "Use the controls to move the robot in real time",
-            style = typography.bodySmall.copy(
-                fontSize = 14.sp,
-                lineHeight = 20.sp
-            ),
+            style = typography.bodySmall,
             color = colors.secondaryText
         )
-    }
-}
-
-@Composable
-private fun ManualControlTabSwitcher(
-    selectedTab: ManualControlTab,
-    onTabSelected: (ManualControlTab) -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = Color(0xFFEEEEEE),
-        modifier = Modifier.wrapContentSize()
-    ) {
-        Row(
-            modifier = Modifier.padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            ManualControlTab.entries.forEach { tab ->
-                TabButton(
-                    title = tab.title,
-                    isSelected = selectedTab == tab,
-                    onClick = { onTabSelected(tab) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun TabButton(
-    title: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(8.dp),
-        color = if (isSelected) Black900 else Color.Transparent
-    ) {
-        Box(
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = title,
-                style = MonochromeTheme.typography.bodySmall.copy(
-                    fontSize = 14.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                ),
-                color = if (isSelected) White100 else Color(0xFF555555)
-            )
-        }
     }
 }
 
@@ -458,6 +257,7 @@ private fun JoystickControlWheel(
     enabled: Boolean = true,
     onDirectionClick: (ManualDirection) -> Unit = {}
 ) {
+    val colors = MonochromeTheme.colors
     val outerSize = 310.dp
     val innerSize = 150.dp
     val knobSize = 85.dp
@@ -468,8 +268,8 @@ private fun JoystickControlWheel(
         modifier = modifier
             .size(outerSize)
             .clip(CircleShape)
-            .background(if (enabled) Color(0xFFFAFAFA) else Color(0xFFF3F4F6))
-            .border(1.dp, Color(0xFFE2E2E2), CircleShape),
+            .background(if (enabled) colors.surface else colors.interactiveSurface)
+            .border(1.dp, colors.defaultBorder, CircleShape),
         contentAlignment = Alignment.Center
     ) {
         // Up Arrow
@@ -484,7 +284,7 @@ private fun JoystickControlWheel(
             Icon(
                 imageVector = Icons.Default.KeyboardArrowUp,
                 contentDescription = "Forward",
-                tint = if (enabled) Black900 else Color.Gray,
+                tint = if (enabled) colors.primaryText else colors.disabledText,
                 modifier = Modifier.size(30.dp)
             )
         }
@@ -501,7 +301,7 @@ private fun JoystickControlWheel(
             Icon(
                 imageVector = Icons.Default.KeyboardArrowDown,
                 contentDescription = "Backward",
-                tint = if (enabled) Black900 else Color.Gray,
+                tint = if (enabled) colors.primaryText else colors.disabledText,
                 modifier = Modifier.size(30.dp)
             )
         }
@@ -518,7 +318,7 @@ private fun JoystickControlWheel(
             Icon(
                 imageVector = Icons.Default.KeyboardArrowLeft,
                 contentDescription = "Left",
-                tint = if (enabled) Black900 else Color.Gray,
+                tint = if (enabled) colors.primaryText else colors.disabledText,
                 modifier = Modifier.size(30.dp)
             )
         }
@@ -535,7 +335,7 @@ private fun JoystickControlWheel(
             Icon(
                 imageVector = Icons.Default.KeyboardArrowRight,
                 contentDescription = "Right",
-                tint = if (enabled) Black900 else Color.Gray,
+                tint = if (enabled) colors.primaryText else colors.disabledText,
                 modifier = Modifier.size(30.dp)
             )
         }
@@ -545,7 +345,7 @@ private fun JoystickControlWheel(
             modifier = Modifier
                 .size(innerSize)
                 .clip(CircleShape)
-                .background(Color(0xFFEBEBEB))
+                .background(colors.interactiveSurface)
         )
 
         // Center Joystick Knob
@@ -554,7 +354,7 @@ private fun JoystickControlWheel(
                 .offset { IntOffset(knobOffset.x.roundToInt(), knobOffset.y.roundToInt()) }
                 .size(knobSize)
                 .clip(CircleShape)
-                .background(if (enabled) Black900 else Color.Gray)
+                .background(if (enabled) colors.primaryActionBg else colors.disabledText)
                 .pointerInput(enabled) {
                     if (enabled) {
                         detectDragGestures(
@@ -585,15 +385,16 @@ private fun SpeedControlCard(
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
-    Surface(
+    val colors = MonochromeTheme.colors
+    val typography = MonochromeTheme.typography
+
+    MonochromeCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = White100,
-        border = BorderStroke(1.dp, Color(0xFFE5E5E5))
+        backgroundColor = colors.surface,
+        borderColor = colors.defaultBorder,
+        padding = MonochromeTheme.spacing.cardPadding
     ) {
-        Column(
-            modifier = Modifier.padding(18.dp)
-        ) {
+        Column {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -601,34 +402,25 @@ private fun SpeedControlCard(
             ) {
                 Text(
                     text = "Speed",
-                    style = MonochromeTheme.typography.body.copy(
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = Black900
+                    style = typography.body,
+                    color = colors.primaryText,
+                    fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "${speedPercent.toInt()}%",
-                    style = MonochromeTheme.typography.body.copy(
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = Black900
+                    style = typography.body,
+                    color = colors.primaryText,
+                    fontWeight = FontWeight.Bold
                 )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Slider(
+            MonochromeSlider(
                 value = speedPercent,
                 enabled = enabled,
                 onValueChange = onSpeedChanged,
-                valueRange = 0f..100f,
-                colors = SliderDefaults.colors(
-                    thumbColor = Black900,
-                    activeTrackColor = Black900,
-                    inactiveTrackColor = Color(0xFFE5E5E5)
-                )
+                valueRange = 0f..100f
             )
 
             Spacer(modifier = Modifier.height(2.dp))
@@ -639,13 +431,13 @@ private fun SpeedControlCard(
             ) {
                 Text(
                     text = "Slow",
-                    style = MonochromeTheme.typography.caption.copy(fontSize = 12.sp),
-                    color = Color(0xFF888888)
+                    style = typography.caption,
+                    color = colors.mutedText
                 )
                 Text(
                     text = "Fast",
-                    style = MonochromeTheme.typography.caption.copy(fontSize = 12.sp),
-                    color = Color(0xFF888888)
+                    style = typography.caption,
+                    color = colors.mutedText
                 )
             }
         }
@@ -711,13 +503,15 @@ private fun DirectionButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
-    Surface(
+    val colors = MonochromeTheme.colors
+    val typography = MonochromeTheme.typography
+
+    MonochromeCard(
         onClick = onClick,
-        enabled = enabled,
-        modifier = modifier.height(84.dp),
-        shape = RoundedCornerShape(16.dp),
-        color = if (enabled) White100 else Color(0xFFF3F4F6),
-        border = BorderStroke(1.dp, Color(0xFFE5E5E5))
+        modifier = modifier.height(76.dp),
+        backgroundColor = if (enabled) colors.surface else colors.disabledSurface,
+        borderColor = colors.defaultBorder,
+        padding = 12.dp
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -727,33 +521,33 @@ private fun DirectionButton(
             Icon(
                 imageVector = icon,
                 contentDescription = title,
-                tint = if (enabled) Black900 else Color.Gray,
-                modifier = Modifier.size(22.dp)
+                tint = if (enabled) colors.primaryText else colors.disabledText,
+                modifier = Modifier.size(20.dp)
             )
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = title,
-                style = MonochromeTheme.typography.bodySmall.copy(
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
-                ),
-                color = if (enabled) Black900 else Color.Gray
+                style = typography.bodySmall,
+                color = if (enabled) colors.primaryText else colors.disabledText,
+                fontWeight = FontWeight.Medium
             )
         }
     }
 }
 
 @Composable
-private fun RedEmergencyBrakeButton(
+private fun EmergencyBrakeButton(
     isEmergencyStopped: Boolean,
     onEmergencyBrake: () -> Unit,
     onResetEmergencyBrake: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val buttonBg = if (isEmergencyStopped) Color(0xFF15803D) else RedEmergency
+    val colors = MonochromeTheme.colors
+    val typography = MonochromeTheme.typography
+    val buttonBg = if (isEmergencyStopped) colors.statusActive else colors.statusCritical
     val buttonText = if (isEmergencyStopped) "RESET EMERGENCY BRAKE" else "EMERGENCY BRAKE"
 
-    Surface(
+    Button(
         onClick = {
             if (isEmergencyStopped) {
                 onResetEmergencyBrake()
@@ -763,39 +557,28 @@ private fun RedEmergencyBrakeButton(
         },
         modifier = modifier
             .fillMaxWidth()
-            .height(56.dp),
-        shape = RoundedCornerShape(14.dp),
-        color = buttonBg
+            .height(52.dp),
+        shape = MonochromeTheme.shapes.buttons,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = buttonBg,
+            contentColor = Color.White
+        )
     ) {
         Row(
             horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxSize()
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            if (!isEmergencyStopped) {
-                Box(
-                    modifier = Modifier
-                        .size(16.dp)
-                        .background(White100, shape = RoundedCornerShape(2.dp))
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-            } else {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = "Reset Brake",
-                    tint = White100,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-            }
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = "Emergency Brake Icon",
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = buttonText,
-                style = MonochromeTheme.typography.body.copy(
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
-                ),
-                color = White100
+                style = typography.body.copy(fontWeight = FontWeight.Bold),
+                color = Color.White
             )
         }
     }

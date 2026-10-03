@@ -28,7 +28,7 @@ fun MapFloorPlanCanvas(
     robotPosition: RobotPosition? = null
 ) {
     val colors = MonochromeTheme.colors
-    val containerBg = if (colors.isDark) Color(0xFF18181B) else Color(0xFFF4F4F5)
+    val containerBg = if (colors.isDark) colors.surface else colors.interactiveSurface
 
     Box(
         modifier = modifier
@@ -42,9 +42,9 @@ fun MapFloorPlanCanvas(
 
             val strokeThick = if (isThumbnail) 2.2f else 3.8f
             val strokeThin = if (isThumbnail) 1.0f else 1.8f
-            val wallColor = if (colors.isDark) Color(0xFFF4F4F5) else Color(0xFF18181B)
-            val innerWallColor = if (colors.isDark) Color(0xFFA1A1AA) else Color(0xFF52525B)
-            val lightGridColor = if (colors.isDark) Color(0xFF27272A) else Color(0xFFE4E4E7)
+            val wallColor = colors.primaryText
+            val innerWallColor = colors.secondaryText
+            val lightGridColor = colors.defaultBorder
 
             val centerX = w / 2f
             val centerY = h / 2f

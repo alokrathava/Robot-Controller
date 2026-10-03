@@ -12,17 +12,13 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,19 +39,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agrathava.home.Sidebar
 import com.agrathava.home.SidebarNavItem
-import com.agrathava.theme.Black900
-import com.agrathava.theme.MonochromeButton
-import com.agrathava.theme.MonochromeButtonSize
-import com.agrathava.theme.MonochromeButtonVariant
-import com.agrathava.theme.MonochromeTextField
-import com.agrathava.theme.MonochromeTheme
-import com.agrathava.theme.White100
+import com.agrathava.theme.*
 
 @Composable
 fun NavigationScreen(
@@ -104,6 +92,7 @@ fun NavigationScreenContent(
     modifier: Modifier = Modifier
 ) {
     val colors = MonochromeTheme.colors
+    val spacing = MonochromeTheme.spacing
 
     Row(
         modifier = modifier
@@ -121,11 +110,16 @@ fun NavigationScreenContent(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .padding(start = 28.dp, top = 24.dp, end = 28.dp, bottom = 24.dp)
+                .padding(
+                    start = spacing.space6,
+                    top = spacing.cardPadding,
+                    end = spacing.space6,
+                    bottom = spacing.cardPadding
+                )
         ) {
             NavigationHeader()
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(spacing.space4))
 
             // Navigation Execution Alert Banner
             NavigationExecutionBanner(
@@ -133,14 +127,14 @@ fun NavigationScreenContent(
                 onCancelClick = onCancelNavigationClick
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(spacing.space4))
 
             // Main Content: Map (Left) + Right Control Panel
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(24.dp)
+                horizontalArrangement = Arrangement.spacedBy(spacing.space6)
             ) {
                 NavigationMapPanel(
                     modifier = Modifier
@@ -182,87 +176,48 @@ fun NavigationExecutionBanner(
 ) {
     when (executionStatus) {
         is NavigationExecutionStatus.Navigating -> {
-            Surface(
-                modifier = modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = Color(0xFFEFF6FF),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF93C5FD))
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "NAVIGATING TO DESTINATION",
-                            style = MonochromeTheme.typography.body.copy(fontWeight = FontWeight.Bold),
-                            color = Color(0xFF1E40AF)
-                        )
-                        Text(
-                            text = "ETA: ${executionStatus.etaSeconds}s • Distance: ${executionStatus.distanceMeters}m",
-                            style = MonochromeTheme.typography.caption,
-                            color = Color(0xFF1D4ED8)
-                        )
-                    }
-                    Button(
+            MonochromeBanner(
+                title = "NAVIGATING TO DESTINATION",
+                description = "ETA: ${executionStatus.etaSeconds}s • Distance: ${executionStatus.distanceMeters}m",
+                variant = BannerVariant.Info,
+                modifier = modifier,
+                action = {
+                    MonochromeButton(
                         onClick = onCancelClick,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
-                    ) {
-                        Text("Cancel Navigation", color = White100)
-                    }
+                        text = "Cancel Navigation",
+                        variant = MonochromeButtonVariant.Primary
+                    )
                 }
-            }
+            )
         }
 
         is NavigationExecutionStatus.ObstacleDetected -> {
-            Surface(
-                modifier = modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = Color(0xFFFFFBEB),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFCD34D))
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFD97706))
-                    Text(executionStatus.message, style = MonochromeTheme.typography.body.copy(fontWeight = FontWeight.Bold), color = Color(0xFFB45309))
-                }
-            }
+            MonochromeBanner(
+                title = "OBSTACLE DETECTED",
+                description = executionStatus.message,
+                variant = BannerVariant.Warning,
+                icon = Icons.Default.Warning,
+                modifier = modifier
+            )
         }
 
         is NavigationExecutionStatus.Arrived -> {
-            Surface(
-                modifier = modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = Color(0xFFECFDF5),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF6EE7B7))
-            ) {
-                Text(
-                    text = "Arrived at ${executionStatus.destinationName}",
-                    modifier = Modifier.padding(16.dp),
-                    style = MonochromeTheme.typography.body.copy(fontWeight = FontWeight.Bold),
-                    color = Color(0xFF047857)
-                )
-            }
+            MonochromeBanner(
+                title = "ARRIVED",
+                description = "Arrived at ${executionStatus.destinationName}",
+                variant = BannerVariant.Active,
+                modifier = modifier
+            )
         }
 
         is NavigationExecutionStatus.Failed -> {
-            Surface(
-                modifier = modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = Color(0xFFFEF2F2),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFCA5A5))
-            ) {
-                Text(
-                    text = "Navigation Error: ${executionStatus.errorMessage}",
-                    modifier = Modifier.padding(16.dp),
-                    style = MonochromeTheme.typography.body.copy(fontWeight = FontWeight.Bold),
-                    color = Color(0xFFDC2626)
-                )
-            }
+            MonochromeBanner(
+                title = "NAVIGATION ERROR",
+                description = executionStatus.errorMessage,
+                variant = BannerVariant.Critical,
+                icon = Icons.Default.Warning,
+                modifier = modifier
+            )
         }
 
         else -> {}
@@ -279,20 +234,14 @@ fun NavigationHeader(
     Column(modifier = modifier) {
         Text(
             text = stringResource(R.string.nav_title),
-            style = typography.h2.copy(
-                fontSize = 28.sp,
-                lineHeight = 34.sp
-            ),
+            style = typography.h2,
             color = colors.primaryText,
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = stringResource(R.string.nav_subtitle),
-            style = typography.bodySmall.copy(
-                fontSize = 14.sp,
-                lineHeight = 20.sp
-            ),
+            style = typography.bodySmall,
             color = colors.secondaryText
         )
     }
@@ -324,7 +273,7 @@ fun NavigationMapPanel(
             val width = size.width
             val height = size.height
 
-            val wallColor = Color(0xFFD3D3D3)
+            val wallColor = colors.defaultBorder
             val strokeW = 1.8f
 
             drawRect(
@@ -365,7 +314,7 @@ fun NavigationMapPanel(
 
                 drawPath(
                     path = path,
-                    color = Color.Black,
+                    color = colors.primaryText,
                     style = Stroke(
                         width = 3.5f,
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 10f), 0f)
@@ -379,13 +328,13 @@ fun NavigationMapPanel(
                 .offset(x = robotXDp - 24.dp, y = robotYDp - 24.dp)
                 .size(48.dp)
                 .clip(CircleShape)
-                .background(Black900),
+                .background(colors.primaryActionBg),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Default.SmartToy,
                 contentDescription = "Robot Position",
-                tint = White100,
+                tint = colors.primaryActionFg,
                 modifier = Modifier.size(24.dp)
             )
         }
@@ -396,14 +345,14 @@ fun NavigationMapPanel(
                     .offset(x = destXDp - 20.dp, y = destYDp - 20.dp)
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(White100)
-                    .border(2.dp, Black900, CircleShape),
+                    .background(colors.surface)
+                    .border(2.dp, colors.primaryActionBg, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Place,
                     contentDescription = "Destination Target",
-                    tint = Black900,
+                    tint = colors.primaryActionBg,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -502,9 +451,20 @@ fun NavigationDestinationPanel(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.weight(1f, fill = false)
             ) {
-                DestinationTabs(
-                    selectedTab = uiState.selectedTab,
-                    onTabSelected = onTabSelected
+                val savedLocationsTabTitle = stringResource(R.string.tab_saved_locations)
+                val coordinatesTabTitle = stringResource(R.string.tab_coordinates)
+
+                MonochromeSegmentedControl(
+                    items = NavigationTab.entries,
+                    selectedItem = uiState.selectedTab,
+                    onItemSelected = onTabSelected,
+                    itemLabel = { tab ->
+                        when (tab) {
+                            NavigationTab.SavedLocations -> savedLocationsTabTitle
+                            NavigationTab.Coordinates -> coordinatesTabTitle
+                            NavigationTab.MapPicker -> "Map Picker"
+                        }
+                    }
                 )
 
                 when (uiState.selectedTab) {
@@ -573,100 +533,18 @@ fun NavigationDestinationPanel(
 }
 
 @Composable
-fun DestinationTabs(
-    selectedTab: NavigationTab,
-    onTabSelected: (NavigationTab) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val colors = MonochromeTheme.colors
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(48.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(colors.interactiveSurface)
-            .padding(4.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            val isSavedSelected = selectedTab == NavigationTab.SavedLocations
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (isSavedSelected) Black900 else Color.Transparent)
-                    .clickable { onTabSelected(NavigationTab.SavedLocations) },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = stringResource(R.string.tab_saved_locations),
-                    style = MonochromeTheme.typography.label.copy(
-                        fontSize = 13.sp,
-                        fontWeight = if (isSavedSelected) FontWeight.Bold else FontWeight.Medium
-                    ),
-                    color = if (isSavedSelected) White100 else colors.primaryText
-                )
-            }
-
-            val isCoordsSelected = selectedTab == NavigationTab.Coordinates
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (isCoordsSelected) Black900 else Color.Transparent)
-                    .clickable { onTabSelected(NavigationTab.Coordinates) },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = stringResource(R.string.tab_coordinates),
-                    style = MonochromeTheme.typography.label.copy(
-                        fontSize = 13.sp,
-                        fontWeight = if (isCoordsSelected) FontWeight.Bold else FontWeight.Medium
-                    ),
-                    color = if (isCoordsSelected) White100 else colors.primaryText
-                )
-            }
-
-            val isMapPickerSelected = selectedTab == NavigationTab.MapPicker
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (isMapPickerSelected) Black900 else Color.Transparent)
-                    .clickable { onTabSelected(NavigationTab.MapPicker) },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Map Picker",
-                    style = MonochromeTheme.typography.label.copy(
-                        fontSize = 13.sp,
-                        fontWeight = if (isMapPickerSelected) FontWeight.Bold else FontWeight.Medium
-                    ),
-                    color = if (isMapPickerSelected) White100 else colors.primaryText
-                )
-            }
-        }
-    }
-}
-
-@Composable
 fun MapPickerHelpView() {
     val colors = MonochromeTheme.colors
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = colors.interactiveSurface,
-        modifier = Modifier.fillMaxWidth().padding(16.dp)
+    val typography = MonochromeTheme.typography
+
+    MonochromeCard(
+        modifier = Modifier.fillMaxWidth(),
+        backgroundColor = colors.interactiveSurface,
+        borderColor = colors.defaultBorder
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Tap Anywhere On Map", style = MonochromeTheme.typography.body.copy(fontWeight = FontWeight.Bold))
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Tap directly on the floorplan map on the left to set custom navigation waypoints.", style = MonochromeTheme.typography.caption)
-        }
+        Text("Tap Anywhere On Map", style = typography.body, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text("Tap directly on the floorplan map on the left to set custom navigation waypoints.", style = typography.caption)
     }
 }
 
@@ -677,6 +555,9 @@ fun SavedLocationsList(
     onLocationSelected: (SavedLocationUi) -> Unit,
     onOpenAddLocationDialog: () -> Unit
 ) {
+    val colors = MonochromeTheme.colors
+    val typography = MonochromeTheme.typography
+
     Column(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -687,8 +568,8 @@ fun SavedLocationsList(
         ) {
             Text(
                 text = "SAVED WAYPOINTS (${locations.size})",
-                style = MonochromeTheme.typography.label.copy(fontSize = 11.sp),
-                color = MonochromeTheme.colors.secondaryText
+                style = typography.label,
+                color = colors.secondaryText
             )
             MonochromeButton(
                 text = "Add Waypoint",
@@ -717,23 +598,17 @@ fun SavedLocationCard(
     onClick: () -> Unit
 ) {
     val colors = MonochromeTheme.colors
+    val typography = MonochromeTheme.typography
 
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) colors.interactiveSurface else colors.surface,
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (isSelected) Black900 else colors.subtleBorder
-        )
+    MonochromeCard(
+        modifier = Modifier.fillMaxWidth(),
+        backgroundColor = if (isSelected) colors.interactiveSurface else colors.surface,
+        borderColor = if (isSelected) colors.primaryActionBg else colors.subtleBorder,
+        padding = 14.dp,
+        onClick = onClick
     ) {
         Row(
-            modifier = Modifier
-                .padding(14.dp)
-                .fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -745,13 +620,13 @@ fun SavedLocationCard(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(if (isSelected) Black900 else colors.interactiveSurface),
+                        .background(if (isSelected) colors.primaryActionBg else colors.interactiveSurface),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Place,
                         contentDescription = null,
-                        tint = if (isSelected) White100 else colors.primaryText,
+                        tint = if (isSelected) colors.primaryActionFg else colors.primaryText,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -759,16 +634,14 @@ fun SavedLocationCard(
                 Column {
                     Text(
                         text = location.name,
-                        style = MonochromeTheme.typography.body.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        ),
+                        style = typography.body,
+                        fontWeight = FontWeight.Bold,
                         color = colors.primaryText
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "Coordinates: ${location.coordinatesFormatted}",
-                        style = MonochromeTheme.typography.caption.copy(fontSize = 12.sp),
+                        style = typography.caption,
                         color = colors.secondaryText
                     )
                 }
@@ -787,18 +660,19 @@ fun SavedLocationCard(
 @Composable
 fun EmptySavedLocationsView() {
     val colors = MonochromeTheme.colors
+    val typography = MonochromeTheme.typography
 
-    Box(
+    MonochromeCard(
         modifier = Modifier
             .fillMaxWidth()
-            .height(180.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(colors.interactiveSurface),
-        contentAlignment = Alignment.Center
+            .height(160.dp),
+        backgroundColor = colors.interactiveSurface,
+        borderColor = colors.defaultBorder
     ) {
         Column(
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.Center
         ) {
             Icon(
                 imageVector = Icons.Default.Place,
@@ -806,9 +680,10 @@ fun EmptySavedLocationsView() {
                 tint = colors.mutedText,
                 modifier = Modifier.size(32.dp)
             )
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "No saved locations yet",
-                style = MonochromeTheme.typography.bodySmall,
+                style = typography.bodySmall,
                 color = colors.secondaryText
             )
         }
@@ -864,23 +739,17 @@ fun ChargingDockCard(
     onClick: () -> Unit
 ) {
     val colors = MonochromeTheme.colors
+    val typography = MonochromeTheme.typography
 
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) colors.interactiveSurface else colors.surface,
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (isSelected) Black900 else colors.subtleBorder
-        )
+    MonochromeCard(
+        modifier = Modifier.fillMaxWidth(),
+        backgroundColor = if (isSelected) colors.interactiveSurface else colors.surface,
+        borderColor = if (isSelected) colors.primaryActionBg else colors.subtleBorder,
+        padding = 14.dp,
+        onClick = onClick
     ) {
         Row(
-            modifier = Modifier
-                .padding(14.dp)
-                .fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -892,13 +761,13 @@ fun ChargingDockCard(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(if (isSelected) Black900 else colors.interactiveSurface),
+                        .background(if (isSelected) colors.primaryActionBg else colors.interactiveSurface),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Home,
                         contentDescription = null,
-                        tint = if (isSelected) White100 else colors.primaryText,
+                        tint = if (isSelected) colors.primaryActionFg else colors.primaryText,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -906,16 +775,14 @@ fun ChargingDockCard(
                 Column {
                     Text(
                         text = "Primary Charging Dock",
-                        style = MonochromeTheme.typography.body.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        ),
+                        style = typography.body,
+                        fontWeight = FontWeight.Bold,
                         color = colors.primaryText
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "Available • Standard Dock",
-                        style = MonochromeTheme.typography.caption.copy(fontSize = 12.sp),
+                        style = typography.caption,
                         color = colors.secondaryText
                     )
                 }
@@ -940,22 +807,11 @@ fun AddLocationDialog(
     var xStr by remember { mutableStateOf("") }
     var yStr by remember { mutableStateOf("") }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = MonochromeTheme.colors.surface,
-            modifier = Modifier.padding(16.dp).fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "Add Saved Location",
-                    style = MonochromeTheme.typography.h3,
-                    color = MonochromeTheme.colors.primaryText
-                )
-
+    MonochromeDialog(
+        onDismissRequest = onDismiss,
+        title = "Add Saved Location",
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 MonochromeTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -981,31 +837,28 @@ fun AddLocationDialog(
                         )
                     }
                 }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    MonochromeButton(
-                        text = "Cancel",
-                        variant = MonochromeButtonVariant.Ghost,
-                        onClick = onDismiss
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    MonochromeButton(
-                        text = "Save",
-                        variant = MonochromeButtonVariant.Primary,
-                        enabled = name.isNotBlank(),
-                        onClick = {
-                            val x = xStr.toDoubleOrNull() ?: 0.0
-                            val y = yStr.toDoubleOrNull() ?: 0.0
-                            onSave(name, x, y)
-                        }
-                    )
-                }
             }
+        },
+        confirmButton = {
+            MonochromeButton(
+                text = "Save",
+                variant = MonochromeButtonVariant.Primary,
+                enabled = name.isNotBlank(),
+                onClick = {
+                    val x = xStr.toDoubleOrNull() ?: 0.0
+                    val y = yStr.toDoubleOrNull() ?: 0.0
+                    onSave(name, x, y)
+                }
+            )
+        },
+        dismissButton = {
+            MonochromeButton(
+                text = "Cancel",
+                variant = MonochromeButtonVariant.Ghost,
+                onClick = onDismiss
+            )
         }
-    }
+    )
 }
 
 @Preview(name = "Navigation Screen Preview", showBackground = true, widthDp = 1280, heightDp = 800)

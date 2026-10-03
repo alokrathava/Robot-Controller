@@ -1,6 +1,5 @@
 package com.agrathava.settings
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,28 +10,18 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agrathava.home.Sidebar
 import com.agrathava.home.SidebarNavItem
-import com.agrathava.theme.MonochromeButton
-import com.agrathava.theme.MonochromeButtonVariant
-import com.agrathava.theme.MonochromeCard
-import com.agrathava.theme.MonochromeStatusPill
-import com.agrathava.theme.MonochromeTextField
-import com.agrathava.theme.MonochromeTheme
-import com.agrathava.theme.StatusLevel
+import com.agrathava.theme.*
 
 @Composable
 fun SettingsScreen(
@@ -132,9 +121,11 @@ fun SettingsScreenContent(
                     verticalArrangement = Arrangement.spacedBy(spacing.space5)
                 ) {
                     // Segmented Tab Bar Switcher
-                    SettingsTabSwitcher(
-                        selectedTab = uiState.selectedTab,
-                        onTabSelected = onTabSelected
+                    MonochromeSegmentedControl(
+                        items = SettingsTab.entries,
+                        selectedItem = uiState.selectedTab,
+                        onItemSelected = onTabSelected,
+                        itemLabel = { it.title }
                     )
 
                     // Tab Content
@@ -219,63 +210,6 @@ fun SettingsScreenContent(
 }
 
 @Composable
-private fun SettingsTabSwitcher(
-    selectedTab: SettingsTab,
-    onTabSelected: (SettingsTab) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val colors = MonochromeTheme.colors
-    val typography = MonochromeTheme.typography
-    val spacing = MonochromeTheme.spacing
-    val shapes = MonochromeTheme.shapes
-
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(shapes.inputs),
-        color = colors.interactiveSurface
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(spacing.space1),
-            horizontalArrangement = Arrangement.spacedBy(spacing.space1)
-        ) {
-            SettingsTab.entries.forEach { tab ->
-                val isSelected = selectedTab == tab
-                val bg = if (isSelected) colors.surface else Color.Transparent
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(38.dp)
-                        .clip(shapes.default)
-                        .background(bg)
-                        .then(
-                            if (isSelected) {
-                                Modifier.border(
-                                    BorderStroke(1.dp, colors.defaultBorder),
-                                    shapes.default
-                                )
-                            } else {
-                                Modifier
-                            }
-                        )
-                        .clickable { onTabSelected(tab) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = tab.title,
-                        style = typography.label,
-                        color = if (isSelected) colors.primaryText else colors.secondaryText
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun ConnectionTabContent(
     uiState: SettingsUiState,
     onIpAddressChanged: (String) -> Unit,
@@ -340,16 +274,9 @@ private fun ConnectionTabContent(
                 )
             }
 
-            Switch(
+            MonochromeSwitch(
                 checked = uiState.autoConnect,
-                onCheckedChange = onAutoConnectToggled,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = colors.surface,
-                    checkedTrackColor = colors.primaryActionBg,
-                    uncheckedThumbColor = colors.mutedText,
-                    uncheckedTrackColor = colors.interactiveSurface,
-                    uncheckedBorderColor = colors.defaultBorder
-                )
+                onCheckedChange = onAutoConnectToggled
             )
         }
 

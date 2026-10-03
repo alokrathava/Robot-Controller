@@ -46,14 +46,14 @@ enum class ScreenFlow {
 fun HomeScreen(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
-    initialFlow: ScreenFlow = ScreenFlow.SPLASH,
+    initialFlow: ScreenFlow? = null,
     selectedNav: SidebarNavItem = SidebarNavItem.HOME,
     onSidebarItemSelected: (SidebarNavItem) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     LaunchedEffect(initialFlow) {
-        if (uiState.screenFlow != initialFlow) {
+        if (initialFlow != null && uiState.screenFlow != initialFlow) {
             viewModel.setScreenFlow(initialFlow)
         }
     }
@@ -160,13 +160,18 @@ fun HomeScreenContent(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .padding(horizontal = 32.dp, vertical = 28.dp)
+                .padding(
+                    start = MonochromeTheme.spacing.space6,
+                    top = MonochromeTheme.spacing.cardPadding,
+                    end = MonochromeTheme.spacing.space6,
+                    bottom = MonochromeTheme.spacing.cardPadding
+                )
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(28.dp)
+                verticalArrangement = Arrangement.spacedBy(MonochromeTheme.spacing.cardPadding)
             ) {
                 // Top Header Row & Battery Info
                 Row(
@@ -178,29 +183,20 @@ fun HomeScreenContent(
                     Column {
                         Text(
                             text = "Good Morning",
-                            style = typography.body.copy(
-                                fontSize = typography.body.fontSize * 1.35f,
-                                lineHeight = typography.body.lineHeight * 1.35f
-                            ),
+                            style = typography.body,
                             color = colors.secondaryText
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Robot is Ready",
-                            style = typography.h1.copy(
-                                fontSize = typography.h1.fontSize * 1.4f,
-                                lineHeight = typography.h1.lineHeight * 1.4f
-                            ),
+                            style = typography.h1,
                             color = colors.primaryText,
                             fontWeight = FontWeight.Bold
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Connected and ready for operation",
-                            style = typography.bodySmall.copy(
-                                fontSize = typography.bodySmall.fontSize * 1.25f,
-                                lineHeight = typography.bodySmall.lineHeight * 1.25f
-                            ),
+                            style = typography.bodySmall,
                             color = colors.secondaryText
                         )
                     }
@@ -213,49 +209,40 @@ fun HomeScreenContent(
                         Icon(
                             imageVector = Icons.Default.BatteryFull,
                             contentDescription = "Battery Status",
-                            tint = Color(0xFF22C55E),
-                            modifier = Modifier.size(44.dp)
+                            tint = colors.statusActive,
+                            modifier = Modifier.size(40.dp)
                         )
 
                         Column {
                             Text(
                                 text = uiState.batteryStatus.displayText.ifBlank { "85%" },
-                                style = typography.h3.copy(
-                                    fontSize = typography.h3.fontSize * 1.35f,
-                                    lineHeight = typography.h3.lineHeight * 1.35f
-                                ),
+                                style = typography.h3,
                                 color = colors.primaryText,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = "Battery",
-                                style = typography.caption.copy(
-                                    fontSize = typography.caption.fontSize * 1.2f,
-                                    lineHeight = typography.caption.lineHeight * 1.2f
-                                ),
+                                style = typography.label,
                                 color = colors.secondaryText
                             )
                             Text(
                                 text = uiState.batteryTimeRemainingFormatted,
-                                style = typography.caption.copy(
-                                    fontSize = typography.caption.fontSize * 1.15f,
-                                    lineHeight = typography.caption.lineHeight * 1.15f
-                                ),
+                                style = typography.caption,
                                 color = colors.mutedText
                             )
                         }
                     }
                 }
 
-                // Main Section: Telemetry & Quick Actions Column on left, Robot Image on right
+                // Main Section: Telemetry & Quick Actions Column on left
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(28.dp),
+                    horizontalArrangement = Arrangement.spacedBy(MonochromeTheme.spacing.space6),
                     verticalAlignment = Alignment.Top
                 ) {
                     Column(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(24.dp)
+                        verticalArrangement = Arrangement.spacedBy(MonochromeTheme.spacing.space6)
                     ) {
                         // Four Horizontal Telemetry Cards
                         TelemetryRow(
@@ -278,16 +265,6 @@ fun HomeScreenContent(
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
-
-                    // Robot Image Asset (Dedicated right column)
-//                    Image(
-//                        painter = painterResource(id = R.drawable.robot_splash),
-//                        contentDescription = "Robot Visual",
-//                        contentScale = ContentScale.Fit,
-//                        modifier = Modifier
-//                            .width(360.dp)
-//                            .height(520.dp)
-//                    )
                 }
             }
         }
@@ -353,7 +330,7 @@ private fun TelemetryCard(
         modifier = modifier,
         backgroundColor = colors.surface,
         borderColor = colors.defaultBorder,
-        padding = 18.dp
+        padding = MonochromeTheme.spacing.cardPadding
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -364,7 +341,7 @@ private fun TelemetryCard(
                 imageVector = icon,
                 contentDescription = secondaryLabel,
                 tint = colors.primaryText,
-                modifier = Modifier.size(34.dp)
+                modifier = Modifier.size(32.dp)
             )
 
             Column(
@@ -372,10 +349,7 @@ private fun TelemetryCard(
             ) {
                 Text(
                     text = primaryValue,
-                    style = typography.body.copy(
-                        fontSize = typography.body.fontSize * 1.3f,
-                        lineHeight = typography.body.lineHeight * 1.3f
-                    ),
+                    style = typography.bodyLarge,
                     color = colors.primaryText,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
@@ -384,10 +358,7 @@ private fun TelemetryCard(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = secondaryLabel,
-                    style = typography.caption.copy(
-                        fontSize = typography.caption.fontSize * 1.15f,
-                        lineHeight = typography.caption.lineHeight * 1.15f
-                    ),
+                    style = typography.caption,
                     color = colors.mutedText,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -474,7 +445,7 @@ private fun QuickActionCard(
         modifier = modifier,
         backgroundColor = colors.surface,
         borderColor = colors.defaultBorder,
-        padding = 22.dp,
+        padding = MonochromeTheme.spacing.cardPadding,
         onClick = onClick
     ) {
         Row(
@@ -491,7 +462,7 @@ private fun QuickActionCard(
                     imageVector = icon,
                     contentDescription = title,
                     tint = colors.primaryText,
-                    modifier = Modifier.size(38.dp)
+                    modifier = Modifier.size(32.dp)
                 )
 
                 Column(
@@ -499,10 +470,7 @@ private fun QuickActionCard(
                 ) {
                     Text(
                         text = title,
-                        style = typography.body.copy(
-                            fontSize = typography.body.fontSize * 1.3f,
-                            lineHeight = typography.body.lineHeight * 1.3f
-                        ),
+                        style = typography.bodyLarge,
                         color = colors.primaryText,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -511,10 +479,7 @@ private fun QuickActionCard(
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = subtitle,
-                        style = typography.caption.copy(
-                            fontSize = typography.caption.fontSize * 1.15f,
-                            lineHeight = typography.caption.lineHeight * 1.15f
-                        ),
+                        style = typography.caption,
                         color = colors.secondaryText,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -528,7 +493,7 @@ private fun QuickActionCard(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = "Action",
                 tint = colors.primaryText,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(24.dp)
             )
         }
     }
@@ -549,7 +514,7 @@ private fun SystemStatusOverviewCard(
         modifier = modifier,
         backgroundColor = colors.surface,
         borderColor = colors.defaultBorder,
-        padding = 22.dp
+        padding = MonochromeTheme.spacing.cardPadding
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -561,31 +526,15 @@ private fun SystemStatusOverviewCard(
             ) {
                 Text(
                     text = "System Diagnostics & Mission Status",
-                    style = typography.body.copy(
-                        fontSize = typography.body.fontSize * 1.25f,
-                        lineHeight = typography.body.lineHeight * 1.25f
-                    ),
+                    style = typography.bodyLarge,
                     color = colors.primaryText,
                     fontWeight = FontWeight.Bold
                 )
 
-                Box(
-                    modifier = Modifier
-                        .background(
-                            color = Color(0xFF22C55E).copy(alpha = 0.12f),
-                            shape = RoundedCornerShape(6.dp)
-                        )
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "SYSTEM OPERATIONAL",
-                        style = typography.caption.copy(
-                            fontSize = typography.caption.fontSize * 1.05f,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = Color(0xFF16A34A)
-                    )
-                }
+                com.agrathava.theme.MonochromeStatusPill(
+                    text = "SYSTEM OPERATIONAL",
+                    level = com.agrathava.theme.StatusLevel.Active
+                )
             }
 
             Row(
@@ -598,19 +547,15 @@ private fun SystemStatusOverviewCard(
                 ) {
                     Text(
                         text = "Active Map",
-                        style = typography.caption.copy(
-                            fontSize = typography.caption.fontSize * 1.1f
-                        ),
+                        style = typography.caption,
                         color = colors.mutedText
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = uiState.mapData.displayText,
-                        style = typography.bodySmall.copy(
-                            fontSize = typography.bodySmall.fontSize * 1.15f,
-                            fontWeight = FontWeight.SemiBold
-                        ),
+                        style = typography.bodySmall,
                         color = colors.primaryText,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -622,19 +567,15 @@ private fun SystemStatusOverviewCard(
                 ) {
                     Text(
                         text = "Dock Station",
-                        style = typography.caption.copy(
-                            fontSize = typography.caption.fontSize * 1.1f
-                        ),
+                        style = typography.caption,
                         color = colors.mutedText
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "Primary Charging Dock",
-                        style = typography.bodySmall.copy(
-                            fontSize = typography.bodySmall.fontSize * 1.15f,
-                            fontWeight = FontWeight.SemiBold
-                        ),
+                        style = typography.bodySmall,
                         color = colors.primaryText,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -646,19 +587,15 @@ private fun SystemStatusOverviewCard(
                 ) {
                     Text(
                         text = "Network Endpoint",
-                        style = typography.caption.copy(
-                            fontSize = typography.caption.fontSize * 1.1f
-                        ),
+                        style = typography.caption,
                         color = colors.mutedText
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "${uiState.ipAddress}:${uiState.port}",
-                        style = typography.bodySmall.copy(
-                            fontSize = typography.bodySmall.fontSize * 1.15f,
-                            fontWeight = FontWeight.SemiBold
-                        ),
+                        style = typography.bodySmall,
                         color = colors.primaryText,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

@@ -43,15 +43,6 @@ import com.agrathava.theme.MonochromeButtonSize
 import com.agrathava.theme.MonochromeButtonVariant
 import com.agrathava.theme.MonochromeTheme
 
-// White Mode & Cyan Accent Color Tokens
-val CyanGlow = Color(0xFF00E5FF)
-val CyanTextVibrant = Color(0xFF0284C7)
-val ChestScreenBg = Color(0xFF18222A)
-val ChestCardBg = Color(0xFF243442)
-val ChestCardBorder = Color(0xFF00B0FF)
-val LightBgGradientStart = Color(0xFFFFFFFF)
-val LightBgGradientEnd = Color(0xFFF1F5F9)
-
 @Composable
 fun SplashScreen(
     onConnectClick: () -> Unit,
@@ -67,19 +58,13 @@ fun SplashScreen(
         }
     }
 
+    val colors = MonochromeTheme.colors
     val spacing = MonochromeTheme.spacing
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        LightBgGradientStart,
-                        LightBgGradientEnd
-                    )
-                )
-            )
+            .background(colors.background)
             .padding(spacing.space4),
         contentAlignment = Alignment.Center
     ) {
@@ -104,6 +89,7 @@ fun SplashScreenContent(
     modifier: Modifier = Modifier,
     onSelectMode: ((String) -> Unit)? = null
 ) {
+    val colors = MonochromeTheme.colors
     val spacing = MonochromeTheme.spacing
     val typography = MonochromeTheme.typography
 
@@ -114,11 +100,11 @@ fun SplashScreenContent(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // App Title & Subtitle (White Mode)
+        // App Title & Subtitle
         Text(
             text = "ROBOT CONTROLLER",
             style = typography.h2,
-            color = Color(0xFF0F172A),
+            color = colors.primaryText,
             fontWeight = FontWeight.Bold,
             letterSpacing = 2.sp
         )
@@ -128,7 +114,7 @@ fun SplashScreenContent(
         Text(
             text = "System Ready • Autonomous Companion Connected",
             style = typography.bodySmall,
-            color = CyanTextVibrant,
+            color = colors.secondaryText,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center
         )

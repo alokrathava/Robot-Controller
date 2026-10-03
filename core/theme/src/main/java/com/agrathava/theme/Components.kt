@@ -283,9 +283,9 @@ fun MonochromeStatusPill(
 
     val (bg, fg, border) = when (level) {
         StatusLevel.Default -> Triple(colors.interactiveSurface, colors.secondaryText, colors.defaultBorder)
-        StatusLevel.Active -> Triple(colors.primaryActionBg, colors.primaryActionFg, colors.primaryActionBg)
+        StatusLevel.Active -> Triple(colors.statusActiveContainer, colors.statusActive, colors.statusActive)
         StatusLevel.Inactive -> Triple(colors.disabledSurface, colors.mutedText, colors.subtleBorder)
-        StatusLevel.Critical -> Triple(colors.surface, colors.primaryText, colors.strongBorder)
+        StatusLevel.Critical -> Triple(colors.statusCriticalContainer, colors.statusCritical, colors.statusCritical)
     }
 
     Box(
@@ -316,6 +316,230 @@ fun MonochromeStatusPill(
             )
         }
     }
+}
+
+enum class BannerVariant {
+    Info,
+    Active,
+    Warning,
+    Critical
+}
+
+/**
+ * Monochrome Design System Banner / Alert Component
+ */
+@Composable
+fun MonochromeBanner(
+    title: String,
+    modifier: Modifier = Modifier,
+    description: String? = null,
+    variant: BannerVariant = BannerVariant.Info,
+    icon: ImageVector? = null,
+    action: (@Composable () -> Unit)? = null
+) {
+    val colors = MonochromeTheme.colors
+    val typography = MonochromeTheme.typography
+    val shapes = MonochromeTheme.shapes
+
+    val (bg, fg, border) = when (variant) {
+        BannerVariant.Info -> Triple(colors.statusInfoContainer, colors.statusInfo, colors.statusInfo.copy(alpha = 0.4f))
+        BannerVariant.Active -> Triple(colors.statusActiveContainer, colors.statusActive, colors.statusActive.copy(alpha = 0.4f))
+        BannerVariant.Warning -> Triple(colors.statusWarningContainer, colors.statusWarning, colors.statusWarning.copy(alpha = 0.4f))
+        BannerVariant.Critical -> Triple(colors.statusCriticalContainer, colors.statusCritical, colors.statusCritical.copy(alpha = 0.4f))
+    }
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = shapes.cards,
+        color = bg,
+        border = BorderStroke(1.dp, border)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                if (icon != null) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = fg,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                Column {
+                    Text(
+                        text = title,
+                        style = typography.body.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                        color = fg
+                    )
+                    if (description != null) {
+                        Text(
+                            text = description,
+                            style = typography.caption,
+                            color = fg
+                        )
+                    }
+                }
+            }
+
+            if (action != null) {
+                Spacer(modifier = Modifier.width(12.dp))
+                action()
+            }
+        }
+    }
+}
+
+/**
+ * Monochrome Design System Segmented Control / Tab Switcher
+ */
+@Composable
+fun <T> MonochromeSegmentedControl(
+    items: List<T>,
+    selectedItem: T,
+    onItemSelected: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    itemLabel: (T) -> String = { it.toString() }
+) {
+    val colors = MonochromeTheme.colors
+    val typography = MonochromeTheme.typography
+    val shapes = MonochromeTheme.shapes
+
+    Surface(
+        modifier = modifier.clip(shapes.inputs),
+        color = colors.interactiveSurface
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            items.forEach { item ->
+                val isSelected = selectedItem == item
+                val bg = if (isSelected) colors.surface else Color.Transparent
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp)
+                        .clip(shapes.default)
+                        .background(bg)
+                        .then(
+                            if (isSelected) {
+                                Modifier.border(BorderStroke(1.dp, colors.defaultBorder), shapes.default)
+                            } else {
+                                Modifier
+                            }
+                        )
+                        .clickable { onItemSelected(item) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = itemLabel(item),
+                        style = typography.label,
+                        color = if (isSelected) colors.primaryText else colors.secondaryText,
+                        fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Monochrome Design System Switch
+ */
+@Composable
+fun MonochromeSwitch(
+    checked: Boolean,
+    onCheckedChange: ((Boolean) -> Unit)?,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    val colors = MonochromeTheme.colors
+
+    Switch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        enabled = enabled,
+        modifier = modifier,
+        colors = SwitchDefaults.colors(
+            checkedThumbColor = colors.surface,
+            checkedTrackColor = colors.primaryActionBg,
+            uncheckedThumbColor = colors.mutedText,
+            uncheckedTrackColor = colors.interactiveSurface,
+            uncheckedBorderColor = colors.defaultBorder
+        )
+    )
+}
+
+/**
+ * Monochrome Design System Slider
+ */
+@Composable
+fun MonochromeSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    valueRange: ClosedFloatingPointRange<Float> = 0f..1f
+) {
+    val colors = MonochromeTheme.colors
+
+    Slider(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier,
+        enabled = enabled,
+        valueRange = valueRange,
+        colors = SliderDefaults.colors(
+            thumbColor = colors.primaryActionBg,
+            activeTrackColor = colors.primaryActionBg,
+            inactiveTrackColor = colors.interactiveSurface
+        )
+    )
+}
+
+/**
+ * Monochrome Design System Dialog Wrapper
+ */
+@Composable
+fun MonochromeDialog(
+    onDismissRequest: () -> Unit,
+    title: String,
+    text: @Composable () -> Unit,
+    confirmButton: @Composable () -> Unit,
+    dismissButton: (@Composable () -> Unit)? = null
+) {
+    val colors = MonochromeTheme.colors
+    val typography = MonochromeTheme.typography
+    val shapes = MonochromeTheme.shapes
+
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = {
+            Text(
+                text = title,
+                style = typography.h3,
+                color = colors.primaryText
+            )
+        },
+        text = text,
+        confirmButton = confirmButton,
+        dismissButton = dismissButton,
+        containerColor = colors.surface,
+        shape = shapes.dialogs
+    )
 }
 
 @Preview(showBackground = true)

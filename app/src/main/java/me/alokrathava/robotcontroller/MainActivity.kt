@@ -139,24 +139,23 @@ fun GenericPlaceholderScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .padding(start = 28.dp, top = 24.dp, end = 28.dp, bottom = 24.dp)
+                .padding(
+                    start = MonochromeTheme.spacing.space6,
+                    top = MonochromeTheme.spacing.cardPadding,
+                    end = MonochromeTheme.spacing.space6,
+                    bottom = MonochromeTheme.spacing.cardPadding
+                )
         ) {
             Text(
                 text = selectedNav.title,
-                style = typography.h2.copy(
-                    fontSize = 28.sp,
-                    lineHeight = 34.sp
-                ),
+                style = typography.h2,
                 color = colors.primaryText,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(MonochromeTheme.spacing.space1))
             Text(
                 text = "${selectedNav.title} section",
-                style = typography.bodySmall.copy(
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp
-                ),
+                style = typography.bodySmall,
                 color = colors.secondaryText
             )
         }

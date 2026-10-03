@@ -54,38 +54,35 @@ fun Sidebar(
 
     Surface(
         modifier = modifier
-            .width(330.dp)
+            .width(280.dp)
             .fillMaxHeight(),
         color = colors.background
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(vertical = spacing.space6 * 1.5f, horizontal = spacing.space4 * 1.5f),
+                .padding(vertical = spacing.space6, horizontal = spacing.space4),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             // Top Section: App Title & Navigation Items
             Column(
-                verticalArrangement = Arrangement.spacedBy(spacing.space6 * 1.5f)
+                verticalArrangement = Arrangement.spacedBy(spacing.space6)
             ) {
                 // Title: Robot Controller
                 Text(
                     text = "Robot Controller",
-                    style = typography.h4.copy(
-                        fontSize = typography.h4.fontSize * 1.5f,
-                        lineHeight = typography.h4.lineHeight * 1.5f
-                    ),
+                    style = typography.h3,
                     color = colors.primaryText,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(
-                        horizontal = spacing.space2 * 1.5f,
-                        vertical = spacing.space1 * 1.5f
+                        horizontal = spacing.space2,
+                        vertical = spacing.space1
                     )
                 )
 
                 // Navigation Items List
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(spacing.space2 * 1.5f)
+                    verticalArrangement = Arrangement.spacedBy(spacing.space2)
                 ) {
                     SidebarNavItem.entries.forEach { item ->
                         val isSelected = selectedItem == item
@@ -95,29 +92,26 @@ fun Sidebar(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(66.dp)
+                                .height(52.dp)
                                 .clip(shapes.buttons)
                                 .background(bg)
                                 .clickable { onItemSelected(item) }
-                                .padding(horizontal = spacing.space3 * 1.5f),
+                                .padding(horizontal = spacing.space3),
                             contentAlignment = Alignment.CenterStart
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(spacing.space3 * 1.5f)
+                                horizontalArrangement = Arrangement.spacedBy(spacing.space3)
                             ) {
                                 Icon(
                                     imageVector = item.icon,
                                     contentDescription = item.title,
                                     tint = fg,
-                                    modifier = Modifier.size(30.dp)
+                                    modifier = Modifier.size(24.dp)
                                 )
                                 Text(
                                     text = item.title,
-                                    style = typography.bodySmall.copy(
-                                        fontSize = typography.bodySmall.fontSize * 1.5f,
-                                        lineHeight = typography.bodySmall.lineHeight * 1.5f
-                                    ),
+                                    style = typography.body,
                                     color = fg,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                 )
@@ -133,43 +127,37 @@ fun Sidebar(
             ) {
                 HorizontalDivider(
                     color = colors.subtleBorder,
-                    thickness = 1.5.dp
+                    thickness = 1.dp
                 )
 
-                Spacer(modifier = Modifier.height(spacing.space4 * 1.5f))
+                Spacer(modifier = Modifier.height(spacing.space4))
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(spacing.space3 * 1.5f),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.space3),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = spacing.space2 * 1.5f)
+                        .padding(horizontal = spacing.space2)
                 ) {
                     // Green Connection Dot
                     Box(
                         modifier = Modifier
-                            .size(18.dp)
+                            .size(14.dp)
                             .clip(CircleShape)
-                            .background(if (isConnected) Color(0xFF22C55E) else colors.disabledText)
+                            .background(if (isConnected) colors.statusActive else colors.disabledText)
                     )
 
                     Column {
                         Text(
                             text = if (isConnected) "Connected" else "Disconnected",
-                            style = typography.label.copy(
-                                fontSize = typography.label.fontSize * 1.5f,
-                                lineHeight = typography.label.lineHeight * 1.5f
-                            ),
+                            style = typography.bodySmall,
                             color = colors.primaryText,
                             fontWeight = FontWeight.Bold
                         )
-                        Spacer(modifier = Modifier.height(3.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = connectionAddress,
-                            style = typography.monoCaption.copy(
-                                fontSize = typography.monoCaption.fontSize * 1.5f,
-                                lineHeight = typography.monoCaption.lineHeight * 1.5f
-                            ),
+                            style = typography.monoCaption,
                             color = colors.mutedText
                         )
                     }

@@ -67,6 +67,18 @@ data class MonochromeColors(
     val secondaryActionText: Color,
     val secondaryActionHoverBg: Color,
     val focusBorder: Color,
+    val statusActive: Color,
+    val onStatusActive: Color,
+    val statusActiveContainer: Color,
+    val statusWarning: Color,
+    val onStatusWarning: Color,
+    val statusWarningContainer: Color,
+    val statusCritical: Color,
+    val onStatusCritical: Color,
+    val statusCriticalContainer: Color,
+    val statusInfo: Color,
+    val onStatusInfo: Color,
+    val statusInfoContainer: Color,
     val isDark: Boolean
 )
 
@@ -92,6 +104,18 @@ val DarkMonochromeColors = MonochromeColors(
     secondaryActionText = White90,
     secondaryActionHoverBg = Black800,
     focusBorder = White90,
+    statusActive = Color(0xFF22C55E),
+    onStatusActive = Color(0xFFFFFFFF),
+    statusActiveContainer = Color(0x2222C55E),
+    statusWarning = Color(0xFFF59E0B),
+    onStatusWarning = Color(0xFF101010),
+    statusWarningContainer = Color(0x22F59E0B),
+    statusCritical = Color(0xFFEF4444),
+    onStatusCritical = Color(0xFFFFFFFF),
+    statusCriticalContainer = Color(0x22EF4444),
+    statusInfo = Color(0xFF38BDF8),
+    onStatusInfo = Color(0xFF101010),
+    statusInfoContainer = Color(0x2238BDF8),
     isDark = true
 )
 
@@ -117,6 +141,18 @@ val LightMonochromeColors = MonochromeColors(
     secondaryActionText = Black900,
     secondaryActionHoverBg = Gray100,
     focusBorder = Black900,
+    statusActive = Color(0xFF16A34A),
+    onStatusActive = Color(0xFFFFFFFF),
+    statusActiveContainer = Color(0xFFECFDF5),
+    statusWarning = Color(0xFFD97706),
+    onStatusWarning = Color(0xFFFFFFFF),
+    statusWarningContainer = Color(0xFFFFFBEB),
+    statusCritical = Color(0xFFDC2626),
+    onStatusCritical = Color(0xFFFFFFFF),
+    statusCriticalContainer = Color(0xFFFEF2F2),
+    statusInfo = Color(0xFF0284C7),
+    onStatusInfo = Color(0xFFFFFFFF),
+    statusInfoContainer = Color(0xFFEFF6FF),
     isDark = false
 )
 

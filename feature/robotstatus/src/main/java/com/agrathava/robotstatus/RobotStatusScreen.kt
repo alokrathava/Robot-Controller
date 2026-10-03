@@ -26,7 +26,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agrathava.home.Sidebar
@@ -61,6 +60,7 @@ fun RobotStatusScreenContent(
 ) {
     val colors = MonochromeTheme.colors
     val typography = MonochromeTheme.typography
+    val spacing = MonochromeTheme.spacing
 
     Row(
         modifier = modifier
@@ -80,36 +80,35 @@ fun RobotStatusScreenContent(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .padding(start = 28.dp, top = 24.dp, end = 28.dp, bottom = 24.dp)
+                .padding(
+                    start = spacing.space6,
+                    top = spacing.cardPadding,
+                    end = spacing.space6,
+                    bottom = spacing.cardPadding
+                )
         ) {
             // Header Title & Subtitle
             Text(
                 text = "Robot Status",
-                style = typography.h2.copy(
-                    fontSize = 28.sp,
-                    lineHeight = 34.sp
-                ),
+                style = typography.h2,
                 color = colors.primaryText,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(spacing.space1))
             Text(
                 text = "Live information from the robot",
-                style = typography.bodySmall.copy(
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp
-                ),
+                style = typography.bodySmall,
                 color = colors.secondaryText
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(spacing.space4))
 
             // Main Content Area: Robot Illustration (Left) + Metric Cards Grid (Right)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                horizontalArrangement = Arrangement.spacedBy(spacing.space6),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Left Hero Section: Robot Image
@@ -134,13 +133,13 @@ fun RobotStatusScreenContent(
                     modifier = Modifier
                         .weight(0.60f)
                         .fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
+                    verticalArrangement = Arrangement.spacedBy(spacing.space4, Alignment.CenterVertically)
                 ) {
                     // Top Card: Battery Status Card
                     MonochromeCard(
                         modifier = Modifier.fillMaxWidth(),
                         backgroundColor = colors.surface,
-                        padding = 20.dp
+                        padding = spacing.cardPadding
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -150,7 +149,7 @@ fun RobotStatusScreenContent(
                             // Large Battery Icon
                             BatteryIcon(
                                 percent = uiState.batteryPercent,
-                                color = colors.primaryText
+                                color = colors.statusActive
                             )
 
                             // Battery Progress & Info
@@ -160,11 +159,9 @@ fun RobotStatusScreenContent(
                             ) {
                                 Text(
                                     text = "${uiState.batteryPercent}%",
-                                    style = typography.h3.copy(
-                                        fontSize = 24.sp,
-                                        fontWeight = FontWeight.Bold
-                                    ),
-                                    color = colors.primaryText
+                                    style = typography.h3,
+                                    color = colors.primaryText,
+                                    fontWeight = FontWeight.Bold
                                 )
 
                                 // Progress Bar
@@ -180,13 +177,13 @@ fun RobotStatusScreenContent(
                                             .fillMaxWidth(uiState.batteryPercent / 100f)
                                             .fillMaxHeight()
                                             .clip(CircleShape)
-                                            .background(colors.primaryActionBg)
+                                            .background(colors.statusActive)
                                     )
                                 }
 
                                 Text(
                                     text = uiState.estimatedTimeRemaining,
-                                    style = typography.caption.copy(fontSize = 13.sp),
+                                    style = typography.caption,
                                     color = colors.secondaryText
                                 )
                             }
@@ -196,13 +193,13 @@ fun RobotStatusScreenContent(
                     // Middle Row: 3 Cards (Position, Yaw Angle, State)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        horizontalArrangement = Arrangement.spacedBy(spacing.space4)
                     ) {
                         // Position Card
                         MonochromeCard(
                             modifier = Modifier.weight(1f),
                             backgroundColor = colors.surface,
-                            padding = 16.dp
+                            padding = spacing.cardPadding
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -216,7 +213,7 @@ fun RobotStatusScreenContent(
                                 )
                                 Text(
                                     text = "Position",
-                                    style = typography.label.copy(fontSize = 13.sp),
+                                    style = typography.label,
                                     color = colors.secondaryText
                                 )
                             }
@@ -225,18 +222,16 @@ fun RobotStatusScreenContent(
 
                             Text(
                                 text = "(${String.format(java.util.Locale.US, "%.1f", uiState.positionX)}, ${String.format(java.util.Locale.US, "%.1f", uiState.positionY)})",
-                                style = typography.h4.copy(
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                color = colors.primaryText
+                                style = typography.h4,
+                                color = colors.primaryText,
+                                fontWeight = FontWeight.Bold
                             )
 
                             Spacer(modifier = Modifier.height(2.dp))
 
                             Text(
                                 text = "X, Y (meters)",
-                                style = typography.caption.copy(fontSize = 12.sp),
+                                style = typography.caption,
                                 color = colors.mutedText
                             )
                         }
@@ -245,7 +240,7 @@ fun RobotStatusScreenContent(
                         MonochromeCard(
                             modifier = Modifier.weight(1f),
                             backgroundColor = colors.surface,
-                            padding = 16.dp
+                            padding = spacing.cardPadding
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -259,12 +254,12 @@ fun RobotStatusScreenContent(
                                 )
                                 Text(
                                     text = "Yaw Angle",
-                                    style = typography.label.copy(fontSize = 13.sp),
+                                    style = typography.label,
                                     color = colors.secondaryText
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -279,11 +274,9 @@ fun RobotStatusScreenContent(
 
                                 Text(
                                     text = "${uiState.yawDegrees.toInt()}°",
-                                    style = typography.h4.copy(
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold
-                                    ),
-                                    color = colors.primaryText
+                                    style = typography.h4,
+                                    color = colors.primaryText,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
@@ -292,7 +285,7 @@ fun RobotStatusScreenContent(
                         MonochromeCard(
                             modifier = Modifier.weight(1f),
                             backgroundColor = colors.surface,
-                            padding = 16.dp
+                            padding = spacing.cardPadding
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -306,20 +299,18 @@ fun RobotStatusScreenContent(
                                 )
                                 Text(
                                     text = "State",
-                                    style = typography.label.copy(fontSize = 13.sp),
+                                    style = typography.label,
                                     color = colors.secondaryText
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             Text(
                                 text = uiState.robotState,
-                                style = typography.h4.copy(
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                color = colors.primaryText
+                                style = typography.h4,
+                                color = colors.primaryText,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
@@ -327,13 +318,13 @@ fun RobotStatusScreenContent(
                     // Bottom Row: 3 Cards (Connection, Speed, Temperature)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        horizontalArrangement = Arrangement.spacedBy(spacing.space4)
                     ) {
                         // Connection Card
                         MonochromeCard(
                             modifier = Modifier.weight(1f),
                             backgroundColor = colors.surface,
-                            padding = 16.dp
+                            padding = spacing.cardPadding
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -347,20 +338,18 @@ fun RobotStatusScreenContent(
                                 )
                                 Text(
                                     text = "Connection",
-                                    style = typography.label.copy(fontSize = 13.sp),
+                                    style = typography.label,
                                     color = colors.secondaryText
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             Text(
                                 text = if (uiState.isConnected) "Connected" else "Disconnected",
-                                style = typography.h4.copy(
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                color = colors.primaryText
+                                style = typography.h4,
+                                color = colors.primaryText,
+                                fontWeight = FontWeight.Bold
                             )
                         }
 
@@ -368,7 +357,7 @@ fun RobotStatusScreenContent(
                         MonochromeCard(
                             modifier = Modifier.weight(1f),
                             backgroundColor = colors.surface,
-                            padding = 16.dp
+                            padding = spacing.cardPadding
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -382,20 +371,18 @@ fun RobotStatusScreenContent(
                                 )
                                 Text(
                                     text = "Speed",
-                                    style = typography.label.copy(fontSize = 13.sp),
+                                    style = typography.label,
                                     color = colors.secondaryText
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             Text(
                                 text = "${String.format(java.util.Locale.US, "%.1f", uiState.speedMps)} m/s",
-                                style = typography.h4.copy(
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                color = colors.primaryText
+                                style = typography.h4,
+                                color = colors.primaryText,
+                                fontWeight = FontWeight.Bold
                             )
                         }
 
@@ -403,7 +390,7 @@ fun RobotStatusScreenContent(
                         MonochromeCard(
                             modifier = Modifier.weight(1f),
                             backgroundColor = colors.surface,
-                            padding = 16.dp
+                            padding = spacing.cardPadding
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -417,20 +404,18 @@ fun RobotStatusScreenContent(
                                 )
                                 Text(
                                     text = "Temperature",
-                                    style = typography.label.copy(fontSize = 13.sp),
+                                    style = typography.label,
                                     color = colors.secondaryText
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             Text(
                                 text = "${uiState.temperatureCelsius.toInt()}°C",
-                                style = typography.h4.copy(
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                color = colors.primaryText
+                                style = typography.h4,
+                                color = colors.primaryText,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }

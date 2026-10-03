@@ -2,7 +2,6 @@ package com.agrathava.map
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -14,11 +13,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agrathava.home.Sidebar
@@ -77,6 +74,7 @@ fun MapScreenContent(
 ) {
     val colors = MonochromeTheme.colors
     val typography = MonochromeTheme.typography
+    val spacing = MonochromeTheme.spacing
     val shapes = MonochromeTheme.shapes
 
     val selectedMap = uiState.selectedMap
@@ -99,7 +97,12 @@ fun MapScreenContent(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .padding(start = 28.dp, top = 24.dp, end = 28.dp, bottom = 24.dp)
+                .padding(
+                    start = spacing.space6,
+                    top = spacing.cardPadding,
+                    end = spacing.space6,
+                    bottom = spacing.cardPadding
+                )
         ) {
             // Header Bar: Title & Add Map Action Button
             Row(
@@ -110,20 +113,14 @@ fun MapScreenContent(
                 Column {
                     Text(
                         text = "Map Management",
-                        style = typography.h2.copy(
-                            fontSize = 28.sp,
-                            lineHeight = 34.sp
-                        ),
+                        style = typography.h2,
                         color = colors.primaryText,
                         fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(spacing.space1))
                     Text(
                         text = "View, switch or manage robot maps",
-                        style = typography.bodySmall.copy(
-                            fontSize = 14.sp,
-                            lineHeight = 20.sp
-                        ),
+                        style = typography.bodySmall,
                         color = colors.secondaryText
                     )
                 }
@@ -137,14 +134,14 @@ fun MapScreenContent(
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(spacing.space5))
 
             // Split Layout: Left Map List + Right Map Preview Pane
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(24.dp)
+                horizontalArrangement = Arrangement.spacedBy(spacing.space6)
             ) {
                 // Left Panel: Scrollable Map Cards List
                 Column(
@@ -152,7 +149,7 @@ fun MapScreenContent(
                         .weight(0.45f)
                         .fillMaxHeight()
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    verticalArrangement = Arrangement.spacedBy(spacing.space3)
                 ) {
                     uiState.maps.forEach { mapItem ->
                         val isSelected = (mapItem.id == uiState.selectedMapId)
@@ -170,19 +167,15 @@ fun MapScreenContent(
                             colors.surface
                         }
 
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(shapes.cards)
-                                .border(1.5.dp, cardBorderColor, shapes.cards)
-                                .clickable { onSelectMap(mapItem.id) },
-                            color = cardBg,
-                            shape = shapes.cards
+                        MonochromeCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            backgroundColor = cardBg,
+                            borderColor = cardBorderColor,
+                            padding = 14.dp,
+                            onClick = { onSelectMap(mapItem.id) }
                         ) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 // Thumbnail Box
@@ -204,10 +197,7 @@ fun MapScreenContent(
                                     ) {
                                         Text(
                                             text = mapItem.name,
-                                            style = typography.h4.copy(
-                                                fontSize = 17.sp,
-                                                lineHeight = 22.sp
-                                            ),
+                                            style = typography.h4,
                                             color = colors.primaryText,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -224,10 +214,7 @@ fun MapScreenContent(
 
                                     Text(
                                         text = mapItem.lastUpdated,
-                                        style = typography.caption.copy(
-                                            fontSize = 12.sp,
-                                            lineHeight = 16.sp
-                                        ),
+                                        style = typography.caption,
                                         color = colors.mutedText
                                     )
                                 }
@@ -318,12 +305,12 @@ fun MapScreenContent(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(spacing.space4))
 
                     // Bottom Row of Action Buttons: "Set as Active", "Edit", "Delete"
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(spacing.space3)
                     ) {
                         val isSelectedActive = selectedMap?.isActive == true
 
@@ -361,15 +348,9 @@ fun MapScreenContent(
 
     // Modal Dialog: Add Map
     if (uiState.isAddMapDialogOpen) {
-        AlertDialog(
+        MonochromeDialog(
             onDismissRequest = onCloseAddMapDialog,
-            title = {
-                Text(
-                    text = "Add New Map",
-                    style = typography.h3,
-                    color = colors.primaryText
-                )
-            },
+            title = "Add New Map",
             text = {
                 Column {
                     Text(
@@ -377,7 +358,7 @@ fun MapScreenContent(
                         style = typography.bodySmall,
                         color = colors.secondaryText
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(spacing.space3))
                     MonochromeTextField(
                         value = uiState.newMapNameInput,
                         onValueChange = onUpdateNewMapNameInput,
@@ -399,23 +380,15 @@ fun MapScreenContent(
                     text = "Cancel",
                     variant = MonochromeButtonVariant.Ghost
                 )
-            },
-            containerColor = colors.surface,
-            shape = shapes.dialogs
+            }
         )
     }
 
     // Modal Dialog: Edit Map Name
     if (uiState.isEditMapDialogOpen) {
-        AlertDialog(
+        MonochromeDialog(
             onDismissRequest = onCloseEditMapDialog,
-            title = {
-                Text(
-                    text = "Edit Map Name",
-                    style = typography.h3,
-                    color = colors.primaryText
-                )
-            },
+            title = "Edit Map Name",
             text = {
                 Column {
                     Text(
@@ -423,7 +396,7 @@ fun MapScreenContent(
                         style = typography.bodySmall,
                         color = colors.secondaryText
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(spacing.space3))
                     MonochromeTextField(
                         value = uiState.editMapNameInput,
                         onValueChange = onUpdateEditMapNameInput,
@@ -445,23 +418,15 @@ fun MapScreenContent(
                     text = "Cancel",
                     variant = MonochromeButtonVariant.Ghost
                 )
-            },
-            containerColor = colors.surface,
-            shape = shapes.dialogs
+            }
         )
     }
 
     // Modal Dialog: Confirm Delete
     if (uiState.isDeleteConfirmDialogOpen) {
-        AlertDialog(
+        MonochromeDialog(
             onDismissRequest = onCloseDeleteConfirmDialog,
-            title = {
-                Text(
-                    text = "Delete Map?",
-                    style = typography.h3,
-                    color = colors.primaryText
-                )
-            },
+            title = "Delete Map?",
             text = {
                 Text(
                     text = "Are you sure you want to delete this map? This action cannot be undone.",
@@ -482,9 +447,7 @@ fun MapScreenContent(
                     text = "Cancel",
                     variant = MonochromeButtonVariant.Ghost
                 )
-            },
-            containerColor = colors.surface,
-            shape = shapes.dialogs
+            }
         )
     }
 }
