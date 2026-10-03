@@ -7,11 +7,11 @@ import com.alokrathava.sdk.model.ConnectionStatus
 import com.alokrathava.sdk.model.DirectionCommand
 import com.alokrathava.sdk.model.DockStation
 import com.alokrathava.sdk.model.DockingStatus
+import com.alokrathava.sdk.model.LegacyRobotTelemetry
 import com.alokrathava.sdk.model.MapData
 import com.alokrathava.sdk.model.NavigationStatus
 import com.alokrathava.sdk.model.RobotPosition
 import com.alokrathava.sdk.model.RobotSimulationConfig
-import com.alokrathava.sdk.model.RobotTelemetry
 import com.alokrathava.sdk.model.WifiNetwork
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -114,8 +114,8 @@ class ManualControlViewModelTest {
         private val _availableNetworks = MutableStateFlow<List<WifiNetwork>>(emptyList())
         override val availableNetworks: StateFlow<List<WifiNetwork>> = _availableNetworks.asStateFlow()
 
-        private val _telemetry = MutableStateFlow(RobotTelemetry())
-        override val telemetry: StateFlow<RobotTelemetry> = _telemetry.asStateFlow()
+        private val _telemetry = MutableStateFlow(LegacyRobotTelemetry())
+        override val telemetry: StateFlow<LegacyRobotTelemetry> = _telemetry.asStateFlow()
 
         private val _simulationConfig = MutableStateFlow(RobotSimulationConfig())
         override val simulationConfig: StateFlow<RobotSimulationConfig> = _simulationConfig.asStateFlow()

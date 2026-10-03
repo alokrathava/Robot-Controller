@@ -29,15 +29,7 @@ enum class ThermalState {
     CRITICAL
 }
 
-data class RobotTelemetry(
-    val speedMps: Double = 0.0,
-    val obstacleDistanceMeters: Double = 2.5,
-    val isEmergencyStopped: Boolean = false,
-    val internalTempCelsius: Double = 32.0,
-    val batteryTempCelsius: Double = 25.0,
-    val thermalState: ThermalState = ThermalState.NORMAL,
-    val isDocked: Boolean = false
-)
+
 
 data class RobotSimulationConfig(
     val movementSpeedMps: Double = 0.5,
