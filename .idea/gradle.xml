@@ -20,6 +20,7 @@
             <option value="$PROJECT_DIR$/feature/map" />
             <option value="$PROJECT_DIR$/feature/navigation" />
             <option value="$PROJECT_DIR$/feature/robotstatus" />
+            <option value="$PROJECT_DIR$/feature/settings" />
             <option value="$PROJECT_DIR$/robot" />
             <option value="$PROJECT_DIR$/robot/sdk" />
           </set>

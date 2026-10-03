@@ -46,7 +46,7 @@ enum class ScreenFlow {
 fun HomeScreen(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
-    initialFlow: ScreenFlow = ScreenFlow.DASHBOARD,
+    initialFlow: ScreenFlow = ScreenFlow.SPLASH,
     selectedNav: SidebarNavItem = SidebarNavItem.HOME,
     onSidebarItemSelected: (SidebarNavItem) -> Unit = {}
 ) {

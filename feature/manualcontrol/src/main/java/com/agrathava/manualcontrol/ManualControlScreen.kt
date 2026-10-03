@@ -151,27 +151,14 @@ fun ManualControlContent(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // Main Interactive Panel: Joystick (Left) + Speed/Direction Controls (Right)
+            // Main Interactive Panel: Speed/Direction Controls (Left) + Joystick (Right)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
                 horizontalArrangement = Arrangement.spacedBy(28.dp)
             ) {
-                // Left Joystick Controller Wheel
-                Box(
-                    modifier = Modifier
-                        .weight(1.1f)
-                        .fillMaxHeight(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    JoystickControlWheel(
-                        enabled = controlsEnabled,
-                        onDirectionClick = onDirectionClick
-                    )
-                }
-
-                // Right Control Panel (Speed Slider, 2x2 Grid, Emergency Stop)
+                // Left Control Panel (Speed Slider, 2x2 Grid, Emergency Stop)
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -198,6 +185,19 @@ fun ManualControlContent(
                         isEmergencyStopped = uiState.isEmergencyStopped,
                         onEmergencyBrake = onEmergencyBrake,
                         onResetEmergencyBrake = onResetEmergencyBrake
+                    )
+                }
+
+                // Right Joystick Controller Wheel
+                Box(
+                    modifier = Modifier
+                        .weight(1.1f)
+                        .fillMaxHeight(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    JoystickControlWheel(
+                        enabled = controlsEnabled,
+                        onDirectionClick = onDirectionClick
                     )
                 }
             }

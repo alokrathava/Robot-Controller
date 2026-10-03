@@ -21,7 +21,9 @@ import com.agrathava.manualcontrol.ManualControlScreen
 import com.agrathava.map.MapScreen
 import com.agrathava.navigation.NavigationScreen
 import com.agrathava.robotstatus.RobotStatusScreen
+import com.agrathava.settings.SettingsScreen
 import com.agrathava.theme.MonochromeTheme
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import dagger.hilt.android.AndroidEntryPoint
 import me.alokrathava.robotcontroller.ui.theme.RobotControllerTheme
 
@@ -29,6 +31,7 @@ import me.alokrathava.robotcontroller.ui.theme.RobotControllerTheme
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
@@ -86,6 +89,14 @@ fun MainAppScreen() {
 
                 SidebarNavItem.MAPS -> {
                     MapScreen(
+                        viewModel = hiltViewModel(),
+                        selectedNav = selectedNav,
+                        onSidebarItemSelected = { selectedNav = it }
+                    )
+                }
+
+                SidebarNavItem.SETTINGS -> {
+                    SettingsScreen(
                         viewModel = hiltViewModel(),
                         selectedNav = selectedNav,
                         onSidebarItemSelected = { selectedNav = it }

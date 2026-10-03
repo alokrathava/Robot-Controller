@@ -23,7 +23,7 @@ class HomeViewModel @Inject constructor(
     private val robotRepository: RobotRepository,
 ) : ViewModel() {
 
-    private val _screenFlow = MutableStateFlow(ScreenFlow.DASHBOARD)
+    private val _screenFlow = MutableStateFlow(ScreenFlow.SPLASH)
     private val _connectionStep = MutableStateFlow(RobotConnectionStep.NETWORK_SELECTION)
     private val _selectedNetwork = MutableStateFlow<WifiNetwork?>(null)
     private val _isScanningNetworks = MutableStateFlow(false)

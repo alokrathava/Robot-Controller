@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -142,6 +143,7 @@ fun SplashScreenContent(
             Image(
                 painter = painterResource(id = R.drawable.robot_splash),
                 contentDescription = "Robot Controller Illustration",
+                contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .width(220.dp)
                     .height(320.dp)
