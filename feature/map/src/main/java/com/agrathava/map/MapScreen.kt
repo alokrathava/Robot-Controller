@@ -299,6 +299,7 @@ fun MapScreenContent(
                             MapFloorPlanCanvas(
                                 floorPlanType = selectedMap.floorPlanType,
                                 isThumbnail = false,
+                                robotPosition = uiState.robotPosition,
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {

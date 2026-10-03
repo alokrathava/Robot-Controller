@@ -27,4 +27,14 @@ data class HomeUiState(
     val connectionStatus: ConnectionStatus = ConnectionStatus.DISCONNECTED,
     val isEmergencyStopped: Boolean = false,
     val isLowBatteryWarning: Boolean = false
-)
+) {
+    val batteryTimeRemainingFormatted: String
+        get() = if (batteryStatus.isCharging) {
+            "Charging..."
+        } else {
+            val totalMins = (batteryStatus.levelPercent * 1.8).toInt()
+            val hours = totalMins / 60
+            val mins = totalMins % 60
+            "${hours}h ${mins}m remaining"
+        }
+}

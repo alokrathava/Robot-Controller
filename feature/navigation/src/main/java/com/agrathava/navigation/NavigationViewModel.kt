@@ -15,6 +15,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
+import com.agrathava.sdk.model.DockingStatus
+import com.agrathava.sdk.model.RobotPosition
+import com.agrathava.sdk.model.RobotTelemetry
+
 private data class FormInputState(
     val selectedTab: NavigationTab = NavigationTab.SavedLocations,
     val selectedDestination: NavigationDestinationUi = NavigationDestinationUi.None,
@@ -39,11 +43,16 @@ private data class LocalNavigationState(
     val execution: NavigationExecutionStatus
 )
 
+private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
 private data class RobotNavigationState(
     val battery: BatteryStatus,
     val connection: ConnectionStatus,
     val mapData: MapData,
-    val navStatus: NavigationStatus
+    val navStatus: NavigationStatus,
+    val position: RobotPosition,
+    val telemetry: RobotTelemetry,
+    val dockingStatus: DockingStatus
 )
 
 @HiltViewModel
@@ -67,9 +76,14 @@ class NavigationViewModel @Inject constructor(
         robotRepository.batteryStatus,
         robotRepository.connectionStatus,
         robotRepository.mapData,
-        robotRepository.navigationStatus
-    ) { battery, connection, mapData, navStatus ->
-        RobotNavigationState(battery, connection, mapData, navStatus)
+        combine(
+            robotRepository.navigationStatus,
+            robotRepository.position,
+            robotRepository.telemetry,
+            robotRepository.dockingStatus
+        ) { nav, pos, telem, dock -> Quad(nav, pos, telem, dock) }
+    ) { battery, connection, mapData, (navStatus, pos, telem, dock) ->
+        RobotNavigationState(battery, connection, mapData, navStatus, pos, telem, dock)
     }
 
     val uiState: StateFlow<NavigationUiState> = combine(
@@ -105,7 +119,10 @@ class NavigationViewModel @Inject constructor(
             newLocationXInput = local.locations.xInput,
             newLocationYInput = local.locations.yInput,
             batteryStatus = robot.battery,
-            connectionStatus = robot.connection
+            connectionStatus = robot.connection,
+            robotPosition = robot.position,
+            telemetry = robot.telemetry,
+            dockingStatus = robot.dockingStatus
         )
     }.stateIn(
         scope = viewModelScope,

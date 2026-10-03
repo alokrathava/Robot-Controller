@@ -13,6 +13,8 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
 
+import kotlinx.coroutines.flow.combine
+
 @HiltViewModel
 class MapViewModel @Inject constructor(
     private val robotRepository: RobotRepository
@@ -23,17 +25,34 @@ class MapViewModel @Inject constructor(
 
     init {
         observeRepository()
+        robotRepository.fetchMap()
     }
 
     private fun observeRepository() {
         viewModelScope.launch {
-            robotRepository.connectionStatus.collect { status ->
+            combine(
+                robotRepository.connectionStatus,
+                robotRepository.connectionConfig,
+                robotRepository.position,
+                combine(
+                    robotRepository.navigationStatus,
+                    robotRepository.mapData,
+                    robotRepository.telemetry
+                ) { nav, map, telem -> Triple(nav, map, telem) }
+            ) { connStatus, connConfig, pos, navMapTelem ->
+                val (navStatus, mapData, telem) = navMapTelem
+                val address = if (connConfig.ipAddress.isNotEmpty()) "${connConfig.ipAddress}:${connConfig.port}" else "192.168.1.108:8080"
                 _uiState.update { currentState ->
                     currentState.copy(
-                        isConnected = (status == ConnectionStatus.CONNECTED)
+                        isConnected = (connStatus == ConnectionStatus.CONNECTED),
+                        connectionAddress = address,
+                        robotPosition = pos,
+                        navigationStatus = navStatus,
+                        mapData = mapData,
+                        telemetry = telem
                     )
                 }
-            }
+            }.collect {}
         }
     }
 

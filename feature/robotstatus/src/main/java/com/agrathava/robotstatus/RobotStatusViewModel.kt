@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
+private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
 @HiltViewModel
 class RobotStatusViewModel @Inject constructor(
     private val robotRepository: RobotRepository
@@ -20,11 +22,16 @@ class RobotStatusViewModel @Inject constructor(
     val uiState: StateFlow<RobotStatusUiState> = combine(
         robotRepository.batteryStatus,
         robotRepository.position,
-        robotRepository.telemetry,
-        robotRepository.connectionStatus,
-        robotRepository.navigationStatus
-    ) { battery, position, telemetry, connStatus, navStatus ->
+        combine(
+            robotRepository.telemetry,
+            robotRepository.connectionStatus,
+            robotRepository.connectionConfig,
+            robotRepository.navigationStatus
+        ) { telem, connStatus, connConfig, nav -> Quad(telem, connStatus, connConfig, nav) }
+    ) { battery, position, telemGroup ->
+        val (telemetry, connStatus, connConfig, navStatus) = telemGroup
         val isConnected = connStatus == ConnectionStatus.CONNECTED
+        val address = if (connConfig.ipAddress.isNotEmpty()) "${connConfig.ipAddress}:${connConfig.port}" else "192.168.1.108:8080"
 
         val totalMins = (battery.levelPercent * 1.8).toInt()
         val hours = totalMins / 60
@@ -52,7 +59,7 @@ class RobotStatusViewModel @Inject constructor(
             yawDegrees = position.headingDegrees,
             robotState = formattedStateStr,
             isConnected = isConnected,
-            connectionAddress = "192.168.1.108:8080",
+            connectionAddress = address,
             speedMps = telemetry.speedMps,
             temperatureCelsius = telemetry.internalTempCelsius,
             batteryStatus = battery,

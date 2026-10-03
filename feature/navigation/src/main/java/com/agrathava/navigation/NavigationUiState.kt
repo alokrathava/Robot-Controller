@@ -2,6 +2,9 @@ package com.agrathava.navigation
 
 import com.agrathava.sdk.model.BatteryStatus
 import com.agrathava.sdk.model.ConnectionStatus
+import com.agrathava.sdk.model.DockingStatus
+import com.agrathava.sdk.model.RobotPosition
+import com.agrathava.sdk.model.RobotTelemetry
 
 sealed interface NavigationDestinationUi {
     data object None : NavigationDestinationUi
@@ -82,5 +85,8 @@ data class NavigationUiState(
     val newLocationXInput: String = "",
     val newLocationYInput: String = "",
     val batteryStatus: BatteryStatus = BatteryStatus(),
-    val connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED
+    val connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED,
+    val robotPosition: RobotPosition = RobotPosition(),
+    val telemetry: RobotTelemetry = RobotTelemetry(),
+    val dockingStatus: DockingStatus = DockingStatus.UNDOCKED
 )

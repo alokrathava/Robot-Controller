@@ -1,6 +1,8 @@
 package com.agrathava.settings
 
 import com.agrathava.sdk.model.ConnectionStatus
+import com.agrathava.sdk.model.RobotSimulationConfig
+import com.agrathava.sdk.model.RobotTelemetry
 
 data class SettingsUiState(
     val selectedTab: SettingsTab = SettingsTab.CONNECTION,
@@ -14,7 +16,9 @@ data class SettingsUiState(
     val latencyMs: Int = 12,
     val lastConnected: String = "Sep 30, 2026 9:41 AM",
     val availableReconnectionAttempts: List<Int> = listOf(1, 2, 3, 5, 10),
-    val availableTimeoutSeconds: List<Int> = listOf(5, 10, 15, 30, 60)
+    val availableTimeoutSeconds: List<Int> = listOf(5, 10, 15, 30, 60),
+    val simulationConfig: RobotSimulationConfig = RobotSimulationConfig(),
+    val telemetry: RobotTelemetry = RobotTelemetry()
 ) {
     val isConnected: Boolean
         get() = connectionStatus == ConnectionStatus.CONNECTED

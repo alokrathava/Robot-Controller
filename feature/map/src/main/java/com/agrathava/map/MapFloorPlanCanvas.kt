@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import com.agrathava.sdk.model.RobotPosition
 import com.agrathava.theme.MonochromeTheme
 import kotlin.math.min
 
@@ -23,7 +24,8 @@ import kotlin.math.min
 fun MapFloorPlanCanvas(
     floorPlanType: FloorPlanType,
     modifier: Modifier = Modifier,
-    isThumbnail: Boolean = false
+    isThumbnail: Boolean = false,
+    robotPosition: RobotPosition? = null
 ) {
     val colors = MonochromeTheme.colors
     val containerBg = if (colors.isDark) Color(0xFF18181B) else Color(0xFFF4F4F5)
@@ -206,6 +208,28 @@ fun MapFloorPlanCanvas(
                         strokeWidth = strokeThin
                     )
                 }
+            }
+
+            if (!isThumbnail && robotPosition != null) {
+                val robotX = centerX + (robotPosition.x.toFloat() * unit * 0.5f)
+                val robotY = centerY - (robotPosition.y.toFloat() * unit * 0.5f)
+                val robotRadius = 12f
+
+                drawCircle(
+                    color = Color(0x4422C55E),
+                    center = Offset(robotX, robotY),
+                    radius = robotRadius * 2.2f
+                )
+                drawCircle(
+                    color = Color(0xFF22C55E),
+                    center = Offset(robotX, robotY),
+                    radius = robotRadius
+                )
+                drawCircle(
+                    color = Color.White,
+                    center = Offset(robotX, robotY),
+                    radius = robotRadius * 0.4f
+                )
             }
         }
     }

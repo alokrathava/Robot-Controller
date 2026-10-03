@@ -13,6 +13,10 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 
+import com.agrathava.sdk.model.RobotSimulationConfig
+
+private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val robotRepository: RobotRepository
@@ -34,9 +38,13 @@ class SettingsViewModel @Inject constructor(
 
     val uiState: StateFlow<SettingsUiState> = combine(
         _userSettingsState,
-        robotRepository.connectionStatus,
-        robotRepository.connectionConfig
-    ) { localState, connStatus, connConfig ->
+        combine(
+            robotRepository.connectionStatus,
+            robotRepository.connectionConfig,
+            robotRepository.simulationConfig,
+            robotRepository.telemetry
+        ) { connStatus, connConfig, simConfig, telem -> Quad(connStatus, connConfig, simConfig, telem) }
+    ) { localState, (connStatus, connConfig, simConfig, telem) ->
         val effectiveStatus = if (connStatus == ConnectionStatus.CONNECTED) {
             ConnectionStatus.CONNECTED
         } else {
@@ -44,7 +52,9 @@ class SettingsViewModel @Inject constructor(
         }
         localState.copy(
             connectionStatus = effectiveStatus,
-            connectionAddress = if (connConfig.ipAddress.isNotEmpty()) "${connConfig.ipAddress}:${connConfig.port}" else "${localState.robotIpAddress}:${localState.port}"
+            connectionAddress = if (connConfig.ipAddress.isNotEmpty()) "${connConfig.ipAddress}:${connConfig.port}" else "${localState.robotIpAddress}:${localState.port}",
+            simulationConfig = simConfig,
+            telemetry = telem
         )
     }.stateIn(
         scope = viewModelScope,
@@ -74,6 +84,25 @@ class SettingsViewModel @Inject constructor(
 
     fun onConnectionTimeoutChanged(timeoutSeconds: Int) {
         _userSettingsState.update { it.copy(connectionTimeoutSeconds = timeoutSeconds) }
+    }
+
+    fun updateMovementSpeed(speedMps: Double) {
+        val currentConfig = robotRepository.simulationConfig.value
+        robotRepository.updateSimulationConfig(currentConfig.copy(movementSpeedMps = speedMps))
+    }
+
+    fun updateDischargeRate(rate: Double) {
+        val currentConfig = robotRepository.simulationConfig.value
+        robotRepository.updateSimulationConfig(currentConfig.copy(simulatedDischargeRatePercentPerMin = rate))
+    }
+
+    fun toggleSimulateObstacles(enable: Boolean) {
+        val currentConfig = robotRepository.simulationConfig.value
+        robotRepository.updateSimulationConfig(currentConfig.copy(simulateObstacles = enable))
+    }
+
+    fun resetEmergencyStop() {
+        robotRepository.resetEmergencyStop()
     }
 
     fun toggleConnection() {

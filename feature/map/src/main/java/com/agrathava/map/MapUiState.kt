@@ -1,5 +1,10 @@
 package com.agrathava.map
 
+import com.agrathava.sdk.model.MapData
+import com.agrathava.sdk.model.NavigationStatus
+import com.agrathava.sdk.model.RobotPosition
+import com.agrathava.sdk.model.RobotTelemetry
+
 enum class FloorPlanType {
     MAIN_FLOOR,
     SECOND_FLOOR,
@@ -25,7 +30,11 @@ data class MapUiState(
     val isDeleteConfirmDialogOpen: Boolean = false,
     val editingMapId: String? = null,
     val newMapNameInput: String = "",
-    val editMapNameInput: String = ""
+    val editMapNameInput: String = "",
+    val robotPosition: RobotPosition = RobotPosition(),
+    val navigationStatus: NavigationStatus = NavigationStatus.IDLE,
+    val mapData: MapData = MapData(),
+    val telemetry: RobotTelemetry = RobotTelemetry()
 ) {
     val selectedMap: RobotMapItem?
         get() = maps.find { it.id == selectedMapId } ?: maps.firstOrNull()

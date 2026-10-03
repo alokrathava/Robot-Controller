@@ -117,7 +117,9 @@ fun HomeScreen(
                     viewModel.getMap()
                     onSidebarItemSelected(SidebarNavItem.NAVIGATION)
                 },
-                onManualControlClick = viewModel::moveForward,
+                onManualControlClick = {
+                    onSidebarItemSelected(SidebarNavItem.MANUAL_CONTROL)
+                },
                 onReturnHomeClick = viewModel::goToCharge,
                 onEmergencyReleaseClick = viewModel::cancelNavigation,
                 modifier = modifier
@@ -234,7 +236,7 @@ fun HomeScreenContent(
                                 color = colors.secondaryText
                             )
                             Text(
-                                text = "2h 15m remaining",
+                                text = uiState.batteryTimeRemainingFormatted,
                                 style = typography.caption.copy(
                                     fontSize = typography.caption.fontSize * 1.15f,
                                     lineHeight = typography.caption.lineHeight * 1.15f
