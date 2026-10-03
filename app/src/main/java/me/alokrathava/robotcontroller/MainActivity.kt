@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.sp
 import com.agrathava.home.HomeScreen
 import com.agrathava.home.Sidebar
 import com.agrathava.home.SidebarNavItem
+import com.agrathava.manualcontrol.ManualControlScreen
 import com.agrathava.navigation.NavigationScreen
 import com.agrathava.theme.MonochromeTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -59,6 +60,12 @@ fun MainAppScreen() {
 
                 SidebarNavItem.NAVIGATION -> {
                     NavigationScreen(
+                        onSidebarItemSelected = { selectedNav = it }
+                    )
+                }
+
+                SidebarNavItem.MANUAL_CONTROL -> {
+                    ManualControlScreen(
                         onSidebarItemSelected = { selectedNav = it }
                     )
                 }
