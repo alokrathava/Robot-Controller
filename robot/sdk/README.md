@@ -1,6 +1,6 @@
-# Robot SDK (`0.1.0-alpha.1`)
+# Robot SDK (`0.2.0`)
 
-The **Robot SDK** (`:robot:sdk`) is a framework-neutral, pure Kotlin Android client library for the `RobotNavigation` ROS2 robot control stack. It connects to the `robot_gateway` WebSocket bridge, exposing reactive `StateFlow` streams for telemetry, battery, docking, safety, and health, and providing structured suspend APIs for robot motion, navigation, and docking.
+The **Robot SDK** (`:robot:sdk`) is a framework-neutral Kotlin Android client library for the `RobotNavigation` ROS 2 robot control stack. It connects to the `robot_gateway` WebSocket bridge and exposes reactive `StateFlow`/`SharedFlow` state plus structured suspend APIs for navigation, manual control, docking, safety, maps, virtual walls, saved locations, missions, configuration, diagnostics, discovery, and multi-robot client management. For the complete public API, see [`docs/sdk-api.md`](../../docs/sdk-api.md).
 
 ---
 
@@ -45,7 +45,7 @@ val robotClient = RobotSdk.create(
             port = 8080
         ),
         authentication = RobotAuthentication.Token(
-            token = "your-alpha-token"
+            token = "your-robot-token"
         ),
         commandTimeoutMs = 10_000,
         logger = RobotLogger { event ->
@@ -187,9 +187,9 @@ Client Request:
   "id": "cmd-1001",
   "protocolVersion": 1,
   "payload": {
-    "sdkVersion": "0.1.0-alpha.1",
+    "sdkVersion": "0.2.0",
     "clientId": "android-client",
-    "token": "your-alpha-token"
+    "token": "your-robot-token"
   }
 }
 ```
@@ -201,7 +201,7 @@ Gateway Response:
   "id": "cmd-1001",
   "protocolVersion": 1,
   "payload": {
-    "gatewayVersion": "0.1.0",
+    "gatewayVersion": "0.2.0",
     "capabilities": ["navigation", "manual_control", "docking", "safety", "telemetry", "battery", "health"]
   }
 }
