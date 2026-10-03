@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="620" viewBox="0 0 1400 620" role="img" aria-labelledby="title desc">
+<title id="title">Robot Controller system architecture</title>
+<desc id="desc">Android application connects through Robot SDK and WebSocket protocol to robot_gateway, ROS 2, RobotNavigation, Nav2 and robot hardware.</desc>
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0b0d10"/><stop offset="100%" stop-color="#15191f"/></linearGradient>
+  <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.35"/></filter>
+  <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#8da2b8"/></marker>
+</defs>
+<rect width="1400" height="620" rx="28" fill="url(#bg)"/>
+<text x="70" y="72" fill="#f5f7fa" font-family="Inter,Segoe UI,Arial" font-size="34" font-weight="700">Robot Controller — End-to-End Architecture</text>
+<text x="70" y="108" fill="#8d98a5" font-family="Inter,Segoe UI,Arial" font-size="18">Android operator experience → reusable client SDK → versioned gateway protocol → ROS 2 autonomy stack</text>
+
+<g filter="url(#shadow)"><rect x="70" y="180" width="235" height="250" rx="20" fill="#151a20" stroke="#313944"/>
+<text x="95" y="220" fill="#7dd3fc" font-family="Inter,Segoe UI,Arial" font-size="15" font-weight="700">ANDROID APP</text>
+<text x="95" y="258" fill="#ffffff" font-family="Inter,Segoe UI,Arial" font-size="25" font-weight="700">Controller UI</text>
+<text x="95" y="296" fill="#a8b2bd" font-family="Inter,Segoe UI,Arial" font-size="16">Jetpack Compose</text>
+<text x="95" y="323" fill="#a8b2bd" font-family="Inter,Segoe UI,Arial" font-size="16">Feature modules</text>
+<text x="95" y="350" fill="#a8b2bd" font-family="Inter,Segoe UI,Arial" font-size="16">Hilt + ViewModels</text>
+<rect x="95" y="378" width="150" height="28" rx="14" fill="#0f2632"/><text x="110" y="398" fill="#7dd3fc" font-family="Inter,Segoe UI,Arial" font-size="13">operator intent + state</text></g>
+
+<g filter="url(#shadow)"><rect x="365" y="150" width="300" height="310" rx="20" fill="#151a20" stroke="#3c4652"/>
+<text x="390" y="190" fill="#86efac" font-family="Inter,Segoe UI,Arial" font-size="15" font-weight="700">REUSABLE LIBRARY</text>
+<text x="390" y="228" fill="#ffffff" font-family="Inter,Segoe UI,Arial" font-size="26" font-weight="700">Robot SDK</text>
+<text x="390" y="266" fill="#a8b2bd" font-family="Inter,Segoe UI,Arial" font-size="16">RobotClient</text>
+<text x="390" y="293" fill="#a8b2bd" font-family="Inter,Segoe UI,Arial" font-size="16">ProtocolCodec</text>
+<text x="390" y="320" fill="#a8b2bd" font-family="Inter,Segoe UI,Arial" font-size="16">PendingCommandRegistry</text>
+<text x="390" y="347" fill="#a8b2bd" font-family="Inter,Segoe UI,Arial" font-size="16">WebSocket transport</text>
+<text x="390" y="374" fill="#a8b2bd" font-family="Inter,Segoe UI,Arial" font-size="16">reconnect + heartbeat</text>
+<rect x="390" y="400" width="230" height="34" rx="17" fill="#14301f"/><text x="407" y="423" fill="#86efac" font-family="Inter,Segoe UI,Arial" font-size="14">StateFlow • suspend APIs • errors</text></g>
+
+<g filter="url(#shadow)"><rect x="725" y="180" width="220" height="250" rx="20" fill="#151a20" stroke="#313944"/>
+<text x="750" y="220" fill="#fcd34d" font-family="Inter,Segoe UI,Arial" font-size="15" font-weight="700">ROBOT EDGE</text>
+<text x="750" y="258" fill="#ffffff" font-family="Inter,Segoe UI,Arial" font-size="25" font-weight="700">robot_gateway</text>
+<text x="750" y="296" fill="#a8b2bd" font-family="Inter,Segoe UI,Arial" font-size="16">auth handshake</text>
+<text x="750" y="323" fill="#a8b2bd" font-family="Inter,Segoe UI,Arial" font-size="16">capabilities</text>
+<text x="750" y="350" fill="#a8b2bd" font-family="Inter,Segoe UI,Arial" font-size="16">command bridge</text>
+<text x="750" y="377" fill="#a8b2bd" font-family="Inter,Segoe UI,Arial" font-size="16">state broadcasts</text></g>
+
+<g filter="url(#shadow)"><rect x="1005" y="150" width="325" height="310" rx="20" fill="#151a20" stroke="#3c4652"/>
+<text x="1030" y="190" fill="#c4b5fd" font-family="Inter,Segoe UI,Arial" font-size="15" font-weight="700">ROBOT AUTONOMY</text>
+<text x="1030" y="228" fill="#ffffff" font-family="Inter,Segoe UI,Arial" font-size="26" font-weight="700">ROS 2 Stack</text>
+<text x="1030" y="266" fill="#a8b2bd" font-family="Inter,Segoe UI,Arial" font-size="16">RobotNavigation</text>
+<text x="1030" y="293" fill="#a8b2bd" font-family="Inter,Segoe UI,Arial" font-size="16">Nav2</text>
+<text x="1030" y="320" fill="#a8b2bd" font-family="Inter,Segoe UI,Arial" font-size="16">safety supervisor</text>
+<text x="1030" y="347" fill="#a8b2bd" font-family="Inter,Segoe UI,Arial" font-size="16">docking + localization</text>
+<text x="1030" y="374" fill="#a8b2bd" font-family="Inter,Segoe UI,Arial" font-size="16">sensors + drive hardware</text>
+<rect x="1030" y="400" width="220" height="34" rx="17" fill="#251d3d"/><text x="1048" y="423" fill="#c4b5fd" font-family="Inter,Segoe UI,Arial" font-size="14">physical state = source of truth</text></g>
+
+<line x1="305" y1="305" x2="355" y2="305" stroke="#8da2b8" stroke-width="3" marker-end="url(#arrow)"/>
+<line x1="665" y1="305" x2="715" y2="305" stroke="#8da2b8" stroke-width="3" marker-end="url(#arrow)"/>
+<line x1="945" y1="305" x2="995" y2="305" stroke="#8da2b8" stroke-width="3" marker-end="url(#arrow)"/>
+<text x="670" y="278" fill="#7f8b98" font-family="Inter,Segoe UI,Arial" font-size="13">JSON / WebSocket v1</text>
+
+<rect x="70" y="505" width="1260" height="62" rx="16" fill="#11161b" stroke="#272f38"/>
+<text x="92" y="532" fill="#f5f7fa" font-family="Inter,Segoe UI,Arial" font-size="15" font-weight="700">Command path</text>
+<text x="220" y="532" fill="#9ba7b4" font-family="Inter,Segoe UI,Arial" font-size="15">typed suspend API → command ID → protocol envelope → ROS action/service</text>
+<text x="92" y="556" fill="#f5f7fa" font-family="Inter,Segoe UI,Arial" font-size="15" font-weight="700">State path</text>
+<text x="220" y="556" fill="#9ba7b4" font-family="Inter,Segoe UI,Arial" font-size="15">robot broadcasts → decode → StateFlow / SharedFlow → operator UI</text>
+</svg>
