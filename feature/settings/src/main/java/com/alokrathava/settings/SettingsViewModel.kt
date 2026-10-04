@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.alokrathava.sdk.RobotRepository
 import com.alokrathava.sdk.model.ConnectionStatus
+import com.alokrathava.sdk.model.MotionLimits
+import com.alokrathava.sdk.model.RobotSimulationConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -11,9 +13,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import javax.inject.Inject
-
-import com.alokrathava.sdk.model.RobotSimulationConfig
 
 private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
@@ -25,7 +26,7 @@ class SettingsViewModel @Inject constructor(
     private val _userSettingsState = MutableStateFlow(
         SettingsUiState(
             robotIpAddress = "192.168.1.108",
-            port = "6080",
+            port = "8080",
             autoConnect = true,
             reconnectionAttempts = 3,
             connectionTimeoutSeconds = 10,
@@ -89,6 +90,11 @@ class SettingsViewModel @Inject constructor(
     fun updateMovementSpeed(speedMps: Double) {
         val currentConfig = robotRepository.simulationConfig.value
         robotRepository.updateSimulationConfig(currentConfig.copy(movementSpeedMps = speedMps))
+        viewModelScope.launch {
+            robotRepository.updateMotionLimits(
+                MotionLimits(maxLinearVelocityMps = speedMps, maxAngularVelocityRadPerSec = 1.5)
+            )
+        }
     }
 
     fun updateDischargeRate(rate: Double) {

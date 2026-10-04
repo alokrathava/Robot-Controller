@@ -3,17 +3,17 @@ package com.alokrathava.map
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.alokrathava.sdk.RobotRepository
+import com.alokrathava.sdk.error.RobotResult
 import com.alokrathava.sdk.model.ConnectionStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
-
-import kotlinx.coroutines.flow.combine
 
 @HiltViewModel
 class MapViewModel @Inject constructor(
@@ -25,7 +25,7 @@ class MapViewModel @Inject constructor(
 
     init {
         observeRepository()
-        robotRepository.fetchMap()
+        refreshMapsFromRobot()
     }
 
     private fun observeRepository() {
@@ -56,6 +56,34 @@ class MapViewModel @Inject constructor(
         }
     }
 
+    fun refreshMapsFromRobot() {
+        viewModelScope.launch {
+            robotRepository.fetchMap()
+            when (val result = robotRepository.listMaps()) {
+                is RobotResult.Success -> {
+                    if (result.value.isNotEmpty()) {
+                        val mappedList = result.value.map { sdkMap ->
+                            RobotMapItem(
+                                id = sdkMap.id,
+                                name = sdkMap.name,
+                                lastUpdated = "Synchronized from robot",
+                                isActive = sdkMap.isActive,
+                                floorPlanType = FloorPlanType.MAIN_FLOOR
+                            )
+                        }
+                        _uiState.update { currentState ->
+                            currentState.copy(
+                                maps = mappedList,
+                                selectedMapId = mappedList.firstOrNull { it.isActive }?.id ?: mappedList.first().id
+                            )
+                        }
+                    }
+                }
+                is RobotResult.Failure -> { }
+            }
+        }
+    }
+
     fun selectMap(mapId: String) {
         _uiState.update { currentState ->
             currentState.copy(selectedMapId = mapId)
@@ -72,7 +100,10 @@ class MapViewModel @Inject constructor(
                 selectedMapId = mapId
             )
         }
-        robotRepository.saveMap()
+        viewModelScope.launch {
+            robotRepository.switchMap(mapId)
+            robotRepository.saveMap()
+        }
     }
 
     fun openAddMapDialog() {
@@ -120,6 +151,10 @@ class MapViewModel @Inject constructor(
                 isAddMapDialogOpen = false,
                 newMapNameInput = ""
             )
+        }
+
+        viewModelScope.launch {
+            robotRepository.saveCurrentMap(name)
         }
     }
 
@@ -201,6 +236,10 @@ class MapViewModel @Inject constructor(
                 isDeleteConfirmDialogOpen = false,
                 editingMapId = null
             )
+        }
+
+        viewModelScope.launch {
+            robotRepository.deleteMap(mapIdToDelete)
         }
     }
 }

@@ -6,7 +6,9 @@ import com.alokrathava.sdk.RobotEndpoint
 import com.alokrathava.sdk.RobotRepository
 import com.alokrathava.sdk.RobotSdk
 import com.alokrathava.sdk.RobotSdkConfig
+import com.alokrathava.sdk.error.RobotResult
 import com.alokrathava.sdk.model.BatteryStatus
+import com.alokrathava.sdk.model.CommandId
 import com.alokrathava.sdk.model.ConnectionConfig
 import com.alokrathava.sdk.model.ConnectionState
 import com.alokrathava.sdk.model.ConnectionStatus
@@ -14,12 +16,14 @@ import com.alokrathava.sdk.model.DirectionCommand
 import com.alokrathava.sdk.model.DockStation
 import com.alokrathava.sdk.model.DockingStatus
 import com.alokrathava.sdk.model.MapData
+import com.alokrathava.sdk.model.MotionLimits
 import com.alokrathava.sdk.model.NavigationStatus
 import com.alokrathava.sdk.model.Pose2D
+import com.alokrathava.sdk.model.RobotMap
 import com.alokrathava.sdk.model.RobotPosition
 import com.alokrathava.sdk.model.RobotSimulationConfig
 import com.alokrathava.sdk.model.RobotTelemetry
-import com.alokrathava.sdk.model.ThermalState
+import com.alokrathava.sdk.model.SavedLocation
 import com.alokrathava.sdk.model.WifiNetwork
 import dagger.Module
 import dagger.Provides
@@ -27,6 +31,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -61,10 +66,17 @@ object AppRobotModule {
 
 @Singleton
 internal class RobotClientRepositoryImpl(
-    private val robotClient: RobotClient
+    initialClient: RobotClient
 ) : RobotRepository {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var activeClient: RobotClient = initialClient
+
+    private var connJob: Job? = null
+    private var telemJob: Job? = null
+    private var battJob: Job? = null
+    private var dockJob: Job? = null
+    private var mapJob: Job? = null
 
     private val _batteryStatus = MutableStateFlow(BatteryStatus(levelPercent = 0, isCharging = false))
     override val batteryStatus: StateFlow<BatteryStatus> = _batteryStatus.asStateFlow()
@@ -100,8 +112,20 @@ internal class RobotClientRepositoryImpl(
     override val dockStation: StateFlow<DockStation> = _dockStation.asStateFlow()
 
     init {
-        scope.launch {
-            robotClient.connectionState.collect { state ->
+        bindClient(initialClient)
+    }
+
+    private fun bindClient(client: RobotClient) {
+        connJob?.cancel()
+        telemJob?.cancel()
+        battJob?.cancel()
+        dockJob?.cancel()
+        mapJob?.cancel()
+
+        activeClient = client
+
+        connJob = scope.launch {
+            client.connectionState.collect { state ->
                 _connectionStatus.value = when (state) {
                     is ConnectionState.Connected -> ConnectionStatus.CONNECTED
                     is ConnectionState.Connecting -> ConnectionStatus.CONNECTING
@@ -113,8 +137,8 @@ internal class RobotClientRepositoryImpl(
             }
         }
 
-        scope.launch {
-            robotClient.telemetry.collect { telem ->
+        telemJob = scope.launch {
+            client.telemetry.collect { telem ->
                 if (telem != null) {
                     _position.value = RobotPosition(telem.xMeters, telem.yMeters, Math.toDegrees(telem.yawRadians))
                     _navigationStatus.value = when (telem.navigationState.uppercase()) {
@@ -128,8 +152,8 @@ internal class RobotClientRepositoryImpl(
             }
         }
 
-        scope.launch {
-            robotClient.batteryState.collect { batt ->
+        battJob = scope.launch {
+            client.batteryState.collect { batt ->
                 if (batt != null) {
                     _batteryStatus.value = BatteryStatus(
                         levelPercent = batt.percentage.toInt(),
@@ -141,8 +165,8 @@ internal class RobotClientRepositoryImpl(
             }
         }
 
-        scope.launch {
-            robotClient.dockingState.collect { dockState ->
+        dockJob = scope.launch {
+            client.dockingState.collect { dockState ->
                 if (dockState != null) {
                     _dockingStatus.value = when (dockState) {
                         com.alokrathava.sdk.model.DockingState.UNDOCKED -> DockingStatus.UNDOCKED
@@ -151,6 +175,14 @@ internal class RobotClientRepositoryImpl(
                         com.alokrathava.sdk.model.DockingState.DOCKED -> DockingStatus.DOCKED
                         else -> DockingStatus.DOCKING_FAILED
                     }
+                }
+            }
+        }
+
+        mapJob = scope.launch {
+            client.activeMap.collect { map ->
+                if (map != null) {
+                    _mapData.value = MapData(name = map.name, isAvailable = true)
                 }
             }
         }
@@ -164,56 +196,106 @@ internal class RobotClientRepositoryImpl(
             DirectionCommand.RIGHT -> Pair(0.0, -0.5)
         }
         scope.launch {
-            robotClient.setManualVelocity(linear, angular)
+            activeClient.setManualVelocity(linear, angular)
         }
     }
 
     override fun goToCharge() {
-        scope.launch { robotClient.dock() }
+        scope.launch { activeClient.dock() }
     }
 
     override fun cancelNavigation() {
-        scope.launch { robotClient.cancelNavigation() }
+        scope.launch { activeClient.cancelNavigation() }
     }
 
-    override fun refreshPosition() {}
-
-    override fun moveToPosition(x: Double, y: Double) {
-        scope.launch {
-            robotClient.navigateTo(Pose2D(xMeters = x, yMeters = y, yawRadians = 0.0))
+    override fun refreshPosition() {
+        val telem = activeClient.telemetry.value
+        if (telem != null) {
+            _position.value = RobotPosition(telem.xMeters, telem.yMeters, Math.toDegrees(telem.yawRadians))
         }
     }
 
-    override fun fetchMap() {}
+    override fun moveToPosition(x: Double, y: Double) {
+        scope.launch {
+            activeClient.navigateTo(Pose2D(xMeters = x, yMeters = y, yawRadians = 0.0))
+        }
+    }
 
-    override fun saveMap() {}
+    override fun fetchMap() {
+        scope.launch {
+            when (val result = activeClient.listMaps()) {
+                is RobotResult.Success -> {
+                    val activeMap = result.value.firstOrNull { it.isActive } ?: result.value.firstOrNull()
+                    if (activeMap != null) {
+                        _mapData.value = MapData(name = activeMap.name, isAvailable = true)
+                    }
+                }
+                is RobotResult.Failure -> { }
+            }
+        }
+    }
 
-    override fun refreshBattery() {}
+    override fun saveMap() {
+        scope.launch {
+            activeClient.saveCurrentMap(_mapData.value.name.ifEmpty { "Saved Map" })
+        }
+    }
+
+    override fun refreshBattery() {
+        val batt = activeClient.batteryState.value
+        if (batt != null) {
+            _batteryStatus.value = BatteryStatus(
+                levelPercent = batt.percentage.toInt(),
+                isCharging = batt.isCharging,
+                temperatureCelsius = batt.temperatureCelsius?.toDouble() ?: 25.0,
+                voltageMv = (batt.voltageVolts * 1000).toInt()
+            )
+        }
+    }
 
     override fun connectToRobot(ip: String, port: Int, ssid: String) {
         _connectionConfig.value = ConnectionConfig(ipAddress = ip, port = port, selectedSsid = ssid)
+        val currentClient = activeClient
         scope.launch {
-            robotClient.connect()
+            try {
+                currentClient.disconnect()
+                currentClient.close()
+            } catch (_: Exception) {}
+
+            val newClient = RobotSdk.create(
+                RobotSdkConfig(
+                    endpoint = RobotEndpoint(host = ip, port = port),
+                    authentication = RobotAuthentication.Token("alpha-token")
+                )
+            )
+            bindClient(newClient)
+            newClient.connect()
         }
     }
 
     override fun disconnectRobot() {
         scope.launch {
-            robotClient.disconnect()
+            activeClient.disconnect()
         }
     }
 
-    override fun refreshAvailableNetworks() {}
+    override fun refreshAvailableNetworks() {
+        _availableNetworks.value = listOf(
+            WifiNetwork(ssid = "ROBOT_HOTSPOT_5G", signalPercent = 95, isSecured = true),
+            WifiNetwork(ssid = "ROBOT_OFFICE_WIFI", signalPercent = 80, isSecured = true),
+            WifiNetwork(ssid = "ROBOT_LAB_2G", signalPercent = 65, isSecured = false)
+        )
+    }
 
     override fun triggerEmergencyStop() {
         scope.launch {
-            robotClient.emergencyStop()
+            activeClient.emergencyStop()
         }
     }
 
     override fun resetEmergencyStop() {
         scope.launch {
-            robotClient.releaseEmergencyStop()
+            activeClient.releaseEmergencyStop()
         }
     }
 
@@ -222,14 +304,34 @@ internal class RobotClientRepositoryImpl(
     }
 
     override fun dock() {
-        scope.launch { robotClient.dock() }
+        scope.launch { activeClient.dock() }
     }
 
     override fun undock() {
-        scope.launch { robotClient.undock() }
+        scope.launch { activeClient.undock() }
     }
 
     override fun cancelDocking() {
-        scope.launch { robotClient.cancelDocking() }
+        scope.launch { activeClient.cancelDocking() }
     }
+
+    override suspend fun listMaps(): RobotResult<List<RobotMap>> = activeClient.listMaps()
+
+    override suspend fun switchMap(mapId: String): RobotResult<Unit> = activeClient.switchMap(mapId)
+
+    override suspend fun saveCurrentMap(name: String): RobotResult<RobotMap> = activeClient.saveCurrentMap(name)
+
+    override suspend fun deleteMap(mapId: String): RobotResult<Unit> = activeClient.deleteMap(mapId)
+
+    override suspend fun listSavedLocations(mapId: String): RobotResult<List<SavedLocation>> = activeClient.listSavedLocations(mapId)
+
+    override suspend fun saveLocation(name: String, pose: Pose2D, mapId: String?): RobotResult<SavedLocation> = activeClient.saveLocation(name, pose, mapId)
+
+    override suspend fun deleteLocation(id: String): RobotResult<Unit> = activeClient.deleteLocation(id)
+
+    override suspend fun navigateToLocation(id: String): RobotResult<CommandId> = activeClient.navigateToLocation(id)
+
+    override suspend fun updateMotionLimits(limits: MotionLimits): RobotResult<Unit> = activeClient.updateMotionLimits(limits)
+
+    override fun getActiveRobotClient(): RobotClient = activeClient
 }

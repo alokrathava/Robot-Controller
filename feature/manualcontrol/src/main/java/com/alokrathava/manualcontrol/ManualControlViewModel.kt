@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.alokrathava.sdk.RobotRepository
 import com.alokrathava.sdk.model.ConnectionStatus
 import com.alokrathava.sdk.model.DirectionCommand
+import com.alokrathava.sdk.model.MotionLimits
 import com.alokrathava.sdk.model.RobotSimulationConfig
 import com.alokrathava.sdk.model.ThermalState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 private data class JoystickState(
@@ -132,6 +134,11 @@ class ManualControlViewModel @Inject constructor(
         robotRepository.updateSimulationConfig(
             RobotSimulationConfig(movementSpeedMps = speedMps)
         )
+        viewModelScope.launch {
+            robotRepository.updateMotionLimits(
+                MotionLimits(maxLinearVelocityMps = speedMps, maxAngularVelocityRadPerSec = 1.5)
+            )
+        }
     }
 
     fun updateJoystickPosition(x: Float, y: Float, isActive: Boolean) {

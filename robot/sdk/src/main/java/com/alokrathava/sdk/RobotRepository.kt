@@ -45,4 +45,37 @@ interface RobotRepository {
     fun dock()
     fun undock()
     fun cancelDocking()
+
+    suspend fun listMaps(): com.alokrathava.sdk.error.RobotResult<List<com.alokrathava.sdk.model.RobotMap>> =
+        com.alokrathava.sdk.error.RobotResult.Success(emptyList())
+
+    suspend fun switchMap(mapId: String): com.alokrathava.sdk.error.RobotResult<Unit> =
+        com.alokrathava.sdk.error.RobotResult.Success(Unit)
+
+    suspend fun saveCurrentMap(name: String): com.alokrathava.sdk.error.RobotResult<com.alokrathava.sdk.model.RobotMap> =
+        com.alokrathava.sdk.error.RobotResult.Success(
+            com.alokrathava.sdk.model.RobotMap(
+                id = "map_1", name = name, isActive = true
+            )
+        )
+
+    suspend fun deleteMap(mapId: String): com.alokrathava.sdk.error.RobotResult<Unit> =
+        com.alokrathava.sdk.error.RobotResult.Success(Unit)
+
+    suspend fun listSavedLocations(mapId: String = ""): com.alokrathava.sdk.error.RobotResult<List<com.alokrathava.sdk.model.SavedLocation>> =
+        com.alokrathava.sdk.error.RobotResult.Success(emptyList())
+
+    suspend fun saveLocation(name: String, pose: com.alokrathava.sdk.model.Pose2D, mapId: String? = null): com.alokrathava.sdk.error.RobotResult<com.alokrathava.sdk.model.SavedLocation> =
+        com.alokrathava.sdk.error.RobotResult.Success(com.alokrathava.sdk.model.SavedLocation("loc_1", name, mapId ?: "map_1", pose))
+
+    suspend fun deleteLocation(id: String): com.alokrathava.sdk.error.RobotResult<Unit> =
+        com.alokrathava.sdk.error.RobotResult.Success(Unit)
+
+    suspend fun navigateToLocation(id: String): com.alokrathava.sdk.error.RobotResult<com.alokrathava.sdk.model.CommandId> =
+        com.alokrathava.sdk.error.RobotResult.Success(com.alokrathava.sdk.model.CommandId("cmd_1"))
+
+    suspend fun updateMotionLimits(limits: com.alokrathava.sdk.model.MotionLimits): com.alokrathava.sdk.error.RobotResult<Unit> =
+        com.alokrathava.sdk.error.RobotResult.Success(Unit)
+
+    fun getActiveRobotClient(): RobotClient? = null
 }
