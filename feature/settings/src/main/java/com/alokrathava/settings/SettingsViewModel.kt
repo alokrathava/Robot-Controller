@@ -25,13 +25,13 @@ class SettingsViewModel @Inject constructor(
 
     private val _userSettingsState = MutableStateFlow(
         SettingsUiState(
-            robotIpAddress = "192.168.1.108",
+            robotIpAddress = "192.168.1.100",
             port = "8080",
             autoConnect = true,
             reconnectionAttempts = 3,
             connectionTimeoutSeconds = 10,
             connectionStatus = ConnectionStatus.CONNECTED,
-            connectionAddress = "192.168.1.108:8080",
+            connectionAddress = "192.168.1.100:8080",
             latencyMs = 12,
             lastConnected = "Sep 30, 2026 9:41 AM"
         )

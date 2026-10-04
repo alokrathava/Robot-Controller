@@ -48,7 +48,7 @@ The current shell uses direct in-memory destination selection instead of a navig
 Current development endpoint in the app module:
 
 ```text
-127.0.0.1:8080
+192.168.1.100:8080
 ```
 
 The module also provides a compatibility implementation of the deprecated `RobotRepository`.

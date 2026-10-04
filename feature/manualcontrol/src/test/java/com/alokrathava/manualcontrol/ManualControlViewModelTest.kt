@@ -149,7 +149,6 @@ class ManualControlViewModelTest {
         }
 
         override fun refreshAvailableNetworks() {}
-/clearr
         override fun triggerEmergencyStop() {
             _telemetry.value = _telemetry.value.copy(isEmergencyStopped = true)
         }

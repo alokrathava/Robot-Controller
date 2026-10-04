@@ -49,7 +49,7 @@ object AppRobotModule {
         return RobotSdk.create(
             RobotSdkConfig(
                 endpoint = RobotEndpoint(
-                    host = "127.0.0.1",
+                    host = "192.168.1.100",
                     port = 8080
                 ),
                 authentication = RobotAuthentication.Token("alpha-token")
