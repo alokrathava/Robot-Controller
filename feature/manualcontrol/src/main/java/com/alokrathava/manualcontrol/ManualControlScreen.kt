@@ -2,6 +2,8 @@ package com.alokrathava.manualcontrol
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -63,6 +65,9 @@ fun ManualControlScreen(
             onTabSelected = viewModel::selectTab,
             onSpeedChanged = viewModel::updateSpeed,
             onDirectionClick = viewModel::moveDirection,
+            onDirectionHoldStart = viewModel::startDirectionHold,
+            onDirectionHoldStop = viewModel::stopDirectionHold,
+            onJoystickPositionChanged = viewModel::updateJoystickPosition,
             onEmergencyBrake = viewModel::triggerEmergencyBrake,
             onResetEmergencyBrake = viewModel::resetEmergencyBrake,
             onReconnect = viewModel::reconnect,
@@ -83,6 +88,9 @@ fun ManualControlContent(
     onTabSelected: (ManualControlTab) -> Unit = {},
     onSpeedChanged: (Float) -> Unit = {},
     onDirectionClick: (ManualDirection) -> Unit = {},
+    onDirectionHoldStart: (ManualDirection) -> Unit = {},
+    onDirectionHoldStop: () -> Unit = {},
+    onJoystickPositionChanged: (Float, Float, Boolean) -> Unit = { _, _, _ -> },
     onEmergencyBrake: () -> Unit = {},
     onResetEmergencyBrake: () -> Unit = {},
     onReconnect: () -> Unit = {},
@@ -200,7 +208,8 @@ fun ManualControlContent(
                     // 2x2 Directional Grid
                     DirectionGrid(
                         enabled = controlsEnabled,
-                        onDirectionClick = onDirectionClick
+                        onDirectionHoldStart = onDirectionHoldStart,
+                        onDirectionHoldStop = onDirectionHoldStop
                     )
 
                     Spacer(modifier = Modifier.weight(1f))
@@ -222,7 +231,9 @@ fun ManualControlContent(
                 ) {
                     JoystickControlWheel(
                         enabled = controlsEnabled,
-                        onDirectionClick = onDirectionClick
+                        onDirectionHoldStart = onDirectionHoldStart,
+                        onDirectionHoldStop = onDirectionHoldStop,
+                        onJoystickPositionChanged = onJoystickPositionChanged
                     )
                 }
             }
@@ -255,7 +266,9 @@ private fun ManualControlHeader() {
 private fun JoystickControlWheel(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    onDirectionClick: (ManualDirection) -> Unit = {}
+    onDirectionHoldStart: (ManualDirection) -> Unit = {},
+    onDirectionHoldStop: () -> Unit = {},
+    onJoystickPositionChanged: (Float, Float, Boolean) -> Unit = { _, _, _ -> }
 ) {
     val colors = MonochromeTheme.colors
     val outerSize = 310.dp
@@ -272,14 +285,24 @@ private fun JoystickControlWheel(
             .border(1.dp, colors.defaultBorder, CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        // Up Arrow
-        IconButton(
-            enabled = enabled,
-            onClick = { onDirectionClick(ManualDirection.FORWARD) },
+        // Up Arrow Button
+        Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 16.dp)
                 .size(36.dp)
+                .pointerInput(enabled) {
+                    if (!enabled) return@pointerInput
+                    awaitEachGesture {
+                        awaitFirstDown()
+                        onDirectionHoldStart(ManualDirection.FORWARD)
+                        do {
+                            val event = awaitPointerEvent()
+                        } while (event.changes.any { it.pressed })
+                        onDirectionHoldStop()
+                    }
+                },
+            contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Default.KeyboardArrowUp,
@@ -289,14 +312,24 @@ private fun JoystickControlWheel(
             )
         }
 
-        // Down Arrow
-        IconButton(
-            enabled = enabled,
-            onClick = { onDirectionClick(ManualDirection.BACKWARD) },
+        // Down Arrow Button
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 16.dp)
                 .size(36.dp)
+                .pointerInput(enabled) {
+                    if (!enabled) return@pointerInput
+                    awaitEachGesture {
+                        awaitFirstDown()
+                        onDirectionHoldStart(ManualDirection.BACKWARD)
+                        do {
+                            val event = awaitPointerEvent()
+                        } while (event.changes.any { it.pressed })
+                        onDirectionHoldStop()
+                    }
+                },
+            contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Default.KeyboardArrowDown,
@@ -306,14 +339,24 @@ private fun JoystickControlWheel(
             )
         }
 
-        // Left Arrow
-        IconButton(
-            enabled = enabled,
-            onClick = { onDirectionClick(ManualDirection.LEFT) },
+        // Left Arrow Button
+        Box(
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .padding(start = 16.dp)
                 .size(36.dp)
+                .pointerInput(enabled) {
+                    if (!enabled) return@pointerInput
+                    awaitEachGesture {
+                        awaitFirstDown()
+                        onDirectionHoldStart(ManualDirection.LEFT)
+                        do {
+                            val event = awaitPointerEvent()
+                        } while (event.changes.any { it.pressed })
+                        onDirectionHoldStop()
+                    }
+                },
+            contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Default.KeyboardArrowLeft,
@@ -323,14 +366,24 @@ private fun JoystickControlWheel(
             )
         }
 
-        // Right Arrow
-        IconButton(
-            enabled = enabled,
-            onClick = { onDirectionClick(ManualDirection.RIGHT) },
+        // Right Arrow Button
+        Box(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .padding(end = 16.dp)
                 .size(36.dp)
+                .pointerInput(enabled) {
+                    if (!enabled) return@pointerInput
+                    awaitEachGesture {
+                        awaitFirstDown()
+                        onDirectionHoldStart(ManualDirection.RIGHT)
+                        do {
+                            val event = awaitPointerEvent()
+                        } while (event.changes.any { it.pressed })
+                        onDirectionHoldStop()
+                    }
+                },
+            contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Default.KeyboardArrowRight,
@@ -358,8 +411,14 @@ private fun JoystickControlWheel(
                 .pointerInput(enabled) {
                     if (enabled) {
                         detectDragGestures(
-                            onDragEnd = { knobOffset = Offset.Zero },
-                            onDragCancel = { knobOffset = Offset.Zero },
+                            onDragEnd = {
+                                knobOffset = Offset.Zero
+                                onJoystickPositionChanged(0f, 0f, false)
+                            },
+                            onDragCancel = {
+                                knobOffset = Offset.Zero
+                                onJoystickPositionChanged(0f, 0f, false)
+                            },
                             onDrag = { change, dragAmount ->
                                 change.consume()
                                 val maxRadius = 40f
@@ -370,6 +429,9 @@ private fun JoystickControlWheel(
                                 } else {
                                     newOffset
                                 }
+                                val normX = knobOffset.x / maxRadius
+                                val normY = knobOffset.y / maxRadius
+                                onJoystickPositionChanged(normX, normY, true)
                             }
                         )
                     }
@@ -446,7 +508,8 @@ private fun SpeedControlCard(
 
 @Composable
 private fun DirectionGrid(
-    onDirectionClick: (ManualDirection) -> Unit,
+    onDirectionHoldStart: (ManualDirection) -> Unit,
+    onDirectionHoldStop: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
@@ -462,14 +525,16 @@ private fun DirectionGrid(
                 title = "Forward",
                 icon = Icons.Default.ArrowUpward,
                 enabled = enabled,
-                onClick = { onDirectionClick(ManualDirection.FORWARD) },
+                onHoldStart = { onDirectionHoldStart(ManualDirection.FORWARD) },
+                onHoldStop = onDirectionHoldStop,
                 modifier = Modifier.weight(1f)
             )
             DirectionButton(
                 title = "Backward",
                 icon = Icons.Default.ArrowDownward,
                 enabled = enabled,
-                onClick = { onDirectionClick(ManualDirection.BACKWARD) },
+                onHoldStart = { onDirectionHoldStart(ManualDirection.BACKWARD) },
+                onHoldStop = onDirectionHoldStop,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -481,14 +546,16 @@ private fun DirectionGrid(
                 title = "Left",
                 icon = Icons.Default.ArrowBack,
                 enabled = enabled,
-                onClick = { onDirectionClick(ManualDirection.LEFT) },
+                onHoldStart = { onDirectionHoldStart(ManualDirection.LEFT) },
+                onHoldStop = onDirectionHoldStop,
                 modifier = Modifier.weight(1f)
             )
             DirectionButton(
                 title = "Right",
                 icon = Icons.Default.ArrowForward,
                 enabled = enabled,
-                onClick = { onDirectionClick(ManualDirection.RIGHT) },
+                onHoldStart = { onDirectionHoldStart(ManualDirection.RIGHT) },
+                onHoldStop = onDirectionHoldStop,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -499,7 +566,8 @@ private fun DirectionGrid(
 private fun DirectionButton(
     title: String,
     icon: ImageVector,
-    onClick: () -> Unit,
+    onHoldStart: () -> Unit,
+    onHoldStop: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
@@ -507,8 +575,19 @@ private fun DirectionButton(
     val typography = MonochromeTheme.typography
 
     MonochromeCard(
-        onClick = onClick,
-        modifier = modifier.height(76.dp),
+        modifier = modifier
+            .height(76.dp)
+            .pointerInput(enabled) {
+                if (!enabled) return@pointerInput
+                awaitEachGesture {
+                    awaitFirstDown()
+                    onHoldStart()
+                    do {
+                        val event = awaitPointerEvent()
+                    } while (event.changes.any { it.pressed })
+                    onHoldStop()
+                }
+            },
         backgroundColor = if (enabled) colors.surface else colors.disabledSurface,
         borderColor = colors.defaultBorder,
         padding = 12.dp

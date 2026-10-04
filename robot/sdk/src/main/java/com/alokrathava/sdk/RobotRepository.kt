@@ -27,8 +27,11 @@ interface RobotRepository {
     val simulationConfig: StateFlow<RobotSimulationConfig>
     val dockingStatus: StateFlow<DockingStatus>
     val dockStation: StateFlow<DockStation>
+    val connectionMetrics: StateFlow<com.alokrathava.sdk.model.ConnectionMetrics>
+        get() = kotlinx.coroutines.flow.MutableStateFlow(com.alokrathava.sdk.model.ConnectionMetrics())
 
     fun move(direction: DirectionCommand)
+    fun setManualVelocity(linearMps: Double, angularRadPerSec: Double) {}
     fun goToCharge()
     fun cancelNavigation()
     fun refreshPosition()

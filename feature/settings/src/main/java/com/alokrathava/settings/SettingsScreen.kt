@@ -192,8 +192,10 @@ fun SettingsScreenContent(
                         ) {
                             ConnectionMetadataRow(label = "IP Address", value = uiState.robotIpAddress)
                             ConnectionMetadataRow(label = "Port", value = uiState.port)
-                            ConnectionMetadataRow(label = "Latency", value = "${uiState.latencyMs} ms")
-                            ConnectionMetadataRow(label = "Last Connected", value = uiState.lastConnected)
+                            ConnectionMetadataRow(label = "Latency", value = uiState.latencyMs?.let { "${it} ms" } ?: "--")
+                            ConnectionMetadataRow(label = "Reconnects", value = "${uiState.reconnectCount}")
+                            ConnectionMetadataRow(label = "Last Msg Age", value = if (uiState.isConnected) "${uiState.lastMessageAgeMs} ms" else "--")
+                            ConnectionMetadataRow(label = "Session", value = uiState.lastConnected)
                         }
 
                         Spacer(modifier = Modifier.height(spacing.space6))
@@ -494,15 +496,15 @@ fun SettingsScreenPreview() {
         SettingsScreenContent(
             uiState = SettingsUiState(
                 selectedTab = SettingsTab.CONNECTION,
-                robotIpAddress = "192.168.1.108",
-                port = "6080",
+                robotIpAddress = "192.168.1.100",
+                port = "8080",
                 autoConnect = true,
                 reconnectionAttempts = 3,
                 connectionTimeoutSeconds = 10,
                 connectionStatus = com.alokrathava.sdk.model.ConnectionStatus.CONNECTED,
-                connectionAddress = "192.168.1.108:8080",
-                latencyMs = 12,
-                lastConnected = "Sep 30, 2026 9:41 AM"
+                connectionAddress = "192.168.1.100:8080",
+                latencyMs = 12L,
+                lastConnected = "2m connected"
             )
         )
     }

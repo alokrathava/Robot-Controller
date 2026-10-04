@@ -9,11 +9,14 @@ import com.alokrathava.sdk.model.MotionLimits
 import com.alokrathava.sdk.model.RobotSimulationConfig
 import com.alokrathava.sdk.model.ThermalState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -41,6 +44,10 @@ class ManualControlViewModel @Inject constructor(
     private val _speedPreset = MutableStateFlow(ManualControlSpeedPreset.MEDIUM)
     private val _joystickState = MutableStateFlow(JoystickState())
     private val _lastCommand = MutableStateFlow<DirectionCommand?>(null)
+
+    private var velocityStreamJob: Job? = null
+    @Volatile private var targetLinear: Double = 0.0
+    @Volatile private var targetAngular: Double = 0.0
 
     private val _controlsState = combine(
         _selectedTab,
@@ -145,8 +152,14 @@ class ManualControlViewModel @Inject constructor(
         _joystickState.value = JoystickState(x, y, isActive)
         if (!isActive) {
             _lastCommand.value = null
+            stopVelocityStreaming()
             return
         }
+
+        val maxLinear = (_speedPercent.value / 100f) * 1.5
+        val maxAngular = 1.5
+        val linear = -y * maxLinear
+        val angular = -x * maxAngular
 
         val direction = when {
             y < -0.3f -> DirectionCommand.FORWARD
@@ -155,25 +168,59 @@ class ManualControlViewModel @Inject constructor(
             x > 0.3f -> DirectionCommand.RIGHT
             else -> null
         }
+        _lastCommand.value = direction
 
-        if (direction != null) {
-            _lastCommand.value = direction
-            robotRepository.move(direction)
+        startVelocityStreaming(linear.toDouble(), angular)
+    }
+
+    fun startDirectionHold(direction: ManualDirection) {
+        val maxLinear = (_speedPercent.value / 100f) * 1.5
+        val maxAngular = 1.5
+
+        val (command, linear, angular) = when (direction) {
+            ManualDirection.FORWARD -> Triple(DirectionCommand.FORWARD, maxLinear, 0.0)
+            ManualDirection.BACKWARD -> Triple(DirectionCommand.BACKWARD, -maxLinear, 0.0)
+            ManualDirection.LEFT -> Triple(DirectionCommand.LEFT, 0.0, maxAngular)
+            ManualDirection.RIGHT -> Triple(DirectionCommand.RIGHT, 0.0, -maxAngular)
         }
+        _lastCommand.value = command
+        startVelocityStreaming(linear.toDouble(), angular)
+    }
+
+    fun stopDirectionHold() {
+        _lastCommand.value = null
+        stopVelocityStreaming()
     }
 
     fun moveDirection(direction: ManualDirection) {
-        val command = when (direction) {
-            ManualDirection.FORWARD -> DirectionCommand.FORWARD
-            ManualDirection.BACKWARD -> DirectionCommand.BACKWARD
-            ManualDirection.LEFT -> DirectionCommand.LEFT
-            ManualDirection.RIGHT -> DirectionCommand.RIGHT
+        startDirectionHold(direction)
+    }
+
+    private fun startVelocityStreaming(linear: Double, angular: Double) {
+        targetLinear = linear
+        targetAngular = angular
+        robotRepository.setManualVelocity(linear, angular)
+
+        if (velocityStreamJob == null || velocityStreamJob?.isActive == false) {
+            velocityStreamJob = viewModelScope.launch {
+                while (isActive) {
+                    delay(100) // 10 Hz streaming
+                    robotRepository.setManualVelocity(targetLinear, targetAngular)
+                }
+            }
         }
-        _lastCommand.value = command
-        robotRepository.move(command)
+    }
+
+    private fun stopVelocityStreaming() {
+        velocityStreamJob?.cancel()
+        velocityStreamJob = null
+        targetLinear = 0.0
+        targetAngular = 0.0
+        robotRepository.setManualVelocity(0.0, 0.0)
     }
 
     fun triggerEmergencyBrake() {
+        stopVelocityStreaming()
         robotRepository.triggerEmergencyStop()
     }
 

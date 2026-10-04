@@ -16,7 +16,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+private data class quintuple<A, B, C, D, E>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D,
+    val fifth: E
+)
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -30,30 +36,47 @@ class SettingsViewModel @Inject constructor(
             autoConnect = true,
             reconnectionAttempts = 3,
             connectionTimeoutSeconds = 10,
-            connectionStatus = ConnectionStatus.CONNECTED,
+            connectionStatus = ConnectionStatus.DISCONNECTED,
             connectionAddress = "192.168.1.100:8080",
-            latencyMs = 12,
-            lastConnected = "Sep 30, 2026 9:41 AM"
+            latencyMs = null,
+            lastConnected = "Disconnected"
         )
     )
 
+    private val _repoStateFlow = combine(
+        robotRepository.connectionStatus,
+        robotRepository.connectionConfig,
+        robotRepository.connectionMetrics,
+        robotRepository.simulationConfig,
+        robotRepository.telemetry
+    ) { connStatus, connConfig, metrics, simConfig, telem ->
+        quintuple(connStatus, connConfig, metrics, simConfig, telem)
+    }
+
     val uiState: StateFlow<SettingsUiState> = combine(
         _userSettingsState,
-        combine(
-            robotRepository.connectionStatus,
-            robotRepository.connectionConfig,
-            robotRepository.simulationConfig,
-            robotRepository.telemetry
-        ) { connStatus, connConfig, simConfig, telem -> Quad(connStatus, connConfig, simConfig, telem) }
-    ) { localState, (connStatus, connConfig, simConfig, telem) ->
-        val effectiveStatus = if (connStatus == ConnectionStatus.CONNECTED) {
-            ConnectionStatus.CONNECTED
+        _repoStateFlow
+    ) { localState, (connStatus, connConfig, metrics, simConfig, telem) ->
+        val ip = connConfig.ipAddress.ifEmpty { localState.robotIpAddress }
+        val portStr = if (connConfig.port > 0) connConfig.port.toString() else localState.port
+        val address = "$ip:$portStr"
+
+        val durationSec = metrics.connectedDurationMs / 1000
+        val lastConnText = if (connStatus == ConnectionStatus.CONNECTED) {
+            if (durationSec < 60) "${durationSec}s connected" else "${durationSec / 60}m connected"
         } else {
-            localState.connectionStatus
+            "Disconnected"
         }
+
         localState.copy(
-            connectionStatus = effectiveStatus,
-            connectionAddress = if (connConfig.ipAddress.isNotEmpty()) "${connConfig.ipAddress}:${connConfig.port}" else "${localState.robotIpAddress}:${localState.port}",
+            connectionStatus = connStatus,
+            robotIpAddress = ip,
+            port = portStr,
+            connectionAddress = address,
+            latencyMs = metrics.latencyMs,
+            reconnectCount = metrics.reconnectCount,
+            lastMessageAgeMs = metrics.lastMessageAgeMs,
+            lastConnected = lastConnText,
             simulationConfig = simConfig,
             telemetry = telem
         )
@@ -116,22 +139,12 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun toggleConnection() {
-        val currentState = _userSettingsState.value
+        val currentState = uiState.value
         if (currentState.isConnected) {
             robotRepository.disconnectRobot()
-            _userSettingsState.update {
-                it.copy(
-                    connectionStatus = ConnectionStatus.DISCONNECTED
-                )
-            }
         } else {
             val portInt = currentState.port.toIntOrNull() ?: 8080
             robotRepository.connectToRobot(currentState.robotIpAddress, portInt, currentState.token, "")
-            _userSettingsState.update {
-                it.copy(
-                    connectionStatus = ConnectionStatus.CONNECTED
-                )
-            }
         }
     }
 }

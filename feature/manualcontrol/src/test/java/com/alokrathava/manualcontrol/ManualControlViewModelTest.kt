@@ -26,6 +26,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -92,6 +93,38 @@ class ManualControlViewModelTest {
         assertEquals(ManualControlSpeedPreset.CUSTOM, viewModel.uiState.value.speedPreset)
     }
 
+    @Test
+    fun testJoystickPositionChangedActiveAndInactive() = runTest {
+        backgroundScope.launch(testDispatcher) { viewModel.uiState.collect {} }
+        viewModel.updateJoystickPosition(0.0f, -0.8f, true)
+        val activeState = viewModel.uiState.value
+        assertTrue(activeState.isJoystickActive)
+        assertEquals(DirectionCommand.FORWARD, activeState.lastCommand)
+        assertTrue(fakeRepository.lastSentLinear > 0.0)
+
+        viewModel.updateJoystickPosition(0.0f, 0.0f, false)
+        val inactiveState = viewModel.uiState.value
+        assertFalse(inactiveState.isJoystickActive)
+        assertNull(inactiveState.lastCommand)
+        assertEquals(0.0, fakeRepository.lastSentLinear, 0.0001)
+        assertEquals(0.0, fakeRepository.lastSentAngular, 0.0001)
+    }
+
+    @Test
+    fun testDirectionHoldStartAndStop() = runTest {
+        backgroundScope.launch(testDispatcher) { viewModel.uiState.collect {} }
+        viewModel.startDirectionHold(ManualDirection.FORWARD)
+        var state = viewModel.uiState.value
+        assertEquals(DirectionCommand.FORWARD, state.lastCommand)
+        assertTrue(fakeRepository.lastSentLinear > 0.0)
+
+        viewModel.stopDirectionHold()
+        state = viewModel.uiState.value
+        assertNull(state.lastCommand)
+        assertEquals(0.0, fakeRepository.lastSentLinear, 0.0001)
+        assertEquals(0.0, fakeRepository.lastSentAngular, 0.0001)
+    }
+
     private class FakeRobotRepository : RobotRepository {
         private val _batteryStatus = MutableStateFlow(BatteryStatus())
         override val batteryStatus: StateFlow<BatteryStatus> = _batteryStatus.asStateFlow()
@@ -126,11 +159,20 @@ class ManualControlViewModelTest {
         private val _dockStation = MutableStateFlow(DockStation())
         override val dockStation: StateFlow<DockStation> = _dockStation.asStateFlow()
 
+        var lastSentLinear: Double = 0.0
+        var lastSentAngular: Double = 0.0
+
         fun setConnectionStatus(status: ConnectionStatus) {
             _connectionStatus.value = status
         }
 
         override fun move(direction: DirectionCommand) {}
+
+        override fun setManualVelocity(linearMps: Double, angularRadPerSec: Double) {
+            lastSentLinear = linearMps
+            lastSentAngular = angularRadPerSec
+        }
+
         override fun goToCharge() {}
         override fun cancelNavigation() {}
         override fun refreshPosition() {}
@@ -166,4 +208,3 @@ class ManualControlViewModelTest {
         override fun cancelDocking() {}
     }
 }
-

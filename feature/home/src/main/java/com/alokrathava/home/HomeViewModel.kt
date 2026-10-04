@@ -11,11 +11,14 @@ import com.alokrathava.sdk.model.NavigationStatus
 import com.alokrathava.sdk.model.RobotPosition
 import com.alokrathava.sdk.model.WifiNetwork
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -151,7 +154,9 @@ class HomeViewModel @Inject constructor(
         _connectionStep.value = step
     }
 
-    fun connectToRobot(onConnected: () -> Unit) {
+    private var connectionMonitorJob: Job? = null
+
+    fun connectToRobot(onConnected: () -> Unit = {}) {
         val currentIp = _ipAddress.value
         val currentPort = _port.value
         val currentToken = _token.value
@@ -164,10 +169,29 @@ class HomeViewModel @Inject constructor(
             _connectionStep.value = RobotConnectionStep.CONNECTING
             _connectionErrorMessage.value = null
             val portInt = currentPort.toIntOrNull() ?: 8080
-            robotRepository.connectToRobot(currentIp, portInt, currentToken, currentSsid)
-            _screenFlow.value = ScreenFlow.DASHBOARD
-            _connectionStep.value = RobotConnectionStep.NETWORK_SELECTION
-            onConnected()
+
+            connectionMonitorJob?.cancel()
+            connectionMonitorJob = viewModelScope.launch {
+                robotRepository.connectToRobot(currentIp, portInt, currentToken, currentSsid)
+                robotRepository.connectionStatus.collect { status ->
+                    when (status) {
+                        ConnectionStatus.CONNECTED -> {
+                            _screenFlow.value = ScreenFlow.DASHBOARD
+                            _connectionStep.value = RobotConnectionStep.NETWORK_SELECTION
+                            onConnected()
+                            this@launch.cancel()
+                        }
+                        ConnectionStatus.FAILED -> {
+                            _connectionStep.value = RobotConnectionStep.CONNECTION_FAILED
+                            _connectionErrorMessage.value = "Failed to connect to robot at $currentIp:$portInt"
+                            this@launch.cancel()
+                        }
+                        else -> {
+                            // Still connecting or disconnected, remain in CONNECTING step
+                        }
+                    }
+                }
+            }
         } else {
             _connectionStep.value = RobotConnectionStep.CONNECTION_FAILED
             _connectionErrorMessage.value = "Please fix configuration errors before connecting"

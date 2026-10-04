@@ -91,6 +91,10 @@ internal class RobotClientRepositoryImpl(
     private var battJob: Job? = null
     private var dockJob: Job? = null
     private var mapJob: Job? = null
+    private var metricsJob: Job? = null
+
+    private val _connectionMetrics = MutableStateFlow(com.alokrathava.sdk.model.ConnectionMetrics())
+    override val connectionMetrics: StateFlow<com.alokrathava.sdk.model.ConnectionMetrics> = _connectionMetrics.asStateFlow()
 
     private val _batteryStatus = MutableStateFlow(BatteryStatus(levelPercent = 0, isCharging = false))
     override val batteryStatus: StateFlow<BatteryStatus> = _batteryStatus.asStateFlow()
@@ -142,6 +146,7 @@ internal class RobotClientRepositoryImpl(
         battJob?.cancel()
         dockJob?.cancel()
         mapJob?.cancel()
+        metricsJob?.cancel()
 
         activeClient = client
 
@@ -155,6 +160,12 @@ internal class RobotClientRepositoryImpl(
                     is ConnectionState.Failed -> ConnectionStatus.FAILED
                     is ConnectionState.Disconnected -> ConnectionStatus.DISCONNECTED
                 }
+            }
+        }
+
+        metricsJob = scope.launch {
+            client.connectionMetrics.collect { metrics ->
+                _connectionMetrics.value = metrics
             }
         }
 
@@ -206,6 +217,12 @@ internal class RobotClientRepositoryImpl(
                     _mapData.value = MapData(name = map.name, isAvailable = true)
                 }
             }
+        }
+    }
+
+    override fun setManualVelocity(linearMps: Double, angularRadPerSec: Double) {
+        scope.launch {
+            activeClient.setManualVelocity(linearMps, angularRadPerSec)
         }
     }
 

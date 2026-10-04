@@ -100,9 +100,7 @@ fun HomeScreen(
                     }
                 },
                 onConnectClick = {
-                    viewModel.connectToRobot {
-                        viewModel.setScreenFlow(ScreenFlow.DASHBOARD)
-                    }
+                    viewModel.connectToRobot()
                 },
                 onCancelClick = {
                     viewModel.setScreenFlow(ScreenFlow.SPLASH)
