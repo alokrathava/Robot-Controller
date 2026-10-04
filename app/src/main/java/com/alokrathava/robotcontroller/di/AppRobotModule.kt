@@ -37,6 +37,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.alokrathava.sdk.RobotConnectionManager
+import com.alokrathava.sdk.RobotConnectionProfile
 import javax.inject.Singleton
 
 @Module
@@ -45,32 +47,44 @@ object AppRobotModule {
 
     @Provides
     @Singleton
-    fun provideRobotClient(): RobotClient {
-        return RobotSdk.create(
+    fun provideRobotConnectionManager(): RobotConnectionManager {
+        return RobotConnectionManager()
+    }
+
+    @Provides
+    @Singleton
+    fun provideRobotClient(connectionManager: RobotConnectionManager): RobotClient {
+        return connectionManager.getActiveClient() ?: RobotSdk.create(
             RobotSdkConfig(
                 endpoint = RobotEndpoint(
                     host = "192.168.1.100",
                     port = 8080
-                ),
-                authentication = RobotAuthentication.Token("alpha-token")
+                )
             )
         )
     }
 
     @Provides
     @Singleton
-    fun provideRobotRepository(robotClient: RobotClient): RobotRepository {
-        return RobotClientRepositoryImpl(robotClient)
+    fun provideRobotRepository(connectionManager: RobotConnectionManager): RobotRepository {
+        return RobotClientRepositoryImpl(connectionManager)
     }
 }
 
 @Singleton
 internal class RobotClientRepositoryImpl(
-    initialClient: RobotClient
+    private val connectionManager: RobotConnectionManager
 ) : RobotRepository {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var activeClient: RobotClient = initialClient
+    private var activeClient: RobotClient = connectionManager.getActiveClient() ?: RobotSdk.create(
+        RobotSdkConfig(
+            endpoint = RobotEndpoint(
+                host = "192.168.1.100",
+                port = 8080
+            )
+        )
+    )
 
     private var connJob: Job? = null
     private var telemJob: Job? = null
@@ -112,7 +126,14 @@ internal class RobotClientRepositoryImpl(
     override val dockStation: StateFlow<DockStation> = _dockStation.asStateFlow()
 
     init {
-        bindClient(initialClient)
+        bindClient(activeClient)
+        scope.launch {
+            connectionManager.activeClient.collect { client ->
+                if (client != null && client != activeClient) {
+                    bindClient(client)
+                }
+            }
+        }
     }
 
     private fun bindClient(client: RobotClient) {
@@ -254,28 +275,25 @@ internal class RobotClientRepositoryImpl(
     }
 
     override fun connectToRobot(ip: String, port: Int, ssid: String) {
-        _connectionConfig.value = ConnectionConfig(ipAddress = ip, port = port, selectedSsid = ssid)
-        val currentClient = activeClient
-        scope.launch {
-            try {
-                currentClient.disconnect()
-                currentClient.close()
-            } catch (_: Exception) {}
+        connectToRobot(ip, port, "", ssid)
+    }
 
-            val newClient = RobotSdk.create(
-                RobotSdkConfig(
-                    endpoint = RobotEndpoint(host = ip, port = port),
-                    authentication = RobotAuthentication.Token("alpha-token")
-                )
+    override fun connectToRobot(ip: String, port: Int, token: String, ssid: String) {
+        _connectionConfig.value = ConnectionConfig(ipAddress = ip, port = port, token = token, selectedSsid = ssid)
+        scope.launch {
+            val profile = RobotConnectionProfile(
+                host = ip,
+                port = port,
+                token = token,
+                selectedSsid = ssid
             )
-            bindClient(newClient)
-            newClient.connect()
+            connectionManager.connect(profile)
         }
     }
 
     override fun disconnectRobot() {
         scope.launch {
-            activeClient.disconnect()
+            connectionManager.disconnect()
         }
     }
 

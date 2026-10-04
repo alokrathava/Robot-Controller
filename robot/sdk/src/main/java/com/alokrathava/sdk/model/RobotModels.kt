@@ -88,6 +88,7 @@ data class WifiNetwork(
 data class ConnectionConfig(
     val ipAddress: String = "192.168.1.100",
     val port: Int = 8080,
+    val token: String = "",
     val selectedSsid: String? = null
 )
 

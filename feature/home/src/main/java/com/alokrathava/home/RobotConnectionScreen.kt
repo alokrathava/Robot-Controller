@@ -47,13 +47,16 @@ fun RobotConnectionScreen(
     selectedNetwork: WifiNetwork?,
     ipAddress: String,
     port: String,
+    token: String = "",
     ipError: String?,
     portError: String?,
+    tokenError: String? = null,
     connectionStatus: ConnectionStatus,
     onSelectNetwork: (WifiNetwork) -> Unit,
     onRefreshNetworks: () -> Unit,
     onUpdateIpAddress: (String) -> Unit,
     onUpdatePort: (String) -> Unit,
+    onUpdateToken: (String) -> Unit = {},
     onNextStep: () -> Unit,
     onPreviousStep: () -> Unit,
     onConnectClick: () -> Unit,
@@ -94,11 +97,14 @@ fun RobotConnectionScreen(
                         selectedNetwork = selectedNetwork,
                         ipAddress = ipAddress,
                         port = port,
+                        token = token,
                         ipError = ipError,
                         portError = portError,
+                        tokenError = tokenError,
                         connectionStatus = connectionStatus,
                         onUpdateIpAddress = onUpdateIpAddress,
                         onUpdatePort = onUpdatePort,
+                        onUpdateToken = onUpdateToken,
                         onPreviousStep = onPreviousStep,
                         onConnectClick = onConnectClick
                     )
@@ -281,11 +287,14 @@ fun RobotIpPortScreen(
     selectedNetwork: WifiNetwork?,
     ipAddress: String,
     port: String,
+    token: String = "",
     ipError: String?,
     portError: String?,
+    tokenError: String? = null,
     connectionStatus: ConnectionStatus,
     onUpdateIpAddress: (String) -> Unit,
     onUpdatePort: (String) -> Unit,
+    onUpdateToken: (String) -> Unit = {},
     onPreviousStep: () -> Unit,
     onConnectClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -305,13 +314,13 @@ fun RobotIpPortScreen(
         // Header
         Column {
             Text(
-                text = "Robot IP & Port Setup",
+                text = "Robot IP, Port & Token Setup",
                 style = typography.h3,
                 color = colors.primaryText
             )
             Spacer(modifier = Modifier.height(spacing.space1))
             Text(
-                text = "Specify the IP address and port number for the robot endpoint.",
+                text = "Specify the IP address, port number, and gateway token for the robot endpoint.",
                 style = typography.bodySmall,
                 color = colors.secondaryText
             )
@@ -389,6 +398,18 @@ fun RobotIpPortScreen(
                 isError = portError != null,
                 leadingIcon = Icons.Default.Dns,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            MonochromeTextField(
+                value = token,
+                onValueChange = onUpdateToken,
+                label = "Gateway Authentication Token",
+                placeholder = "Enter token (or leave blank if unauthenticated)",
+                helperText = tokenError ?: "Must match ROBOT_GATEWAY_TOKEN on server",
+                isError = tokenError != null,
+                leadingIcon = Icons.Default.VpnKey,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 modifier = Modifier.fillMaxWidth()
             )
         }

@@ -139,8 +139,8 @@ class ManualControlViewModelTest {
         override fun saveMap() {}
         override fun refreshBattery() {}
 
-        override fun connectToRobot(ip: String, port: Int, ssid: String) {
-            _connectionConfig.value = ConnectionConfig(ipAddress = ip, port = port, selectedSsid = ssid)
+        override fun connectToRobot(ip: String, port: Int, token: String, ssid: String) {
+            _connectionConfig.value = ConnectionConfig(ipAddress = ip, port = port, token = token, selectedSsid = ssid)
             _connectionStatus.value = ConnectionStatus.CONNECTED
         }
 

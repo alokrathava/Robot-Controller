@@ -79,13 +79,16 @@ fun HomeScreen(
                 selectedNetwork = uiState.selectedNetwork,
                 ipAddress = uiState.ipAddress,
                 port = uiState.port,
+                token = uiState.token,
                 ipError = uiState.ipError,
                 portError = uiState.portError,
+                tokenError = uiState.tokenError,
                 connectionStatus = uiState.connectionStatus,
                 onSelectNetwork = viewModel::selectNetwork,
                 onRefreshNetworks = viewModel::refreshNetworks,
                 onUpdateIpAddress = viewModel::updateIpAddress,
                 onUpdatePort = viewModel::updatePort,
+                onUpdateToken = viewModel::updateToken,
                 onNextStep = {
                     viewModel.setConnectionStep(RobotConnectionStep.IP_PORT_CONFIG)
                 },

@@ -30,8 +30,10 @@ class HomeViewModel @Inject constructor(
     private val _networkScanError = MutableStateFlow<String?>(null)
     private val _ipAddress = MutableStateFlow("192.168.1.100")
     private val _port = MutableStateFlow("8080")
+    private val _token = MutableStateFlow("")
     private val _ipError = MutableStateFlow<String?>(null)
     private val _portError = MutableStateFlow<String?>(null)
+    private val _tokenError = MutableStateFlow<String?>(null)
     private val _connectionErrorMessage = MutableStateFlow<String?>(null)
 
     private val _networkSelectionFlow = combine(
@@ -43,14 +45,24 @@ class HomeViewModel @Inject constructor(
         NetworkSelectionState(step, selectedNet, isScanning, scanErr)
     }
 
-    private val _ipPortFormFlow = combine(
-        _ipAddress,
-        _port,
-        _ipError,
-        _portError,
-        _connectionErrorMessage
-    ) { ip, port, ipErr, portErr, connErr ->
-        IpPortForm(ip, port, ipErr, portErr, connErr)
+    private val _fieldsFlow = combine(_ipAddress, _port, _token) { ip, port, token ->
+        FormFields(ip, port, token)
+    }
+
+    private val _errorsFlow = combine(_ipError, _portError, _tokenError, _connectionErrorMessage) { ipErr, portErr, tokenErr, connErr ->
+        FormErrors(ipErr, portErr, tokenErr, connErr)
+    }
+
+    private val _ipPortFormFlow = combine(_fieldsFlow, _errorsFlow) { fields, errors ->
+        IpPortForm(
+            ip = fields.ip,
+            port = fields.port,
+            token = fields.token,
+            ipErr = errors.ipErr,
+            portErr = errors.portErr,
+            tokenErr = errors.tokenErr,
+            connErr = errors.connErr
+        )
     }
 
     private val _formFlow = combine(
@@ -91,8 +103,10 @@ class HomeViewModel @Inject constructor(
             networkScanError = formState.netState.scanError,
             ipAddress = formState.ipForm.ip,
             port = formState.ipForm.port,
+            token = formState.ipForm.token,
             ipError = formState.ipForm.ipErr,
             portError = formState.ipForm.portErr,
+            tokenError = formState.ipForm.tokenErr,
             connectionErrorMessage = formState.ipForm.connErr,
             connectionStatus = robotState.connStatus,
             isEmergencyStopped = telemetry.isEmergencyStopped,
@@ -129,6 +143,10 @@ class HomeViewModel @Inject constructor(
         validatePort(portStr)
     }
 
+    fun updateToken(token: String) {
+        _token.value = token
+    }
+
     fun setConnectionStep(step: RobotConnectionStep) {
         _connectionStep.value = step
     }
@@ -136,6 +154,7 @@ class HomeViewModel @Inject constructor(
     fun connectToRobot(onConnected: () -> Unit) {
         val currentIp = _ipAddress.value
         val currentPort = _port.value
+        val currentToken = _token.value
         val currentSsid = _selectedNetwork.value?.ssid ?: "ROBOT_HOTSPOT_5G"
 
         val isIpValid = validateIp(currentIp)
@@ -145,7 +164,7 @@ class HomeViewModel @Inject constructor(
             _connectionStep.value = RobotConnectionStep.CONNECTING
             _connectionErrorMessage.value = null
             val portInt = currentPort.toIntOrNull() ?: 8080
-            robotRepository.connectToRobot(currentIp, portInt, currentSsid)
+            robotRepository.connectToRobot(currentIp, portInt, currentToken, currentSsid)
             _screenFlow.value = ScreenFlow.DASHBOARD
             _connectionStep.value = RobotConnectionStep.NETWORK_SELECTION
             onConnected()
@@ -258,11 +277,26 @@ class HomeViewModel @Inject constructor(
         val scanError: String?
     )
 
+    private data class FormFields(
+        val ip: String,
+        val port: String,
+        val token: String
+    )
+
+    private data class FormErrors(
+        val ipErr: String?,
+        val portErr: String?,
+        val tokenErr: String?,
+        val connErr: String?
+    )
+
     private data class IpPortForm(
         val ip: String,
         val port: String,
+        val token: String,
         val ipErr: String?,
         val portErr: String?,
+        val tokenErr: String?,
         val connErr: String?
     )
 

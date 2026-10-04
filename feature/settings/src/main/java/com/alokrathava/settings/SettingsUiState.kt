@@ -6,8 +6,9 @@ import com.alokrathava.sdk.model.RobotTelemetry
 
 data class SettingsUiState(
     val selectedTab: SettingsTab = SettingsTab.CONNECTION,
-    val robotIpAddress: String = "192.168.1.108",
-    val port: String = "6080",
+    val robotIpAddress: String = "192.168.1.100",
+    val port: String = "8080",
+    val token: String = "",
     val autoConnect: Boolean = true,
     val reconnectionAttempts: Int = 3,
     val connectionTimeoutSeconds: Int = 10,

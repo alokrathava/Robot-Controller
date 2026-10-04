@@ -75,6 +75,10 @@ class SettingsViewModel @Inject constructor(
         _userSettingsState.update { it.copy(port = port) }
     }
 
+    fun onTokenChanged(token: String) {
+        _userSettingsState.update { it.copy(token = token) }
+    }
+
     fun onAutoConnectToggled(autoConnect: Boolean) {
         _userSettingsState.update { it.copy(autoConnect = autoConnect) }
     }
@@ -122,7 +126,7 @@ class SettingsViewModel @Inject constructor(
             }
         } else {
             val portInt = currentState.port.toIntOrNull() ?: 8080
-            robotRepository.connectToRobot(currentState.robotIpAddress, portInt, "")
+            robotRepository.connectToRobot(currentState.robotIpAddress, portInt, currentState.token, "")
             _userSettingsState.update {
                 it.copy(
                     connectionStatus = ConnectionStatus.CONNECTED

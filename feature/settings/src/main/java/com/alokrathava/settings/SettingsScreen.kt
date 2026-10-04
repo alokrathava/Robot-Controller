@@ -39,6 +39,7 @@ fun SettingsScreen(
         onTabSelected = viewModel::selectTab,
         onIpAddressChanged = viewModel::onRobotIpAddressChanged,
         onPortChanged = viewModel::onPortChanged,
+        onTokenChanged = viewModel::onTokenChanged,
         onAutoConnectToggled = viewModel::onAutoConnectToggled,
         onReconnectionAttemptsChanged = viewModel::onReconnectionAttemptsChanged,
         onConnectionTimeoutChanged = viewModel::onConnectionTimeoutChanged,
@@ -56,6 +57,7 @@ fun SettingsScreenContent(
     onTabSelected: (SettingsTab) -> Unit = {},
     onIpAddressChanged: (String) -> Unit = {},
     onPortChanged: (String) -> Unit = {},
+    onTokenChanged: (String) -> Unit = {},
     onAutoConnectToggled: (Boolean) -> Unit = {},
     onReconnectionAttemptsChanged: (Int) -> Unit = {},
     onConnectionTimeoutChanged: (Int) -> Unit = {},
@@ -135,6 +137,7 @@ fun SettingsScreenContent(
                                 uiState = uiState,
                                 onIpAddressChanged = onIpAddressChanged,
                                 onPortChanged = onPortChanged,
+                                onTokenChanged = onTokenChanged,
                                 onAutoConnectToggled = onAutoConnectToggled,
                                 onReconnectionAttemptsChanged = onReconnectionAttemptsChanged,
                                 onConnectionTimeoutChanged = onConnectionTimeoutChanged
@@ -214,6 +217,7 @@ private fun ConnectionTabContent(
     uiState: SettingsUiState,
     onIpAddressChanged: (String) -> Unit,
     onPortChanged: (String) -> Unit,
+    onTokenChanged: (String) -> Unit = {},
     onAutoConnectToggled: (Boolean) -> Unit,
     onReconnectionAttemptsChanged: (Int) -> Unit,
     onConnectionTimeoutChanged: (Int) -> Unit,
@@ -237,7 +241,7 @@ private fun ConnectionTabContent(
                 value = uiState.robotIpAddress,
                 onValueChange = onIpAddressChanged,
                 label = "Robot IP Address",
-                placeholder = "192.168.1.108",
+                placeholder = "192.168.1.100",
                 modifier = Modifier.weight(1.5f)
             )
 
@@ -245,10 +249,19 @@ private fun ConnectionTabContent(
                 value = uiState.port,
                 onValueChange = onPortChanged,
                 label = "Port",
-                placeholder = "6080",
+                placeholder = "8080",
                 modifier = Modifier.weight(1.0f)
             )
         }
+
+        // Row 2: Authentication Token
+        MonochromeTextField(
+            value = uiState.token,
+            onValueChange = onTokenChanged,
+            label = "Gateway Authentication Token",
+            placeholder = "Enter gateway token (matches ROBOT_GATEWAY_TOKEN)",
+            modifier = Modifier.fillMaxWidth()
+        )
 
         // Row 2: Auto Connect Toggle
         Row(
