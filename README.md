@@ -21,6 +21,88 @@
 
 ---
 
+## Partner Repositories — One Robot Platform
+
+Robot Controller is the client-side partner to **[RobotNavigation](https://github.com/alokrathava/RobotNavigation)**.
+
+| Repository | Role | Primary responsibility |
+|---|---|---|
+| **Robot-Controller** | Client-side platform | Android controller app + reusable Kotlin RobotSDK, typed commands, reactive state, reconnection, diagnostics, and operator UX |
+| **RobotNavigation** | Robot-side runtime | ROS 2/Nav2 autonomy, SLAM/localization, safety, maps, docking, telemetry, health, and the WebSocket gateway |
+
+Together, the repositories form one end-to-end system:
+
+~~~mermaid
+flowchart LR
+    UI[Robot Controller App]
+    SDK[RobotSDK<br/>Kotlin RobotClient]
+    WS[Protocol v1<br/>WebSocket]
+    GW[robot_gateway]
+    RUNTIME[RobotNavigation<br/>ROS 2 Runtime]
+    NAV[Nav2 + SLAM + Safety]
+    HW[Gazebo / Physical Robot]
+
+    UI --> SDK
+    SDK <-->|commands + state| WS
+    WS <-->|JSON| GW
+    GW <--> RUNTIME
+    RUNTIME <--> NAV
+    NAV <--> HW
+~~~
+
+### Current shared contract
+
+| Layer | Current contract |
+|---|---|
+| RobotSDK | **0.2.0** |
+| robot_gateway | **0.2.0** |
+| Protocol | **v1** |
+| Command transport | WebSocket JSON |
+| Authentication | Token handshake when configured |
+| State model | Gateway broadcasts → SDK StateFlow/SharedFlow |
+| Command model | SDK command ID → gateway ack/error → ROS topic/service/action |
+| Compatibility rule | Protocol major version must match |
+
+The two repositories already share the same command/state model for navigation, manual control, docking, safety, map management, virtual walls, saved locations, missions, diagnostics, and telemetry.
+
+### Integration roadmap
+
+The next stage is to harden the repository boundary rather than combine the projects.
+
+1. **Protocol contract as the source of truth**
+   - Keep message names, payloads, capability names, error codes, and fixtures synchronized.
+   - Use shared cross-language fixtures as a release compatibility gate.
+
+2. **Complete capability parity**
+   - Align RobotSDK capabilities with the gateway's advertised capability set.
+   - Add first-class SDK mapping-mode APIs for RobotNavigation's start/stop mapping operations.
+
+3. **End-to-end robot discovery**
+   - The SDK already implements UDP beacon discovery on port 8088.
+   - RobotNavigation still needs the corresponding robot-side beacon publisher.
+
+4. **Transport security**
+   - The SDK supports WSS/TLS hooks.
+   - RobotNavigation currently serves plain WebSocket, so production deployments need a documented TLS endpoint or reverse proxy.
+
+5. **Timeout ownership**
+   - Define different budgets for SDK command correlation, gateway action response, and long-running robot operations.
+   - The client timeout should leave enough margin for the gateway to return a meaningful classified error.
+
+6. **End-to-end compatibility tests**
+   - Start RobotNavigation in Gazebo.
+   - Connect the real RobotSDK.
+   - Exercise navigation, waypoints, manual control, E-stop, maps, virtual walls, locations, missions, reconnect, state resynchronization, and control ownership.
+   - Use this suite to qualify future SDK/gateway version pairs.
+
+### Repository relationship
+
+**Robot-Controller owns the client experience. RobotNavigation owns robot execution. Protocol v1 is the contract between them.**
+
+For the ROS 2 / robot-runtime side, see **[RobotNavigation](https://github.com/alokrathava/RobotNavigation)**.
+
+---
+
 ## Engineering Snapshot
 
 | Area | Implementation |
