@@ -62,7 +62,7 @@ fun HomeScreen(
         ScreenFlow.SPLASH -> {
             SplashScreen(
                 onConnectClick = {
-                    viewModel.setConnectionStep(RobotConnectionStep.NETWORK_SELECTION)
+                    viewModel.setConnectionStep(RobotConnectionStep.AUTO_DISCOVERY)
                     viewModel.setScreenFlow(ScreenFlow.CONNECTION)
                 },
                 onSelectMode = {
@@ -75,28 +75,43 @@ fun HomeScreen(
         ScreenFlow.CONNECTION -> {
             RobotConnectionScreen(
                 connectionStep = uiState.connectionStep,
+                discoveredRobots = uiState.discoveredRobots,
+                selectedDiscoveredRobot = uiState.selectedDiscoveredRobot,
+                isDiscoveringRobots = uiState.isDiscoveringRobots,
                 availableNetworks = uiState.availableNetworks,
                 selectedNetwork = uiState.selectedNetwork,
                 ipAddress = uiState.ipAddress,
                 port = uiState.port,
                 token = uiState.token,
+                useTls = uiState.useTls,
                 ipError = uiState.ipError,
                 portError = uiState.portError,
                 tokenError = uiState.tokenError,
+                connectionErrorMessage = uiState.connectionErrorMessage,
                 connectionStatus = uiState.connectionStatus,
+                onStartDiscovery = viewModel::startRobotDiscovery,
+                onSelectDiscoveredRobot = viewModel::selectDiscoveredRobot,
+                onQuickConnectDiscoveredRobot = { robot ->
+                    viewModel.connectToDiscoveredRobot(robot)
+                },
                 onSelectNetwork = viewModel::selectNetwork,
                 onRefreshNetworks = viewModel::refreshNetworks,
                 onUpdateIpAddress = viewModel::updateIpAddress,
                 onUpdatePort = viewModel::updatePort,
                 onUpdateToken = viewModel::updateToken,
+                onUpdateUseTls = viewModel::updateUseTls,
                 onNextStep = {
-                    viewModel.setConnectionStep(RobotConnectionStep.IP_PORT_CONFIG)
+                    when (uiState.connectionStep) {
+                        RobotConnectionStep.AUTO_DISCOVERY -> viewModel.setConnectionStep(RobotConnectionStep.IP_PORT_CONFIG)
+                        RobotConnectionStep.NETWORK_SELECTION -> viewModel.setConnectionStep(RobotConnectionStep.IP_PORT_CONFIG)
+                        else -> {}
+                    }
                 },
                 onPreviousStep = {
-                    if (uiState.connectionStep == RobotConnectionStep.IP_PORT_CONFIG) {
-                        viewModel.setConnectionStep(RobotConnectionStep.NETWORK_SELECTION)
-                    } else {
-                        viewModel.setScreenFlow(ScreenFlow.SPLASH)
+                    when (uiState.connectionStep) {
+                        RobotConnectionStep.IP_PORT_CONFIG -> viewModel.setConnectionStep(RobotConnectionStep.AUTO_DISCOVERY)
+                        RobotConnectionStep.NETWORK_SELECTION -> viewModel.setConnectionStep(RobotConnectionStep.AUTO_DISCOVERY)
+                        else -> viewModel.setScreenFlow(ScreenFlow.SPLASH)
                     }
                 },
                 onConnectClick = {

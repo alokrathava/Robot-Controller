@@ -39,11 +39,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import com.alokrathava.sdk.RobotConnectionManager
 import com.alokrathava.sdk.RobotConnectionProfile
+import com.alokrathava.sdk.discovery.RobotDiscoveryManager
+import com.alokrathava.sdk.discovery.RobotDiscoveryManagerImpl
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 object AppRobotModule {
+
+    @Provides
+    @Singleton
+    fun provideRobotDiscoveryManager(): RobotDiscoveryManager {
+        return RobotDiscoveryManagerImpl()
+    }
 
     @Provides
     @Singleton

@@ -177,7 +177,7 @@ internal class RobotClientImpl(
                 code = "CONNECT_TIMEOUT",
                 subsystem = "transport",
                 severity = ErrorSeverity.ERROR,
-                message = "Connection handshake timed out after ${config.commandTimeoutMs}ms",
+                message = "Connection handshake timed out after ${config.commandTimeoutMs}ms waiting for response from ${config.endpoint.host}:${config.endpoint.port}. Check authentication token, protocol version, and gateway host binding.",
                 recoverable = true
             )
             _connectionState.value = ConnectionState.Failed(err)
@@ -1014,9 +1014,20 @@ internal class RobotClientImpl(
     }
 
     override fun onFailure(t: Throwable, response: Response?) {
-        val err = RobotError("TRANSPORT_ERROR", "transport", ErrorSeverity.ERROR, t.message ?: "Transport error", true)
+        val responseText = response?.let { " (HTTP ${it.code} ${it.message})" } ?: ""
+        val detailedMessage = when {
+            t.message?.contains("CLEARTEXT", ignoreCase = true) == true ->
+                "Cleartext (HTTP/WS) traffic to ${config.endpoint.host}:${config.endpoint.port} blocked by Android Network Security Policy."
+            t is java.net.ConnectException ->
+                "Connection refused at ${config.endpoint.host}:${config.endpoint.port}. Ensure the robot gateway server is running and bound to 0.0.0.0."
+            t is java.net.SocketTimeoutException ->
+                "Socket connection timed out connecting to ${config.endpoint.host}:${config.endpoint.port}."
+            else ->
+                "${t.javaClass.simpleName}: ${t.message ?: "Transport error"}$responseText"
+        }
+        val err = RobotError("TRANSPORT_ERROR", "transport", ErrorSeverity.ERROR, detailedMessage, true)
         connectHandshakeDeferred?.complete(RobotResult.Failure(err))
-        clearStatesAndPending(t.message ?: "Transport error")
+        clearStatesAndPending(detailedMessage)
 
         handleConnectionLoss(err)
     }

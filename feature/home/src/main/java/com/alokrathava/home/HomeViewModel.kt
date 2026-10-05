@@ -3,9 +3,12 @@ package com.alokrathava.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.alokrathava.sdk.RobotRepository
+import com.alokrathava.sdk.discovery.RobotDiscoveryManager
 import com.alokrathava.sdk.model.BatteryStatus
+import com.alokrathava.sdk.model.ConnectionState
 import com.alokrathava.sdk.model.ConnectionStatus
 import com.alokrathava.sdk.model.DirectionCommand
+import com.alokrathava.sdk.model.DiscoveredRobot
 import com.alokrathava.sdk.model.MapData
 import com.alokrathava.sdk.model.NavigationStatus
 import com.alokrathava.sdk.model.RobotPosition
@@ -24,10 +27,15 @@ import javax.inject.Inject
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val robotRepository: RobotRepository,
+    private val discoveryManager: RobotDiscoveryManager,
 ) : ViewModel() {
 
     private val _screenFlow = MutableStateFlow(ScreenFlow.SPLASH)
-    private val _connectionStep = MutableStateFlow(RobotConnectionStep.NETWORK_SELECTION)
+    private val _connectionStep = MutableStateFlow(RobotConnectionStep.AUTO_DISCOVERY)
+    private val _discoveredRobots = MutableStateFlow<List<DiscoveredRobot>>(emptyList())
+    private val _selectedDiscoveredRobot = MutableStateFlow<DiscoveredRobot?>(null)
+    private val _isDiscoveringRobots = MutableStateFlow(false)
+    private val _useTls = MutableStateFlow(false)
     private val _selectedNetwork = MutableStateFlow<WifiNetwork?>(null)
     private val _isScanningNetworks = MutableStateFlow(false)
     private val _networkScanError = MutableStateFlow<String?>(null)
@@ -39,6 +47,21 @@ class HomeViewModel @Inject constructor(
     private val _tokenError = MutableStateFlow<String?>(null)
     private val _connectionErrorMessage = MutableStateFlow<String?>(null)
 
+    private var discoveryJob: Job? = null
+    private var connectionMonitorJob: Job? = null
+
+    init {
+        startRobotDiscovery()
+    }
+
+    private val _discoveryFlow = combine(
+        _discoveredRobots,
+        _selectedDiscoveredRobot,
+        _isDiscoveringRobots
+    ) { robots, selected, isDiscovering ->
+        DiscoveryState(robots, selected, isDiscovering)
+    }
+
     private val _networkSelectionFlow = combine(
         _connectionStep,
         _selectedNetwork,
@@ -48,8 +71,8 @@ class HomeViewModel @Inject constructor(
         NetworkSelectionState(step, selectedNet, isScanning, scanErr)
     }
 
-    private val _fieldsFlow = combine(_ipAddress, _port, _token) { ip, port, token ->
-        FormFields(ip, port, token)
+    private val _fieldsFlow = combine(_ipAddress, _port, _token, _useTls) { ip, port, token, useTls ->
+        FormFields(ip, port, token, useTls)
     }
 
     private val _errorsFlow = combine(_ipError, _portError, _tokenError, _connectionErrorMessage) { ipErr, portErr, tokenErr, connErr ->
@@ -61,6 +84,7 @@ class HomeViewModel @Inject constructor(
             ip = fields.ip,
             port = fields.port,
             token = fields.token,
+            useTls = fields.useTls,
             ipErr = errors.ipErr,
             portErr = errors.portErr,
             tokenErr = errors.tokenErr,
@@ -70,10 +94,11 @@ class HomeViewModel @Inject constructor(
 
     private val _formFlow = combine(
         _screenFlow,
+        _discoveryFlow,
         _networkSelectionFlow,
         _ipPortFormFlow,
-    ) { flow, netState, form ->
-        ConnectionFormState(flow, netState, form)
+    ) { flow, discovery, netState, form ->
+        ConnectionFormState(flow, discovery, netState, form)
     }
 
     private val _robotStateFlow = combine(
@@ -100,6 +125,9 @@ class HomeViewModel @Inject constructor(
             statusMessage = getStatusMessage(robotState.navStatus),
             screenFlow = formState.screenFlow,
             connectionStep = formState.netState.step,
+            discoveredRobots = formState.discovery.robots,
+            selectedDiscoveredRobot = formState.discovery.selected,
+            isDiscoveringRobots = formState.discovery.isDiscovering,
             availableNetworks = availableNets,
             selectedNetwork = formState.netState.selectedNetwork ?: availableNets.firstOrNull(),
             isScanningNetworks = formState.netState.isScanning,
@@ -107,6 +135,7 @@ class HomeViewModel @Inject constructor(
             ipAddress = formState.ipForm.ip,
             port = formState.ipForm.port,
             token = formState.ipForm.token,
+            useTls = formState.ipForm.useTls,
             ipError = formState.ipForm.ipErr,
             portError = formState.ipForm.portErr,
             tokenError = formState.ipForm.tokenErr,
@@ -120,6 +149,38 @@ class HomeViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = HomeUiState(),
     )
+
+    fun startRobotDiscovery() {
+        discoveryJob?.cancel()
+        discoveryJob = viewModelScope.launch {
+            _isDiscoveringRobots.value = true
+            try {
+                discoveryManager.discoverRobots().collect { discovered ->
+                    val current = _discoveredRobots.value.toMutableList()
+                    if (current.none { it.id == discovered.id }) {
+                        current.add(discovered)
+                        _discoveredRobots.value = current
+                    }
+                }
+            } catch (_: Exception) {
+            } finally {
+                _isDiscoveringRobots.value = false
+            }
+        }
+    }
+
+    fun selectDiscoveredRobot(robot: DiscoveredRobot) {
+        _selectedDiscoveredRobot.value = robot
+        _ipAddress.value = robot.host
+        _port.value = robot.port.toString()
+        _ipError.value = null
+        _portError.value = null
+    }
+
+    fun connectToDiscoveredRobot(robot: DiscoveredRobot, onConnected: () -> Unit = {}) {
+        selectDiscoveredRobot(robot)
+        connectToRobot(onConnected)
+    }
 
     fun setScreenFlow(flow: ScreenFlow) {
         _screenFlow.value = flow
@@ -150,11 +211,16 @@ class HomeViewModel @Inject constructor(
         _token.value = token
     }
 
-    fun setConnectionStep(step: RobotConnectionStep) {
-        _connectionStep.value = step
+    fun updateUseTls(enabled: Boolean) {
+        _useTls.value = enabled
     }
 
-    private var connectionMonitorJob: Job? = null
+    fun setConnectionStep(step: RobotConnectionStep) {
+        _connectionStep.value = step
+        if (step == RobotConnectionStep.AUTO_DISCOVERY) {
+            startRobotDiscovery()
+        }
+    }
 
     fun connectToRobot(onConnected: () -> Unit = {}) {
         val currentIp = _ipAddress.value
@@ -173,29 +239,44 @@ class HomeViewModel @Inject constructor(
             connectionMonitorJob?.cancel()
             connectionMonitorJob = viewModelScope.launch {
                 robotRepository.connectToRobot(currentIp, portInt, currentToken, currentSsid)
-                robotRepository.connectionStatus.collect { status ->
-                    when (status) {
-                        ConnectionStatus.CONNECTED -> {
-                            _screenFlow.value = ScreenFlow.DASHBOARD
-                            _connectionStep.value = RobotConnectionStep.NETWORK_SELECTION
-                            onConnected()
-                            this@launch.cancel()
-                        }
-                        ConnectionStatus.FAILED -> {
-                            _connectionStep.value = RobotConnectionStep.CONNECTION_FAILED
-                            _connectionErrorMessage.value = "Failed to connect to robot at $currentIp:$portInt"
-                            this@launch.cancel()
-                        }
-                        else -> {
-                            // Still connecting or disconnected, remain in CONNECTING step
+                val activeClient = robotRepository.getActiveRobotClient()
+                if (activeClient != null) {
+                    activeClient.connectionState.collect { state ->
+                        when (state) {
+                            is ConnectionState.Connected -> {
+                                _screenFlow.value = ScreenFlow.DASHBOARD
+                                _connectionStep.value = RobotConnectionStep.AUTO_DISCOVERY
+                                onConnected()
+                                this@launch.cancel()
+                            }
+                            is ConnectionState.Failed -> {
+                                _connectionStep.value = RobotConnectionStep.CONNECTION_FAILED
+                                val failureDetails = state.error.message.ifBlank {
+                                    "Failed to connect to robot at $currentIp:$portInt. Check token and gateway host configuration."
+                                }
+                                _connectionErrorMessage.value = failureDetails
+                                this@launch.cancel()
+                            }
+                            else -> {
+                                // Still connecting or disconnected, remain in CONNECTING step
+                            }
                         }
                     }
+                } else {
+                    _connectionStep.value = RobotConnectionStep.CONNECTION_FAILED
+                    _connectionErrorMessage.value = "Failed to create client connection for $currentIp:$portInt"
                 }
             }
         } else {
             _connectionStep.value = RobotConnectionStep.CONNECTION_FAILED
             _connectionErrorMessage.value = "Please fix configuration errors before connecting"
         }
+    }
+
+    fun cancelConnecting() {
+        connectionMonitorJob?.cancel()
+        robotRepository.disconnectRobot()
+        _connectionStep.value = RobotConnectionStep.AUTO_DISCOVERY
     }
 
     @Suppress("unused")
@@ -294,6 +375,12 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    private data class DiscoveryState(
+        val robots: List<DiscoveredRobot>,
+        val selected: DiscoveredRobot?,
+        val isDiscovering: Boolean
+    )
+
     private data class NetworkSelectionState(
         val step: RobotConnectionStep,
         val selectedNetwork: WifiNetwork?,
@@ -304,7 +391,8 @@ class HomeViewModel @Inject constructor(
     private data class FormFields(
         val ip: String,
         val port: String,
-        val token: String
+        val token: String,
+        val useTls: Boolean
     )
 
     private data class FormErrors(
@@ -318,6 +406,7 @@ class HomeViewModel @Inject constructor(
         val ip: String,
         val port: String,
         val token: String,
+        val useTls: Boolean,
         val ipErr: String?,
         val portErr: String?,
         val tokenErr: String?,
@@ -326,6 +415,7 @@ class HomeViewModel @Inject constructor(
 
     private data class ConnectionFormState(
         val screenFlow: ScreenFlow,
+        val discovery: DiscoveryState,
         val netState: NetworkSelectionState,
         val ipForm: IpPortForm
     )

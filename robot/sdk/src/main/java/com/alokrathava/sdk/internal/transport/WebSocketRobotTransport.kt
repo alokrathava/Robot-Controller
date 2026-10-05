@@ -72,7 +72,10 @@ internal class WebSocketRobotTransport(
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                 _isConnected = false
-                logger.log(RobotLogEvent(RobotLogLevel.ERROR, "TRANSPORT", "WebSocket failure: ${t.message}"))
+                val responseInfo = response?.let { " [HTTP ${it.code} ${it.message}]" } ?: ""
+                val causeInfo = t.cause?.message?.let { " (Cause: $it)" } ?: ""
+                val detailedMessage = "${t.javaClass.simpleName}: ${t.message ?: "Unknown transport error"}$causeInfo$responseInfo"
+                logger.log(RobotLogEvent(RobotLogLevel.ERROR, "TRANSPORT", "WebSocket failure: $detailedMessage"))
                 listener.onFailure(t, response)
             }
 
