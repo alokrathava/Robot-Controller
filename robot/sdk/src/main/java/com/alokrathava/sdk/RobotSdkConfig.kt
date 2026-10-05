@@ -40,7 +40,7 @@ data class RobotLogEvent(
 data class RobotSdkConfig(
     val endpoint: RobotEndpoint,
     val authentication: RobotAuthentication? = null,
-    val commandTimeoutMs: Long = 10_000,
+    val commandTimeoutMs: Long = 15_000,
     val reconnectPolicy: ReconnectPolicy = ReconnectPolicy(),
     val heartbeatIntervalMs: Long = 5_000,
     val telemetryStaleTimeoutMs: Long = 3_000,

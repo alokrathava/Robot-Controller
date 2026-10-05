@@ -28,9 +28,13 @@ client.setManualVelocity(linearMps = 0.4, angularRadPerSec = -0.1)
 
 ## Emergency Stop
 
-Emergency stop is safety-critical and bypasses control session ownership:
+Any authenticated client can engage the emergency stop, even when another client owns the
+control session. Releasing it requires the active control owner:
 
 ```kotlin
 client.emergencyStop()
 client.releaseEmergencyStop()
 ```
+
+The gateway returns `CONTROL_SESSION_REQUIRED` when there is no active owner and
+`CONTROL_SESSION_IN_USE` when another client owns control.

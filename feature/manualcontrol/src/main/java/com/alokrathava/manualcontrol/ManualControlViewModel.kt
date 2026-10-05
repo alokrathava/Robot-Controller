@@ -20,6 +20,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+const val MAX_LINEAR_VELOCITY_MPS = 0.5f
+const val MAX_ANGULAR_VELOCITY_RAD_PER_SEC = 1.0f
+
 private data class JoystickState(
     val x: Float = 0f,
     val y: Float = 0f,
@@ -137,14 +140,37 @@ class ManualControlViewModel @Inject constructor(
             ?: ManualControlSpeedPreset.CUSTOM
         _speedPreset.value = matchingPreset
 
-        val speedMps = (speed / 100f) * 1.5
+        val speedFactor = (speed / 100f).coerceIn(0f, 1f)
+        val maxLinear = speedFactor * MAX_LINEAR_VELOCITY_MPS
+        val maxAngular = speedFactor * MAX_ANGULAR_VELOCITY_RAD_PER_SEC
+
         robotRepository.updateSimulationConfig(
-            RobotSimulationConfig(movementSpeedMps = speedMps)
+            RobotSimulationConfig(movementSpeedMps = maxLinear.toDouble())
         )
         viewModelScope.launch {
             robotRepository.updateMotionLimits(
-                MotionLimits(maxLinearVelocityMps = speedMps, maxAngularVelocityRadPerSec = 1.5)
+                MotionLimits(
+                    maxLinearVelocityMps = maxLinear.toDouble(),
+                    maxAngularVelocityRadPerSec = maxAngular.toDouble()
+                )
             )
+        }
+
+        val js = _joystickState.value
+        if (js.isActive) {
+            val linear = -js.y * maxLinear
+            val angular = -js.x * maxAngular
+            startVelocityStreaming(linear.toDouble(), angular.toDouble())
+        } else if (_lastCommand.value != null) {
+            val cmd = _lastCommand.value
+            val (linear, angular) = when (cmd) {
+                DirectionCommand.FORWARD -> Pair(maxLinear.toDouble(), 0.0)
+                DirectionCommand.BACKWARD -> Pair(-maxLinear.toDouble(), 0.0)
+                DirectionCommand.LEFT -> Pair(0.0, maxAngular.toDouble())
+                DirectionCommand.RIGHT -> Pair(0.0, -maxAngular.toDouble())
+                null -> Pair(0.0, 0.0)
+            }
+            startVelocityStreaming(linear, angular)
         }
     }
 
@@ -156,8 +182,10 @@ class ManualControlViewModel @Inject constructor(
             return
         }
 
-        val maxLinear = (_speedPercent.value / 100f) * 1.5
-        val maxAngular = 1.5
+        val speedFactor = (_speedPercent.value / 100f).coerceIn(0f, 1f)
+        val maxLinear = speedFactor * MAX_LINEAR_VELOCITY_MPS
+        val maxAngular = speedFactor * MAX_ANGULAR_VELOCITY_RAD_PER_SEC
+
         val linear = -y * maxLinear
         val angular = -x * maxAngular
 
@@ -170,21 +198,22 @@ class ManualControlViewModel @Inject constructor(
         }
         _lastCommand.value = direction
 
-        startVelocityStreaming(linear.toDouble(), angular)
+        startVelocityStreaming(linear.toDouble(), angular.toDouble())
     }
 
     fun startDirectionHold(direction: ManualDirection) {
-        val maxLinear = (_speedPercent.value / 100f) * 1.5
-        val maxAngular = 1.5
+        val speedFactor = (_speedPercent.value / 100f).coerceIn(0f, 1f)
+        val maxLinear = speedFactor * MAX_LINEAR_VELOCITY_MPS
+        val maxAngular = speedFactor * MAX_ANGULAR_VELOCITY_RAD_PER_SEC
 
         val (command, linear, angular) = when (direction) {
-            ManualDirection.FORWARD -> Triple(DirectionCommand.FORWARD, maxLinear, 0.0)
-            ManualDirection.BACKWARD -> Triple(DirectionCommand.BACKWARD, -maxLinear, 0.0)
-            ManualDirection.LEFT -> Triple(DirectionCommand.LEFT, 0.0, maxAngular)
-            ManualDirection.RIGHT -> Triple(DirectionCommand.RIGHT, 0.0, -maxAngular)
+            ManualDirection.FORWARD -> Triple(DirectionCommand.FORWARD, maxLinear.toDouble(), 0.0)
+            ManualDirection.BACKWARD -> Triple(DirectionCommand.BACKWARD, -maxLinear.toDouble(), 0.0)
+            ManualDirection.LEFT -> Triple(DirectionCommand.LEFT, 0.0, maxAngular.toDouble())
+            ManualDirection.RIGHT -> Triple(DirectionCommand.RIGHT, 0.0, -maxAngular.toDouble())
         }
         _lastCommand.value = command
-        startVelocityStreaming(linear.toDouble(), angular)
+        startVelocityStreaming(linear, angular)
     }
 
     fun stopDirectionHold() {

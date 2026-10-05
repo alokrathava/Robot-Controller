@@ -47,7 +47,7 @@ val robotClient = RobotSdk.create(
         authentication = RobotAuthentication.Token(
             token = "your-robot-token"
         ),
-        commandTimeoutMs = 10_000,
+        commandTimeoutMs = 15_000,
         logger = RobotLogger { event ->
             println("[${event.category}] ${event.level}: ${event.message}")
         }

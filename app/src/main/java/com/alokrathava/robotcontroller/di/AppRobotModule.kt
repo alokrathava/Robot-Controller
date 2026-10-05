@@ -227,11 +227,13 @@ internal class RobotClientRepositoryImpl(
     }
 
     override fun move(direction: DirectionCommand) {
+        val speed = _simulationConfig.value.movementSpeedMps.coerceAtLeast(0.1)
+        val angularSpeed = 1.0
         val (linear, angular) = when (direction) {
-            DirectionCommand.FORWARD -> Pair(0.5, 0.0)
-            DirectionCommand.BACKWARD -> Pair(-0.5, 0.0)
-            DirectionCommand.LEFT -> Pair(0.0, 0.5)
-            DirectionCommand.RIGHT -> Pair(0.0, -0.5)
+            DirectionCommand.FORWARD -> Pair(speed, 0.0)
+            DirectionCommand.BACKWARD -> Pair(-speed, 0.0)
+            DirectionCommand.LEFT -> Pair(0.0, angularSpeed)
+            DirectionCommand.RIGHT -> Pair(0.0, -angularSpeed)
         }
         scope.launch {
             activeClient.setManualVelocity(linear, angular)

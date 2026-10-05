@@ -38,7 +38,7 @@ val client = RobotSdk.create(
 |---|---|---|
 | `endpoint` | Robot gateway host/port/TLS | required |
 | `authentication` | Handshake authentication | null |
-| `commandTimeoutMs` | Command/handshake timeout | 10,000 ms |
+| `commandTimeoutMs` | Command/handshake timeout | 15,000 ms |
 | `reconnectPolicy` | Automatic reconnect behavior | enabled policy |
 | `heartbeatIntervalMs` | Protocol ping cadence | 5,000 ms |
 | `telemetryStaleTimeoutMs` | When telemetry is considered stale | 3,000 ms |

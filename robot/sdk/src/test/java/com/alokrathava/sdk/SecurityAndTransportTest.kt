@@ -8,6 +8,15 @@ import org.junit.Test
 class SecurityAndTransportTest {
 
     @Test
+    fun testDefaultCommandTimeoutLeavesGatewayResponseMargin() {
+        val config = RobotSdkConfig(
+            endpoint = RobotEndpoint("192.168.1.50", 8080)
+        )
+
+        assertEquals(15_000L, config.commandTimeoutMs)
+    }
+
+    @Test
     fun testEndpointTlsConfiguration() {
         val wsEndpoint = RobotEndpoint(host = "192.168.1.50", port = 8080, useTls = false)
         val wssEndpoint = RobotEndpoint(host = "192.168.1.50", port = 8443, useTls = true)

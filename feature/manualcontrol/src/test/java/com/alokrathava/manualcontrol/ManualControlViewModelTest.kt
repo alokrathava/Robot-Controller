@@ -111,6 +111,47 @@ class ManualControlViewModelTest {
     }
 
     @Test
+    fun testContinuousDiagonalJoystickVector() = runTest {
+        backgroundScope.launch(testDispatcher) { viewModel.uiState.collect {} }
+        // Default speed is 60% -> max linear = 0.3 m/s, max angular = 0.6 rad/s
+        // x = 0.5 (right), y = -0.5 (forward)
+        viewModel.updateJoystickPosition(0.5f, -0.5f, true)
+
+        val activeState = viewModel.uiState.value
+        assertTrue(activeState.isJoystickActive)
+        // linear = -(-0.5) * 0.3 = 0.15 m/s
+        assertEquals(0.15, fakeRepository.lastSentLinear, 0.001)
+        // angular = -0.5 * 0.6 = -0.3 rad/s
+        assertEquals(-0.3, fakeRepository.lastSentAngular, 0.001)
+    }
+
+    @Test
+    fun testJoystickReleaseSendsZeroVelocityImmediately() = runTest {
+        backgroundScope.launch(testDispatcher) { viewModel.uiState.collect {} }
+        viewModel.updateJoystickPosition(0.8f, -0.8f, true)
+        assertTrue(fakeRepository.lastSentLinear > 0.0)
+
+        // Release joystick
+        viewModel.updateJoystickPosition(0.0f, 0.0f, false)
+        assertEquals(0.0, fakeRepository.lastSentLinear, 0.0001)
+        assertEquals(0.0, fakeRepository.lastSentAngular, 0.0001)
+        assertNull(viewModel.uiState.value.lastCommand)
+    }
+
+    @Test
+    fun testSpeedSliderScalesVelocityCommands() = runTest {
+        backgroundScope.launch(testDispatcher) { viewModel.uiState.collect {} }
+        // Set speed to 100% -> max linear = 0.5 m/s
+        viewModel.updateSpeed(100f)
+        viewModel.updateJoystickPosition(0.0f, -1.0f, true)
+        assertEquals(0.5, fakeRepository.lastSentLinear, 0.001)
+
+        // Set speed to 30% -> max linear = 0.15 m/s
+        viewModel.updateSpeed(30f)
+        assertEquals(0.15, fakeRepository.lastSentLinear, 0.001)
+    }
+
+    @Test
     fun testDirectionHoldStartAndStop() = runTest {
         backgroundScope.launch(testDispatcher) { viewModel.uiState.collect {} }
         viewModel.startDirectionHold(ManualDirection.FORWARD)
