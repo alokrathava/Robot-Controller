@@ -169,6 +169,16 @@ class FakeRobotClient : RobotClient {
         return RobotResult.Success(Unit)
     }
 
+    override suspend fun startMapping(): RobotResult<Unit> {
+        mutableMapOperationState.value = MapOperationState.Mapping(null)
+        return RobotResult.Success(Unit)
+    }
+
+    override suspend fun stopMapping(discardUnsaved: Boolean): RobotResult<Unit> {
+        mutableMapOperationState.value = MapOperationState.Idle
+        return RobotResult.Success(Unit)
+    }
+
     override suspend fun listVirtualWalls(mapId: String): RobotResult<List<VirtualWall>> {
         return RobotResult.Success(emptyList())
     }

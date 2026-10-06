@@ -120,7 +120,7 @@ class ManualControlViewModel @Inject constructor(
         val ip = config.ipAddress.ifBlank { "192.168.1.100" }
         val port = if (config.port > 0) config.port else 8080
         val ssid = config.selectedSsid ?: "ROBOT_HOTSPOT_5G"
-        robotRepository.connectToRobot(ip, port, ssid)
+        robotRepository.connectToRobot(ip, port, config.token, ssid)
     }
 
     fun selectTab(tab: ManualControlTab) {

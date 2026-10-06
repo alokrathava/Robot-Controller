@@ -37,10 +37,19 @@ data class RobotLogEvent(
     val message: String
 )
 
+data class CommandTimeouts(
+    val mapQueryMs: Long = 15_000,
+    val mapSwitchMs: Long = 60_000,
+    val mapSaveMs: Long = 120_000,
+    val mapDeleteMs: Long = 30_000,
+    val mappingMs: Long = 60_000
+)
+
 data class RobotSdkConfig(
     val endpoint: RobotEndpoint,
     val authentication: RobotAuthentication? = null,
     val commandTimeoutMs: Long = 15_000,
+    val commandTimeouts: CommandTimeouts = CommandTimeouts(),
     val reconnectPolicy: ReconnectPolicy = ReconnectPolicy(),
     val heartbeatIntervalMs: Long = 5_000,
     val telemetryStaleTimeoutMs: Long = 3_000,

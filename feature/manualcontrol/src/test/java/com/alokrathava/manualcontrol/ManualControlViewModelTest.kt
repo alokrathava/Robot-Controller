@@ -76,6 +76,19 @@ class ManualControlViewModelTest {
     }
 
     @Test
+    fun testReconnectPreservesAuthToken() = runTest {
+        backgroundScope.launch(testDispatcher) { viewModel.uiState.collect {} }
+        fakeRepository.connectToRobot("10.0.0.5", 9090, "secret-token-123", "HOTSPOT")
+        assertEquals("secret-token-123", fakeRepository.connectionConfig.value.token)
+
+        viewModel.reconnect()
+        assertEquals("secret-token-123", fakeRepository.connectionConfig.value.token)
+        assertEquals("10.0.0.5", fakeRepository.connectionConfig.value.ipAddress)
+        assertEquals(9090, fakeRepository.connectionConfig.value.port)
+        assertEquals("HOTSPOT", fakeRepository.connectionConfig.value.selectedSsid)
+    }
+
+    @Test
     fun testEmergencyBrakeTriggerAndReset() = runTest {
         backgroundScope.launch(testDispatcher) { viewModel.uiState.collect {} }
         viewModel.triggerEmergencyBrake()

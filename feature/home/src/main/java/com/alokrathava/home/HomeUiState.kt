@@ -15,7 +15,7 @@ data class HomeUiState(
     val mapData: MapData = MapData(),
     val statusMessage: String = "Ready",
     val screenFlow: ScreenFlow = ScreenFlow.DASHBOARD,
-    val connectionStep: RobotConnectionStep = RobotConnectionStep.AUTO_DISCOVERY,
+    val connectionStep: RobotConnectionStep = RobotConnectionStep.IP_PORT_CONFIG,
     val discoveredRobots: List<DiscoveredRobot> = emptyList(),
     val selectedDiscoveredRobot: DiscoveredRobot? = null,
     val isDiscoveringRobots: Boolean = false,

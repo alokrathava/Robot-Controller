@@ -20,13 +20,19 @@ internal interface TransportListener {
     fun onClose(code: Int, reason: String)
 }
 
+internal interface RobotTransport {
+    fun connect()
+    fun disconnect()
+    fun send(text: String): Boolean
+}
+
 internal class WebSocketRobotTransport(
     private val endpoint: RobotEndpoint,
     private val logger: RobotLogger,
     private val listener: TransportListener,
     private val sslSocketFactory: SSLSocketFactory? = null,
     private val trustManager: X509TrustManager? = null
-) {
+) : RobotTransport {
     private var client: OkHttpClient? = null
     private var webSocket: WebSocket? = null
     @Volatile private var _isConnected = false
@@ -34,7 +40,7 @@ internal class WebSocketRobotTransport(
     val isConnected: Boolean
         get() = _isConnected
 
-    fun connect() {
+    override fun connect() {
         if (_isConnected) return
 
         disconnectInternal(silent = true)
@@ -91,7 +97,7 @@ internal class WebSocketRobotTransport(
         })
     }
 
-    fun send(text: String): Boolean {
+    override fun send(text: String): Boolean {
         val ws = webSocket
         if (!_isConnected || ws == null) {
             return false
@@ -111,7 +117,7 @@ internal class WebSocketRobotTransport(
         client = null
     }
 
-    fun disconnect() {
+    override fun disconnect() {
         disconnectInternal(silent = false)
     }
 }

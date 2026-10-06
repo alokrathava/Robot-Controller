@@ -10,6 +10,7 @@ enum class RobotCapability {
     HEALTH,
     MAP_SWITCHING,
     MAP_MANAGEMENT,
+    MAPPING,
     VIRTUAL_WALLS,
     SAVED_LOCATIONS,
     WAYPOINT_NAVIGATION,

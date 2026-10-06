@@ -7,3 +7,14 @@ plugins {
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.hilt) apply false
 }
+
+tasks.register("testAndAssemble") {
+    group = "verification"
+    description = "Runs unit tests for SDK, manual control, home features, and assembles the debug APK in a single optimized pass."
+    dependsOn(
+        ":robot:sdk:testDebugUnitTest",
+        ":feature:manualcontrol:testDebugUnitTest",
+        ":feature:home:testDebugUnitTest",
+        ":app:assembleDebug"
+    )
+}

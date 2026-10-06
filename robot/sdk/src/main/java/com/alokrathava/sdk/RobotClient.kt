@@ -102,6 +102,10 @@ interface RobotClient : AutoCloseable {
 
     suspend fun deleteMap(mapId: String): RobotResult<Unit>
 
+    suspend fun startMapping(): RobotResult<Unit>
+
+    suspend fun stopMapping(discardUnsaved: Boolean = false): RobotResult<Unit>
+
     suspend fun listVirtualWalls(mapId: String): RobotResult<List<VirtualWall>>
 
     suspend fun createVirtualWall(wall: VirtualWallDraft): RobotResult<VirtualWall>

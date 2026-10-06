@@ -390,11 +390,28 @@ internal data class GetRecentLogsAckPayloadDto(
 )
 
 @Serializable
+internal data class RobotMapStateDto(
+    val state: String = "",
+    val mode: String = "",
+    val activeMapId: String? = null,
+    val mapAvailable: Boolean = false,
+    val localizationReady: Boolean = false,
+    val navigationRuntimeReady: Boolean = false,
+    val errorCode: String? = null,
+    val detail: String? = null
+)
+
+@Serializable
+internal data class StopMappingPayloadDto(
+    val discardUnsaved: Boolean = false
+)
+
+@Serializable
 internal data class RobotStateSnapshotPayloadDto(
     val telemetry: TelemetryPayloadDto? = null,
     val battery: BatteryStatePayloadDto? = null,
     val safety: SafetyStatePayloadDto? = null,
     val docking: DockingStatePayloadDto? = null,
     val health: RobotHealthPayloadDto? = null,
-    val activeMap: MapInfoDto? = null
+    val mapState: RobotMapStateDto? = null
 )

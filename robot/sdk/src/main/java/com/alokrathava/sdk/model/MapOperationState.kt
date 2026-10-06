@@ -2,6 +2,7 @@ package com.alokrathava.sdk.model
 
 sealed interface MapOperationState {
     data object Idle : MapOperationState
+    data class Mapping(val mapId: String?) : MapOperationState
     data class Saving(val mapName: String) : MapOperationState
     data class Switching(val mapId: String) : MapOperationState
     data class Deleting(val mapId: String) : MapOperationState

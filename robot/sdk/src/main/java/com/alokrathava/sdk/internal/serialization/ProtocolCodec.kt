@@ -39,8 +39,10 @@ import com.alokrathava.sdk.internal.protocol.GetRecentLogsAckPayloadDto
 import com.alokrathava.sdk.internal.protocol.GetRecentLogsPayloadDto
 import com.alokrathava.sdk.internal.protocol.RobotLogEntryDto
 import com.alokrathava.sdk.internal.protocol.RobotHealthPayloadDto
+import com.alokrathava.sdk.internal.protocol.RobotMapStateDto
 import com.alokrathava.sdk.internal.protocol.RobotMissionDto
 import com.alokrathava.sdk.internal.protocol.RobotStateSnapshotPayloadDto
+import com.alokrathava.sdk.internal.protocol.StopMappingPayloadDto
 import com.alokrathava.sdk.internal.protocol.SafetyStatePayloadDto
 import com.alokrathava.sdk.internal.protocol.SaveLocationAckPayloadDto
 import com.alokrathava.sdk.internal.protocol.SaveLocationPayloadDto
@@ -545,6 +547,34 @@ internal object ProtocolCodec {
         }
     }
 
+    internal fun decodeMapState(envelope: ProtocolEnvelope): RobotMapStateDto? {
+        val payload = envelope.payload ?: return null
+        return try {
+            json.decodeFromJsonElement<RobotMapStateDto>(payload)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    internal fun createStartMappingEnvelope(id: String): ProtocolEnvelope {
+        return ProtocolEnvelope(
+            type = "start_mapping",
+            id = id,
+            protocolVersion = ROBOT_PROTOCOL_VERSION
+        )
+    }
+
+    internal fun createStopMappingEnvelope(id: String, discardUnsaved: Boolean = false): ProtocolEnvelope {
+        val dto = StopMappingPayloadDto(discardUnsaved = discardUnsaved)
+        val payload = json.encodeToJsonElement(dto) as? kotlinx.serialization.json.JsonObject
+        return ProtocolEnvelope(
+            type = "stop_mapping",
+            id = id,
+            protocolVersion = ROBOT_PROTOCOL_VERSION,
+            payload = payload
+        )
+    }
+
     internal fun createGetRecentLogsEnvelope(id: String, limit: Int = 100): ProtocolEnvelope {
         val dto = GetRecentLogsPayloadDto(limit = limit)
         val payload = json.encodeToJsonElement(dto) as? kotlinx.serialization.json.JsonObject
@@ -636,44 +666,93 @@ internal object ProtocolCodec {
         }
     }
 
+    fun mapTelemetryPayload(dto: TelemetryPayloadDto): RobotTelemetry {
+        return RobotTelemetry(
+            poseValid = dto.poseValid,
+            frame = dto.frame,
+            xMeters = dto.xMeters,
+            yMeters = dto.yMeters,
+            yawRadians = dto.yawRadians,
+            linearVelocityMps = dto.linearVelocityMps,
+            angularVelocityRadPerSec = dto.angularVelocityRadPerSec,
+            isMoving = dto.isMoving,
+            navigationState = dto.navigationState,
+            distanceRemainingMeters = dto.distanceRemainingMeters,
+            navigationElapsedSeconds = dto.navigationElapsedSeconds,
+            hasGoal = dto.hasGoal,
+            navigationErrorCode = dto.navigationErrorCode,
+            navigationErrorMessage = dto.navigationErrorMessage,
+            localizationState = dto.localizationState,
+            localizationPositionStddevMeters = dto.localizationPositionStddevMeters,
+            localizationYawStddevRadians = dto.localizationYawStddevRadians,
+            safetyState = mapSafetyState(dto.safetyState),
+            emergencyStopped = dto.emergencyStopped,
+            collisionStopped = dto.collisionStopped,
+            controlSource = dto.controlSource,
+            nearestObstacleDistanceMeters = dto.nearestObstacleDistanceMeters,
+            nearestObstacleBearingRadians = dto.nearestObstacleBearingRadians,
+            dockingState = mapDockingState(dto.dockingState),
+            isDocked = dto.isDocked,
+            dockingTimeSeconds = dto.dockingTimeSeconds,
+            batteryState = mapBatteryState(dto.batteryState),
+            batteryPercentage = dto.batteryPercentage,
+            isCharging = dto.isCharging,
+            batteryVoltageVolts = dto.batteryVoltageVolts,
+            batteryTemperatureCelsius = dto.batteryTemperatureCelsius,
+            activeMap = dto.activeMap
+        )
+    }
+
+    fun mapBatteryStatePayload(dto: BatteryStatePayloadDto): RobotBatteryState {
+        return RobotBatteryState(
+            state = mapBatteryState(dto.state),
+            percentage = dto.percentage,
+            isCharging = dto.isCharging,
+            voltageVolts = dto.voltageVolts,
+            currentAmps = dto.currentAmps,
+            temperatureCelsius = dto.temperatureCelsius,
+            dataAgeSeconds = dto.dataAgeSeconds,
+            detail = dto.detail
+        )
+    }
+
+    fun mapSafetyStatePayload(dto: SafetyStatePayloadDto): SafetyState {
+        return mapSafetyState(dto.state)
+    }
+
+    fun mapDockingStatePayload(dto: DockingStatePayloadDto): DockingState {
+        return mapDockingState(dto.state)
+    }
+
+    fun mapHealthPayload(dto: RobotHealthPayloadDto): RobotHealth {
+        return RobotHealth(
+            overall = when (dto.overall) {
+                0 -> RobotHealthStatus.OK
+                1 -> RobotHealthStatus.DEGRADED
+                2 -> RobotHealthStatus.ERROR
+                3 -> RobotHealthStatus.EMERGENCY
+                else -> RobotHealthStatus.ERROR
+            },
+            subsystems = dto.subsystems.map {
+                SubsystemHealth(
+                    name = it.name,
+                    level = when (it.level) {
+                        0 -> SubsystemHealthLevel.OK
+                        1 -> SubsystemHealthLevel.WARN
+                        2 -> SubsystemHealthLevel.ERROR
+                        else -> SubsystemHealthLevel.STALE
+                    }
+                )
+            },
+            activeErrors = dto.activeErrors.map { mapRobotError(it) }
+        )
+    }
+
     fun decodeTelemetry(envelope: ProtocolEnvelope): RobotTelemetry? {
         val payload = envelope.payload ?: return null
         return try {
             val dto = json.decodeFromJsonElement<TelemetryPayloadDto>(payload)
-            RobotTelemetry(
-                poseValid = dto.poseValid,
-                frame = dto.frame,
-                xMeters = dto.xMeters,
-                yMeters = dto.yMeters,
-                yawRadians = dto.yawRadians,
-                linearVelocityMps = dto.linearVelocityMps,
-                angularVelocityRadPerSec = dto.angularVelocityRadPerSec,
-                isMoving = dto.isMoving,
-                navigationState = dto.navigationState,
-                distanceRemainingMeters = dto.distanceRemainingMeters,
-                navigationElapsedSeconds = dto.navigationElapsedSeconds,
-                hasGoal = dto.hasGoal,
-                navigationErrorCode = dto.navigationErrorCode,
-                navigationErrorMessage = dto.navigationErrorMessage,
-                localizationState = dto.localizationState,
-                localizationPositionStddevMeters = dto.localizationPositionStddevMeters,
-                localizationYawStddevRadians = dto.localizationYawStddevRadians,
-                safetyState = mapSafetyState(dto.safetyState),
-                emergencyStopped = dto.emergencyStopped,
-                collisionStopped = dto.collisionStopped,
-                controlSource = dto.controlSource,
-                nearestObstacleDistanceMeters = dto.nearestObstacleDistanceMeters,
-                nearestObstacleBearingRadians = dto.nearestObstacleBearingRadians,
-                dockingState = mapDockingState(dto.dockingState),
-                isDocked = dto.isDocked,
-                dockingTimeSeconds = dto.dockingTimeSeconds,
-                batteryState = mapBatteryState(dto.batteryState),
-                batteryPercentage = dto.batteryPercentage,
-                isCharging = dto.isCharging,
-                batteryVoltageVolts = dto.batteryVoltageVolts,
-                batteryTemperatureCelsius = dto.batteryTemperatureCelsius,
-                activeMap = dto.activeMap
-            )
+            mapTelemetryPayload(dto)
         } catch (_: Exception) {
             null
         }
@@ -683,16 +762,7 @@ internal object ProtocolCodec {
         val payload = envelope.payload ?: return null
         return try {
             val dto = json.decodeFromJsonElement<BatteryStatePayloadDto>(payload)
-            RobotBatteryState(
-                state = mapBatteryState(dto.state),
-                percentage = dto.percentage,
-                isCharging = dto.isCharging,
-                voltageVolts = dto.voltageVolts,
-                currentAmps = dto.currentAmps,
-                temperatureCelsius = dto.temperatureCelsius,
-                dataAgeSeconds = dto.dataAgeSeconds,
-                detail = dto.detail
-            )
+            mapBatteryStatePayload(dto)
         } catch (_: Exception) {
             null
         }
@@ -702,7 +772,7 @@ internal object ProtocolCodec {
         val payload = envelope.payload ?: return null
         return try {
             val dto = json.decodeFromJsonElement<SafetyStatePayloadDto>(payload)
-            mapSafetyState(dto.state)
+            mapSafetyStatePayload(dto)
         } catch (_: Exception) {
             null
         }
@@ -712,7 +782,7 @@ internal object ProtocolCodec {
         val payload = envelope.payload ?: return null
         return try {
             val dto = json.decodeFromJsonElement<DockingStatePayloadDto>(payload)
-            mapDockingState(dto.state)
+            mapDockingStatePayload(dto)
         } catch (_: Exception) {
             null
         }
@@ -722,27 +792,7 @@ internal object ProtocolCodec {
         val payload = envelope.payload ?: return null
         return try {
             val dto = json.decodeFromJsonElement<RobotHealthPayloadDto>(payload)
-            RobotHealth(
-                overall = when (dto.overall) {
-                    0 -> RobotHealthStatus.OK
-                    1 -> RobotHealthStatus.DEGRADED
-                    2 -> RobotHealthStatus.ERROR
-                    3 -> RobotHealthStatus.EMERGENCY
-                    else -> RobotHealthStatus.ERROR
-                },
-                subsystems = dto.subsystems.map {
-                    SubsystemHealth(
-                        name = it.name,
-                        level = when (it.level) {
-                            0 -> SubsystemHealthLevel.OK
-                            1 -> SubsystemHealthLevel.WARN
-                            2 -> SubsystemHealthLevel.ERROR
-                            else -> SubsystemHealthLevel.STALE
-                        }
-                    )
-                },
-                activeErrors = dto.activeErrors.map { mapRobotError(it) }
-            )
+            mapHealthPayload(dto)
         } catch (_: Exception) {
             null
         }

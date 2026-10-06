@@ -31,7 +31,7 @@ class HomeViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _screenFlow = MutableStateFlow(ScreenFlow.SPLASH)
-    private val _connectionStep = MutableStateFlow(RobotConnectionStep.AUTO_DISCOVERY)
+    private val _connectionStep = MutableStateFlow(RobotConnectionStep.IP_PORT_CONFIG)
     private val _discoveredRobots = MutableStateFlow<List<DiscoveredRobot>>(emptyList())
     private val _selectedDiscoveredRobot = MutableStateFlow<DiscoveredRobot?>(null)
     private val _isDiscoveringRobots = MutableStateFlow(false)

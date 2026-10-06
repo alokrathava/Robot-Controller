@@ -10,6 +10,7 @@ import com.alokrathava.sdk.error.RobotError
 import com.alokrathava.sdk.error.RobotResult
 import com.alokrathava.sdk.internal.protocol.PendingCommandRegistry
 import com.alokrathava.sdk.internal.serialization.ProtocolCodec
+import com.alokrathava.sdk.internal.transport.RobotTransport
 import com.alokrathava.sdk.internal.transport.TransportListener
 import com.alokrathava.sdk.internal.transport.WebSocketRobotTransport
 import com.alokrathava.sdk.model.CommandId
@@ -20,6 +21,7 @@ import com.alokrathava.sdk.internal.protocol.ROBOT_PROTOCOL_VERSION
 import com.alokrathava.sdk.model.RobotDiagnostics
 import com.alokrathava.sdk.model.RobotDiagnosticReport
 import com.alokrathava.sdk.model.RobotLogEntry
+import com.alokrathava.sdk.internal.protocol.RobotMapStateDto
 import com.alokrathava.sdk.model.DockingState
 import com.alokrathava.sdk.model.MapOperationState
 import com.alokrathava.sdk.model.Pose2D
@@ -65,14 +67,15 @@ import kotlin.math.pow
 import kotlin.random.Random
 
 internal class RobotClientImpl(
-    private val config: RobotSdkConfig
+    private val config: RobotSdkConfig,
+    transportFactory: ((TransportListener) -> RobotTransport)? = null
 ) : RobotClient, TransportListener {
 
     private val sdkJob = SupervisorJob()
     private val scope = CoroutineScope(sdkJob + Dispatchers.IO)
 
     private val commandRegistry = PendingCommandRegistry()
-    private val transport = WebSocketRobotTransport(
+    private val transport: RobotTransport = transportFactory?.invoke(this) ?: WebSocketRobotTransport(
         endpoint = config.endpoint,
         logger = config.logger,
         listener = this,
@@ -143,6 +146,7 @@ internal class RobotClientImpl(
     @Volatile private var lastMessageTimeMillis = 0L
     @Volatile private var lastTelemetryTimeMillis = 0L
     @Volatile private var pingSentTimeMillis = 0L
+    @Volatile private var hasMapState = false
 
     private var heartbeatJob: Job? = null
     private var staleCheckJob: Job? = null
@@ -231,6 +235,10 @@ internal class RobotClientImpl(
     }
 
     override suspend fun navigateThrough(poses: List<Pose2D>): RobotResult<CommandId> {
+        return sendNavigateThrough(poses, stopOnFailure = true)
+    }
+
+    private suspend fun sendNavigateThrough(poses: List<Pose2D>, stopOnFailure: Boolean): RobotResult<CommandId> {
         checkCapability(RobotCapability.WAYPOINT_NAVIGATION)?.let { return RobotResult.Failure((it as RobotResult.Failure).error) }
 
         if (poses.isEmpty()) {
@@ -238,7 +246,7 @@ internal class RobotClientImpl(
         }
 
         val cmdId = commandRegistry.generateCommandId()
-        val envelope = ProtocolCodec.createNavigateThroughEnvelope(cmdId, poses)
+        val envelope = ProtocolCodec.createNavigateThroughEnvelope(cmdId, poses, stopOnFailure)
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         val result = commandRegistry.registerAndAwait(cmdId, config.commandTimeoutMs) {
@@ -257,7 +265,7 @@ internal class RobotClientImpl(
     }
 
     override suspend fun navigateRoute(route: NavigationRoute): RobotResult<CommandId> {
-        return navigateThrough(route.waypoints)
+        return sendNavigateThrough(route.waypoints, route.stopOnFailure)
     }
 
     override suspend fun cancelNavigation(): RobotResult<Unit> {
@@ -317,7 +325,7 @@ internal class RobotClientImpl(
         val envelope = ProtocolCodec.createSimpleCommandEnvelope("list_maps", cmdId)
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
-        return commandRegistry.registerAndAwaitTyped<List<RobotMap>>(cmdId, config.commandTimeoutMs) {
+        return commandRegistry.registerAndAwaitTyped<List<RobotMap>>(cmdId, config.commandTimeouts.mapQueryMs) {
             if (!transport.send(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
@@ -341,7 +349,7 @@ internal class RobotClientImpl(
         val envelope = ProtocolCodec.createSwitchMapEnvelope(cmdId, mapId)
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
-        val result = commandRegistry.registerAndAwait(cmdId, config.commandTimeoutMs) {
+        val result = commandRegistry.registerAndAwait(cmdId, config.commandTimeouts.mapSwitchMs) {
             if (!transport.send(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
@@ -350,7 +358,7 @@ internal class RobotClientImpl(
             }
         }
         when (result) {
-            is RobotResult.Success -> _mapOperationState.value = MapOperationState.Idle
+            is RobotResult.Success -> if (!hasMapState) _mapOperationState.value = MapOperationState.Idle
             is RobotResult.Failure -> _mapOperationState.value = MapOperationState.Failed(mapId, result.error.message)
         }
         return result
@@ -370,7 +378,7 @@ internal class RobotClientImpl(
         val envelope = ProtocolCodec.createSaveMapEnvelope(cmdId, name)
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
-        val result = commandRegistry.registerAndAwaitTyped<RobotMap>(cmdId, config.commandTimeoutMs) {
+        val raw = commandRegistry.registerAndAwaitTyped<Any>(cmdId, config.commandTimeouts.mapSaveMs) {
             if (!transport.send(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
@@ -378,8 +386,15 @@ internal class RobotClientImpl(
                 )
             }
         }
+        val result: RobotResult<RobotMap> = when (raw) {
+            is RobotResult.Success -> RobotResult.Success(
+                raw.value as? RobotMap
+                    ?: RobotMap(id = name.lowercase().replace(Regex("[^a-z0-9_\\-]"), "_"), name = name)
+            )
+            is RobotResult.Failure -> RobotResult.Failure(raw.error)
+        }
         when (result) {
-            is RobotResult.Success -> _mapOperationState.value = MapOperationState.Idle
+            is RobotResult.Success -> if (!hasMapState) _mapOperationState.value = MapOperationState.Idle
             is RobotResult.Failure -> _mapOperationState.value = MapOperationState.Failed(null, result.error.message)
         }
         return result
@@ -398,7 +413,7 @@ internal class RobotClientImpl(
         val envelope = ProtocolCodec.createRenameMapEnvelope(cmdId, mapId, newName)
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
-        return commandRegistry.registerAndAwaitTyped<RobotMap>(cmdId, config.commandTimeoutMs) {
+        return commandRegistry.registerAndAwaitTyped<RobotMap>(cmdId, config.commandTimeouts.mapQueryMs) {
             if (!transport.send(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
@@ -428,7 +443,7 @@ internal class RobotClientImpl(
         val envelope = ProtocolCodec.createDeleteMapEnvelope(cmdId, mapId)
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
-        val result = commandRegistry.registerAndAwait(cmdId, config.commandTimeoutMs) {
+        val result = commandRegistry.registerAndAwait(cmdId, config.commandTimeouts.mapDeleteMs) {
             if (!transport.send(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
@@ -437,10 +452,44 @@ internal class RobotClientImpl(
             }
         }
         when (result) {
-            is RobotResult.Success -> _mapOperationState.value = MapOperationState.Idle
+            is RobotResult.Success -> if (!hasMapState) _mapOperationState.value = MapOperationState.Idle
             is RobotResult.Failure -> _mapOperationState.value = MapOperationState.Failed(mapId, result.error.message)
         }
         return result
+    }
+
+    override suspend fun startMapping(): RobotResult<Unit> {
+        checkCapability(RobotCapability.MAPPING)?.let { return it }
+
+        val cmdId = commandRegistry.generateCommandId()
+        val envelope = ProtocolCodec.createStartMappingEnvelope(cmdId)
+        val jsonText = ProtocolCodec.encodeEnvelope(envelope)
+
+        return commandRegistry.registerAndAwait(cmdId, config.commandTimeouts.mappingMs) {
+            if (!transport.send(jsonText)) {
+                commandRegistry.completeError(
+                    cmdId,
+                    RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
+                )
+            }
+        }
+    }
+
+    override suspend fun stopMapping(discardUnsaved: Boolean): RobotResult<Unit> {
+        checkCapability(RobotCapability.MAPPING)?.let { return it }
+
+        val cmdId = commandRegistry.generateCommandId()
+        val envelope = ProtocolCodec.createStopMappingEnvelope(cmdId, discardUnsaved)
+        val jsonText = ProtocolCodec.encodeEnvelope(envelope)
+
+        return commandRegistry.registerAndAwait(cmdId, config.commandTimeouts.mappingMs) {
+            if (!transport.send(jsonText)) {
+                commandRegistry.completeError(
+                    cmdId,
+                    RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
+                )
+            }
+        }
     }
 
     override suspend fun listVirtualWalls(mapId: String): RobotResult<List<VirtualWall>> {
@@ -976,22 +1025,21 @@ internal class RobotClientImpl(
 
                     envelope.id?.let { commandRegistry.completeError(it, err) }
                 }
-                "telemetry" -> {
-                    lastTelemetryTimeMillis = now
-                    _telemetryFreshness.value = TelemetryFreshness(isStale = false, ageMs = 0L, receivedAtMillis = now)
-                    ProtocolCodec.decodeTelemetry(envelope)?.let { telem ->
-                        _telemetry.value = telem
-                        if (telem.activeMap.isNotBlank()) {
-                            _activeMap.value = RobotMap(id = telem.activeMap, name = telem.activeMap, isActive = true)
-                        }
-                        _navigation.value = NavigationState(
-                            state = telem.navigationState,
-                            targetPose = if (telem.hasGoal) Pose2D(telem.xMeters, telem.yMeters, telem.yawRadians) else null,
-                            distanceRemainingMeters = telem.distanceRemainingMeters,
-                            elapsedTimeSeconds = telem.navigationElapsedSeconds,
-                            errorMsg = telem.navigationErrorMessage
-                        )
+                "robot_state_snapshot" -> {
+                    ProtocolCodec.decodeRobotStateSnapshot(envelope)?.let { snapshot ->
+                        snapshot.telemetry?.let { applyTelemetry(ProtocolCodec.mapTelemetryPayload(it), now) }
+                        snapshot.battery?.let { _batteryState.value = ProtocolCodec.mapBatteryStatePayload(it) }
+                        snapshot.safety?.let { _safetyState.value = ProtocolCodec.mapSafetyStatePayload(it) }
+                        snapshot.docking?.let { _dockingState.value = ProtocolCodec.mapDockingStatePayload(it) }
+                        snapshot.health?.let { _health.value = ProtocolCodec.mapHealthPayload(it) }
+                        snapshot.mapState?.let { applyMapState(it) }
                     }
+                }
+                "map_state" -> {
+                    ProtocolCodec.decodeMapState(envelope)?.let { applyMapState(it) }
+                }
+                "telemetry" -> {
+                    ProtocolCodec.decodeTelemetry(envelope)?.let { applyTelemetry(it, now) }
                 }
                 "battery_state" -> {
                     ProtocolCodec.decodeBatteryState(envelope)?.let { _batteryState.value = it }
@@ -1011,6 +1059,45 @@ internal class RobotClientImpl(
         }
 
         updateMetrics()
+    }
+
+    private fun applyTelemetry(telem: RobotTelemetry, now: Long) {
+        lastTelemetryTimeMillis = now
+        _telemetryFreshness.value = TelemetryFreshness(isStale = false, ageMs = 0L, receivedAtMillis = now)
+        _telemetry.value = telem
+        if (!hasMapState && _activeMap.value == null && telem.activeMap.isNotBlank()) {
+            _activeMap.value = RobotMap(id = telem.activeMap, name = telem.activeMap, isActive = true)
+        }
+        _navigation.value = NavigationState(
+            state = telem.navigationState,
+            targetPose = if (telem.hasGoal) Pose2D(telem.xMeters, telem.yMeters, telem.yawRadians) else null,
+            distanceRemainingMeters = telem.distanceRemainingMeters,
+            elapsedTimeSeconds = telem.navigationElapsedSeconds,
+            errorMsg = telem.navigationErrorMessage
+        )
+    }
+
+    private fun applyMapState(mapState: RobotMapStateDto) {
+        hasMapState = true
+        val activeId = mapState.activeMapId?.takeIf { it.isNotBlank() }
+        if (activeId == null) {
+            _activeMap.value = null
+        } else if (_activeMap.value?.id != activeId) {
+            _activeMap.value = RobotMap(id = activeId, name = activeId, isActive = true)
+        }
+
+        val previous = _mapOperationState.value
+        _mapOperationState.value = when (mapState.state.uppercase()) {
+            "MAPPING" -> MapOperationState.Mapping(activeId)
+            "SAVING" -> MapOperationState.Saving(activeId ?: (previous as? MapOperationState.Saving)?.mapName ?: "")
+            "SWITCHING", "LOADING" ->
+                MapOperationState.Switching((previous as? MapOperationState.Switching)?.mapId ?: activeId ?: "")
+            "ERROR" -> MapOperationState.Failed(
+                activeId,
+                mapState.detail?.takeIf { it.isNotBlank() } ?: mapState.errorCode?.takeIf { it.isNotBlank() } ?: "Map error"
+            )
+            else -> MapOperationState.Idle
+        }
     }
 
     override fun onFailure(t: Throwable, response: Response?) {
@@ -1152,6 +1239,8 @@ internal class RobotClientImpl(
         _dockingState.value = null
         _health.value = null
         _activeMap.value = null
+        _mapOperationState.value = MapOperationState.Idle
+        hasMapState = false
     }
 
     override fun close() {
