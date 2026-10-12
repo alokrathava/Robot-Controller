@@ -40,6 +40,7 @@ android {
 dependencies {
     implementation(project(":core:theme"))
     implementation(project(":feature:home"))
+    implementation(project(":feature:map"))
     implementation(project(":robot:sdk"))
 
     implementation(libs.androidx.core.ktx)
@@ -58,6 +59,7 @@ dependencies {
     implementation(libs.androidx.hilt.navigation.compose)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

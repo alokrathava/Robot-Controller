@@ -93,65 +93,71 @@ fun SplashScreenContent(
     val spacing = MonochromeTheme.spacing
     val typography = MonochromeTheme.typography
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        // App Title & Subtitle
-        Text(
-            text = "ROBOT CONTROLLER",
-            style = typography.h2,
-            color = colors.primaryText,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 2.sp
-        )
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val maxH = this.maxHeight
+        val imageHeight = if (maxH < 700.dp) 200.dp else 300.dp
 
-        Spacer(modifier = Modifier.height(spacing.space1))
-
-        Text(
-            text = "System Ready • Autonomous Companion Connected",
-            style = typography.bodySmall,
-            color = colors.secondaryText,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(spacing.space4))
-
-        // Robot Vector Image Asset from res/drawable/robot_splash.xml
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.wrapContentSize()
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.robot_splash),
-                contentDescription = "Robot Controller Illustration",
-                contentScale = ContentScale.Fit,
+            // App Title & Subtitle
+            Text(
+                text = "ROBOT CONTROLLER",
+                style = if (maxH < 700.dp) typography.h3 else typography.h2,
+                color = colors.primaryText,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 2.sp
+            )
+
+            Spacer(modifier = Modifier.height(spacing.space1))
+
+            Text(
+                text = "System Ready • Autonomous Companion Connected",
+                style = typography.bodySmall,
+                color = colors.secondaryText,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(if (maxH < 700.dp) spacing.space2 else spacing.space4))
+
+            // Robot Vector Image Asset from res/drawable/robot_splash.xml
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.wrapContentSize()
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.robot_splash),
+                    contentDescription = "Robot Controller Illustration",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .height(imageHeight)
+                        .aspectRatio(0.7f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(if (maxH < 700.dp) spacing.space2 else spacing.space4))
+
+            // Action CTA Button
+            MonochromeButton(
+                onClick = onConnectClick,
+                variant = MonochromeButtonVariant.Primary,
+                size = MonochromeButtonSize.Large,
+                text = "Connect to the Robot",
+                icon = Icons.Default.PowerSettingsNew,
                 modifier = Modifier
-                    .width(220.dp)
-                    .height(320.dp)
+                    .widthIn(max = 320.dp)
+                    .fillMaxWidth()
             )
         }
-
-        Spacer(modifier = Modifier.height(spacing.space4))
-
-        // Action CTA Button
-        MonochromeButton(
-            onClick = onConnectClick,
-            variant = MonochromeButtonVariant.Primary,
-            size = MonochromeButtonSize.Large,
-            text = "Connect to the Robot",
-            icon = Icons.Default.PowerSettingsNew,
-            modifier = Modifier
-                .widthIn(max = 320.dp)
-                .fillMaxWidth()
-        )
     }
 }
 
+@Preview(name = "Pixel 7 Portrait", showBackground = true, device = "id:pixel_7")
 @Preview(name = "1920x1080 High DPI Light Mode", showBackground = true, device = "spec:width=1920px,height=1080px,dpi=240")
 @Composable
 fun SplashScreenPreview() {

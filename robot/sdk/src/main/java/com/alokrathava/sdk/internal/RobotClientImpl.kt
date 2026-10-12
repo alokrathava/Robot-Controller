@@ -110,6 +110,9 @@ internal class RobotClientImpl(
     private val _activeMap = MutableStateFlow<RobotMap?>(null)
     override val activeMap: StateFlow<RobotMap?> = _activeMap.asStateFlow()
 
+    private val _occupancyGrid = MutableStateFlow<com.alokrathava.sdk.model.RobotOccupancyGrid?>(null)
+    override val occupancyGrid: StateFlow<com.alokrathava.sdk.model.RobotOccupancyGrid?> = _occupancyGrid.asStateFlow()
+
     private val _mapOperationState = MutableStateFlow<MapOperationState>(MapOperationState.Idle)
     override val mapOperationState: StateFlow<MapOperationState> = _mapOperationState.asStateFlow()
 
@@ -1037,6 +1040,17 @@ internal class RobotClientImpl(
                 }
                 "map_state" -> {
                     ProtocolCodec.decodeMapState(envelope)?.let { applyMapState(it) }
+                }
+                "map_snapshot" -> {
+                    ProtocolCodec.decodeMapSnapshot(envelope.payload)?.let {
+                        _occupancyGrid.value = it
+                    }
+                }
+                "map_update" -> {
+                    val updated = ProtocolCodec.decodeMapUpdate(envelope.payload, _occupancyGrid.value)
+                    if (updated != null) {
+                        _occupancyGrid.value = updated
+                    }
                 }
                 "telemetry" -> {
                     ProtocolCodec.decodeTelemetry(envelope)?.let { applyTelemetry(it, now) }

@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -81,51 +82,45 @@ fun RobotStatusScreenContent(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(spacing.space4)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Header
-                Text(
-                    text = "Robot Status",
-                    style = typography.h2,
-                    color = colors.primaryText,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Live information from the robot",
-                    style = typography.bodySmall,
-                    color = colors.secondaryText
-                )
-
-                // Robot Image
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = ThemeR.drawable.robot_splash),
-                        contentDescription = "Robot Illustration",
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .aspectRatio(0.65f),
-                        contentScale = ContentScale.Fit
+                Column {
+                    Text(
+                        text = "Robot Status",
+                        style = typography.h3,
+                        color = colors.primaryText,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Live telemetry & state metrics",
+                        style = typography.caption,
+                        color = colors.secondaryText
                     )
                 }
 
-                // Battery Card
+                // Compact Hero Row: Robot Illustration + Battery Card Combined
                 MonochromeCard(
                     modifier = Modifier.fillMaxWidth(),
                     backgroundColor = colors.surface,
-                    padding = spacing.cardPadding
+                    padding = 10.dp
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        Image(
+                            painter = painterResource(id = ThemeR.drawable.robot_splash),
+                            contentDescription = "Robot",
+                            modifier = Modifier
+                                .height(56.dp)
+                                .width(56.dp),
+                            contentScale = ContentScale.Fit
+                        )
+
                         BatteryIcon(
                             percent = uiState.batteryPercent,
                             color = colors.statusActive
@@ -133,11 +128,11 @@ fun RobotStatusScreenContent(
 
                         Column(
                             modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                text = "${uiState.batteryPercent}%",
-                                style = typography.h3,
+                                text = "Battery ${uiState.batteryPercent}%",
+                                style = typography.bodyLarge,
                                 color = colors.primaryText,
                                 fontWeight = FontWeight.Bold
                             )
@@ -145,7 +140,7 @@ fun RobotStatusScreenContent(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(10.dp)
+                                    .height(8.dp)
                                     .clip(CircleShape)
                                     .background(colors.disabledSurface)
                             ) {
@@ -167,97 +162,97 @@ fun RobotStatusScreenContent(
                     }
                 }
 
-                // Metric Cards 2x2 Grid
+                // Metric Cards 2x3 Grid (Compact)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(spacing.space3)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     MonochromeCard(
                         modifier = Modifier.weight(1f),
                         backgroundColor = colors.surface,
-                        padding = spacing.cardPadding
+                        padding = 10.dp
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Icon(imageVector = Icons.Default.Place, contentDescription = null, modifier = Modifier.size(18.dp), tint = colors.primaryText)
-                            Text(text = "Position", style = typography.label, color = colors.secondaryText)
+                            Icon(imageVector = Icons.Default.Place, contentDescription = null, modifier = Modifier.size(16.dp), tint = colors.primaryText)
+                            Text(text = "Position", style = typography.caption, color = colors.secondaryText)
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = "(${String.format(java.util.Locale.US, "%.1f", uiState.positionX)}, ${String.format(java.util.Locale.US, "%.1f", uiState.positionY)})", style = typography.bodyLarge, color = colors.primaryText, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = "(${String.format(java.util.Locale.US, "%.1f", uiState.positionX)}, ${String.format(java.util.Locale.US, "%.1f", uiState.positionY)})", style = typography.bodySmall, color = colors.primaryText, fontWeight = FontWeight.Bold)
                     }
 
                     MonochromeCard(
                         modifier = Modifier.weight(1f),
                         backgroundColor = colors.surface,
-                        padding = spacing.cardPadding
+                        padding = 10.dp
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Icon(imageVector = Icons.Default.GpsFixed, contentDescription = null, modifier = Modifier.size(18.dp), tint = colors.primaryText)
-                            Text(text = "Yaw Angle", style = typography.label, color = colors.secondaryText)
+                            Icon(imageVector = Icons.Default.GpsFixed, contentDescription = null, modifier = Modifier.size(16.dp), tint = colors.primaryText)
+                            Text(text = "Yaw Angle", style = typography.caption, color = colors.secondaryText)
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = "${uiState.yawDegrees.toInt()}°", style = typography.bodyLarge, color = colors.primaryText, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = "${uiState.yawDegrees.toInt()}°", style = typography.bodySmall, color = colors.primaryText, fontWeight = FontWeight.Bold)
                     }
                 }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(spacing.space3)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     MonochromeCard(
                         modifier = Modifier.weight(1f),
                         backgroundColor = colors.surface,
-                        padding = spacing.cardPadding
+                        padding = 10.dp
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Icon(imageVector = Icons.Default.SportsEsports, contentDescription = null, modifier = Modifier.size(18.dp), tint = colors.primaryText)
-                            Text(text = "State", style = typography.label, color = colors.secondaryText)
+                            Icon(imageVector = Icons.Default.SportsEsports, contentDescription = null, modifier = Modifier.size(16.dp), tint = colors.primaryText)
+                            Text(text = "State", style = typography.caption, color = colors.secondaryText)
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = uiState.robotState, style = typography.bodyLarge, color = colors.primaryText, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = uiState.robotState, style = typography.bodySmall, color = colors.primaryText, fontWeight = FontWeight.Bold)
                     }
 
                     MonochromeCard(
                         modifier = Modifier.weight(1f),
                         backgroundColor = colors.surface,
-                        padding = spacing.cardPadding
+                        padding = 10.dp
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Icon(imageVector = Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(18.dp), tint = colors.primaryText)
-                            Text(text = "Speed", style = typography.label, color = colors.secondaryText)
+                            Icon(imageVector = Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(16.dp), tint = colors.primaryText)
+                            Text(text = "Speed", style = typography.caption, color = colors.secondaryText)
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = "${String.format(java.util.Locale.US, "%.1f", uiState.speedMps)} m/s", style = typography.bodyLarge, color = colors.primaryText, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = "${String.format(java.util.Locale.US, "%.1f", uiState.speedMps)} m/s", style = typography.bodySmall, color = colors.primaryText, fontWeight = FontWeight.Bold)
                     }
                 }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(spacing.space3)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     MonochromeCard(
                         modifier = Modifier.weight(1f),
                         backgroundColor = colors.surface,
-                        padding = spacing.cardPadding
+                        padding = 10.dp
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Icon(imageVector = Icons.Default.Wifi, contentDescription = null, modifier = Modifier.size(18.dp), tint = colors.primaryText)
-                            Text(text = "Connection", style = typography.label, color = colors.secondaryText)
+                            Icon(imageVector = Icons.Default.Wifi, contentDescription = null, modifier = Modifier.size(16.dp), tint = colors.primaryText)
+                            Text(text = "Connection", style = typography.caption, color = colors.secondaryText)
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = if (uiState.isConnected) "Connected" else "Disconnected", style = typography.bodyLarge, color = colors.primaryText, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = if (uiState.isConnected) "Connected" else "Disconnected", style = typography.bodySmall, color = colors.primaryText, fontWeight = FontWeight.Bold)
                     }
 
                     MonochromeCard(
                         modifier = Modifier.weight(1f),
                         backgroundColor = colors.surface,
-                        padding = spacing.cardPadding
+                        padding = 10.dp
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Icon(imageVector = Icons.Default.Thermostat, contentDescription = null, modifier = Modifier.size(18.dp), tint = colors.primaryText)
-                            Text(text = "Temp", style = typography.label, color = colors.secondaryText)
+                            Icon(imageVector = Icons.Default.Thermostat, contentDescription = null, modifier = Modifier.size(16.dp), tint = colors.primaryText)
+                            Text(text = "Temp", style = typography.caption, color = colors.secondaryText)
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = "${uiState.temperatureCelsius.toInt()}°C", style = typography.bodyLarge, color = colors.primaryText, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = "${uiState.temperatureCelsius.toInt()}°C", style = typography.bodySmall, color = colors.primaryText, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -653,19 +648,24 @@ fun BatteryIcon(
 @Composable
 fun RobotStatusScreenPreview() {
     MonochromeTheme(darkTheme = false) {
-        RobotStatusScreenContent(
-            uiState = RobotStatusUiState(
-                batteryPercent = 78,
-                estimatedTimeRemaining = "Estimated 2h 15m remaining",
-                positionX = 2.4,
-                positionY = 5.1,
-                yawDegrees = 180.0,
-                robotState = "Idle",
-                isConnected = true,
-                connectionAddress = "192.168.1.108:8080",
-                speedMps = 0.0,
-                temperatureCelsius = 24.0
-            )
-        )
+        androidx.compose.foundation.layout.BoxWithConstraints {
+            val deviceMode = com.alokrathava.theme.calculateDeviceMode(this.maxWidth)
+            CompositionLocalProvider(LocalDeviceMode provides deviceMode) {
+                RobotStatusScreenContent(
+                    uiState = RobotStatusUiState(
+                        batteryPercent = 78,
+                        estimatedTimeRemaining = "Estimated 2h 15m remaining",
+                        positionX = 2.4,
+                        positionY = 5.1,
+                        yawDegrees = 180.0,
+                        robotState = "Idle",
+                        isConnected = true,
+                        connectionAddress = "192.168.1.108:8080",
+                        speedMps = 0.0,
+                        temperatureCelsius = 24.0
+                    )
+                )
+            }
+        }
     }
 }

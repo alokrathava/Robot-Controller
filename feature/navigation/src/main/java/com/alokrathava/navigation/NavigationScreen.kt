@@ -1,6 +1,5 @@
 package com.alokrathava.navigation
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Place
@@ -21,9 +21,11 @@ import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,12 +33,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -44,8 +40,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.alokrathava.home.AdaptiveNavigationLayout
-import com.alokrathava.home.Sidebar
 import com.alokrathava.home.SidebarNavItem
+import com.alokrathava.map.MapFloorPlanCanvas
+import com.alokrathava.sdk.model.ConnectionStatus
 import com.alokrathava.theme.*
 
 @Composable
@@ -61,6 +58,7 @@ fun NavigationScreen(
             uiState = uiState,
             onTabSelected = viewModel::selectTab,
             onDestinationSelected = viewModel::selectDestination,
+            onMapTap = viewModel::onMapTapped,
             onXInputChanged = viewModel::updateXInput,
             onYInputChanged = viewModel::updateYInput,
             onYawInputChanged = viewModel::updateYawInput,
@@ -68,6 +66,7 @@ fun NavigationScreen(
             onCancelNavigationClick = viewModel::cancelNavigation,
             onOpenAddLocationDialog = viewModel::openAddLocationDialog,
             onSaveNewLocation = viewModel::saveNewLocation,
+            onDeleteSavedLocation = viewModel::deleteSavedLocation,
             onSidebarItemSelected = onSidebarItemSelected,
             modifier = modifier
         )
@@ -84,6 +83,7 @@ fun NavigationScreenContent(
     uiState: NavigationUiState = NavigationUiState(),
     onTabSelected: (NavigationTab) -> Unit = {},
     onDestinationSelected: (NavigationDestinationUi) -> Unit = {},
+    onMapTap: (Double, Double) -> Unit = { _, _ -> },
     onXInputChanged: (String) -> Unit = {},
     onYInputChanged: (String) -> Unit = {},
     onYawInputChanged: (String) -> Unit = {},
@@ -91,6 +91,7 @@ fun NavigationScreenContent(
     onCancelNavigationClick: () -> Unit = {},
     onOpenAddLocationDialog: (Boolean) -> Unit = {},
     onSaveNewLocation: (String, Double, Double) -> Unit = { _, _, _ -> },
+    onDeleteSavedLocation: (String) -> Unit = {},
     onSidebarItemSelected: (SidebarNavItem) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -98,16 +99,12 @@ fun NavigationScreenContent(
     val spacing = MonochromeTheme.spacing
     val deviceMode = LocalDeviceMode.current
 
-    val paddingValues = if (deviceMode == DeviceMode.MOBILE) {
-        spacing.space4
-    } else {
-        spacing.cardPadding
-    }
+    var mobileViewMode by remember { mutableStateOf("Map View") }
 
     AdaptiveNavigationLayout(
         selectedItem = SidebarNavItem.NAVIGATION,
         onItemSelected = onSidebarItemSelected,
-        isConnected = true,
+        isConnected = uiState.connectionStatus == ConnectionStatus.CONNECTED,
         connectionAddress = "192.168.1.108:8080",
         modifier = modifier
     ) {
@@ -115,42 +112,103 @@ fun NavigationScreenContent(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
-                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                NavigationHeader()
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    NavigationHeader()
 
-                Spacer(modifier = Modifier.height(spacing.space3))
+                    NavigationExecutionBanner(
+                        executionStatus = uiState.executionStatus,
+                        onCancelClick = onCancelNavigationClick
+                    )
 
-                NavigationExecutionBanner(
-                    executionStatus = uiState.executionStatus,
-                    onCancelClick = onCancelNavigationClick
-                )
+                    MonochromeSegmentedControl(
+                        items = listOf("Map View", "Destinations"),
+                        selectedItem = mobileViewMode,
+                        onItemSelected = { mobileViewMode = it },
+                        itemLabel = { it },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
-                Spacer(modifier = Modifier.height(spacing.space3))
-
-                NavigationMapPanel(
+                Box(
                     modifier = Modifier
+                        .weight(1f)
                         .fillMaxWidth()
-                        .height(260.dp),
-                    selectedDestination = uiState.selectedDestination
-                )
+                        .padding(vertical = 8.dp)
+                ) {
+                    if (mobileViewMode == "Map View") {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            NavigationMapPanel(
+                                uiState = uiState,
+                                onMapTap = onMapTap,
+                                modifier = Modifier.fillMaxSize()
+                            )
 
-                Spacer(modifier = Modifier.height(spacing.space4))
+                            Surface(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                shape = MonochromeTheme.shapes.cards,
+                                color = colors.surface,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, colors.subtleBorder)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = when (val dest = uiState.selectedDestination) {
+                                                is NavigationDestinationUi.SavedLocation -> dest.name
+                                                is NavigationDestinationUi.ChargingDock -> "Primary Charging Dock"
+                                                is NavigationDestinationUi.Coordinates -> "Coordinates (${dest.x}, ${dest.y})"
+                                                NavigationDestinationUi.None -> "Tap Map To Target"
+                                            },
+                                            style = MonochromeTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = colors.primaryText
+                                        )
+                                        Text(
+                                            text = if (uiState.selectedDestination == NavigationDestinationUi.None) "Tap anywhere on map or choose destination" else "Target set",
+                                            style = MonochromeTheme.typography.caption,
+                                            color = colors.secondaryText
+                                        )
+                                    }
 
-                NavigationDestinationPanel(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 360.dp),
-                    uiState = uiState,
-                    onTabSelected = onTabSelected,
-                    onDestinationSelected = onDestinationSelected,
-                    onXInputChanged = onXInputChanged,
-                    onYInputChanged = onYInputChanged,
-                    onYawInputChanged = onYawInputChanged,
-                    onStartNavigationClick = onStartNavigationClick,
-                    onOpenAddLocationDialog = { onOpenAddLocationDialog(true) }
-                )
+                                    MonochromeButton(
+                                        text = "Start Nav",
+                                        variant = MonochromeButtonVariant.Primary,
+                                        size = MonochromeButtonSize.Standard,
+                                        icon = Icons.AutoMirrored.Filled.Send,
+                                        enabled = uiState.selectedDestination != NavigationDestinationUi.None,
+                                        onClick = onStartNavigationClick
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        NavigationDestinationPanel(
+                            modifier = Modifier.fillMaxSize(),
+                            uiState = uiState,
+                            onTabSelected = onTabSelected,
+                            onDestinationSelected = onDestinationSelected,
+                            onXInputChanged = onXInputChanged,
+                            onYInputChanged = onYInputChanged,
+                            onYawInputChanged = onYawInputChanged,
+                            onStartNavigationClick = onStartNavigationClick,
+                            onOpenAddLocationDialog = { onOpenAddLocationDialog(true) },
+                            onDeleteSavedLocation = onDeleteSavedLocation
+                        )
+                    }
+                }
             }
         } else {
             Column(
@@ -181,10 +239,11 @@ fun NavigationScreenContent(
                     horizontalArrangement = Arrangement.spacedBy(spacing.space6)
                 ) {
                     NavigationMapPanel(
+                        uiState = uiState,
+                        onMapTap = onMapTap,
                         modifier = Modifier
                             .weight(1.4f)
-                            .fillMaxHeight(),
-                        selectedDestination = uiState.selectedDestination
+                            .fillMaxHeight()
                     )
 
                     NavigationDestinationPanel(
@@ -198,7 +257,8 @@ fun NavigationScreenContent(
                         onYInputChanged = onYInputChanged,
                         onYawInputChanged = onYawInputChanged,
                         onStartNavigationClick = onStartNavigationClick,
-                        onOpenAddLocationDialog = { onOpenAddLocationDialog(true) }
+                        onOpenAddLocationDialog = { onOpenAddLocationDialog(true) },
+                        onDeleteSavedLocation = onDeleteSavedLocation
                     )
                 }
             }
@@ -206,9 +266,55 @@ fun NavigationScreenContent(
     }
 
     if (uiState.isAddLocationDialogOpen) {
-        AddLocationDialog(
-            onDismiss = { onOpenAddLocationDialog(false) },
-            onSave = onSaveNewLocation
+        var nameInput by remember { mutableStateOf("") }
+        var xInput by remember { mutableStateOf(uiState.xInput) }
+        var yInput by remember { mutableStateOf(uiState.yInput) }
+
+        MonochromeDialog(
+            onDismissRequest = { onOpenAddLocationDialog(false) },
+            title = "Add Saved Waypoint",
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    MonochromeTextField(
+                        value = nameInput,
+                        onValueChange = { nameInput = it },
+                        placeholder = "Waypoint Name (e.g. Charging Dock)"
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MonochromeTextField(
+                            value = xInput,
+                            onValueChange = { xInput = it },
+                            placeholder = "X meters",
+                            modifier = Modifier.weight(1f)
+                        )
+                        MonochromeTextField(
+                            value = yInput,
+                            onValueChange = { yInput = it },
+                            placeholder = "Y meters",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                MonochromeButton(
+                    text = "Save Waypoint",
+                    variant = MonochromeButtonVariant.Primary,
+                    enabled = nameInput.isNotBlank() && xInput.toDoubleOrNull() != null && yInput.toDoubleOrNull() != null,
+                    onClick = {
+                        val x = xInput.toDoubleOrNull() ?: 0.0
+                        val y = yInput.toDoubleOrNull() ?: 0.0
+                        onSaveNewLocation(nameInput, x, y)
+                    }
+                )
+            },
+            dismissButton = {
+                MonochromeButton(
+                    text = "Cancel",
+                    variant = MonochromeButtonVariant.Ghost,
+                    onClick = { onOpenAddLocationDialog(false) }
+                )
+            }
         )
     }
 }
@@ -221,9 +327,11 @@ fun NavigationExecutionBanner(
 ) {
     when (executionStatus) {
         is NavigationExecutionStatus.Navigating -> {
+            val etaStr = executionStatus.etaSeconds?.let { "ETA: ${it}s • " } ?: ""
+            val distStr = executionStatus.distanceMeters?.let { "Distance: ${"%.1f".format(it)}m" } ?: "Autonomous Navigation In Progress"
             MonochromeBanner(
                 title = "NAVIGATING TO DESTINATION",
-                description = "ETA: ${executionStatus.etaSeconds}s • Distance: ${executionStatus.distanceMeters}m",
+                description = "$etaStr$distStr",
                 variant = BannerVariant.Info,
                 modifier = modifier,
                 action = {
@@ -294,8 +402,9 @@ fun NavigationHeader(
 
 @Composable
 fun NavigationMapPanel(
-    modifier: Modifier = Modifier,
-    selectedDestination: NavigationDestinationUi = NavigationDestinationUi.None
+    uiState: NavigationUiState,
+    onMapTap: (Double, Double) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val colors = MonochromeTheme.colors
     val shapes = MonochromeTheme.shapes
@@ -306,162 +415,13 @@ fun NavigationMapPanel(
             .background(colors.surface)
             .border(1.dp, colors.subtleBorder, shapes.largeCards)
     ) {
-        val robotXDp = 155.dp
-        val robotYDp = 235.dp
-
-        val destXDp = 295.dp
-        val destYDp = 120.dp
-
-        val hasDestination = selectedDestination != NavigationDestinationUi.None
-
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val width = size.width
-            val height = size.height
-
-            val wallColor = colors.defaultBorder
-            val strokeW = 1.8f
-
-            drawRect(
-                color = wallColor,
-                topLeft = Offset(width * 0.08f, height * 0.08f),
-                size = Size(width * 0.84f, height * 0.84f),
-                style = Stroke(width = 2.5f)
-            )
-
-            val hWalls = listOf(0.22f, 0.38f, 0.54f, 0.70f, 0.84f)
-            hWalls.forEach { yRatio ->
-                drawLine(
-                    color = wallColor,
-                    start = Offset(width * 0.08f, height * yRatio),
-                    end = Offset(width * 0.92f, height * yRatio),
-                    strokeWidth = strokeW
-                )
-            }
-
-            val vWalls = listOf(0.28f, 0.48f, 0.68f, 0.88f)
-            vWalls.forEach { xRatio ->
-                drawLine(
-                    color = wallColor,
-                    start = Offset(width * xRatio, height * 0.08f),
-                    end = Offset(width * xRatio, height * 0.92f),
-                    strokeWidth = strokeW
-                )
-            }
-
-            if (hasDestination) {
-                val path = Path().apply {
-                    moveTo(robotXDp.toPx(), robotYDp.toPx())
-                    lineTo(robotXDp.toPx(), 180.dp.toPx())
-                    lineTo(220.dp.toPx(), 180.dp.toPx())
-                    lineTo(220.dp.toPx(), destYDp.toPx())
-                    lineTo(destXDp.toPx(), destYDp.toPx())
-                }
-
-                drawPath(
-                    path = path,
-                    color = colors.primaryText,
-                    style = Stroke(
-                        width = 3.5f,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 10f), 0f)
-                    )
-                )
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .offset(x = robotXDp - 24.dp, y = robotYDp - 24.dp)
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(colors.primaryActionBg),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.SmartToy,
-                contentDescription = "Robot Position",
-                tint = colors.primaryActionFg,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-
-        if (hasDestination) {
-            Box(
-                modifier = Modifier
-                    .offset(x = destXDp - 20.dp, y = destYDp - 20.dp)
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(colors.surface)
-                    .border(2.dp, colors.primaryActionBg, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Place,
-                    contentDescription = "Destination Target",
-                    tint = colors.primaryActionBg,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-        }
-
-        MapControlsOverlay(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(20.dp)
+        MapFloorPlanCanvas(
+            occupancyGrid = uiState.occupancyGrid,
+            robotPosition = uiState.robotPosition,
+            targetPose = uiState.targetPose,
+            onMapTap = onMapTap,
+            modifier = Modifier.fillMaxSize()
         )
-    }
-}
-
-@Composable
-fun MapControlsOverlay(
-    modifier: Modifier = Modifier
-) {
-    val colors = MonochromeTheme.colors
-
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = colors.surface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, colors.subtleBorder)
-        ) {
-            Column(modifier = Modifier.padding(2.dp)) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clickable { },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Zoom In", tint = colors.primaryText)
-                }
-
-                HorizontalDivider(modifier = Modifier.width(36.dp), color = colors.subtleBorder)
-
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clickable { },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Remove, contentDescription = "Zoom Out", tint = colors.primaryText)
-                }
-            }
-        }
-
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = colors.surface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, colors.subtleBorder),
-            modifier = Modifier.clickable { }
-        ) {
-            Box(
-                modifier = Modifier.size(40.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.MyLocation, contentDescription = "Center Map", tint = colors.primaryText)
-            }
-        }
     }
 }
 
@@ -475,7 +435,8 @@ fun NavigationDestinationPanel(
     onYInputChanged: (String) -> Unit,
     onYawInputChanged: (String) -> Unit,
     onStartNavigationClick: () -> Unit,
-    onOpenAddLocationDialog: () -> Unit
+    onOpenAddLocationDialog: () -> Unit,
+    onDeleteSavedLocation: (String) -> Unit
 ) {
     val colors = MonochromeTheme.colors
     val shapes = MonochromeTheme.shapes
@@ -514,24 +475,21 @@ fun NavigationDestinationPanel(
 
                 when (uiState.selectedTab) {
                     NavigationTab.SavedLocations -> {
-                        if (uiState.savedLocations.isEmpty()) {
-                            EmptySavedLocationsView()
-                        } else {
-                            SavedLocationsList(
-                                locations = uiState.savedLocations,
-                                selectedDestination = uiState.selectedDestination,
-                                onLocationSelected = { location ->
-                                    val dest = NavigationDestinationUi.SavedLocation(
-                                        id = location.id,
-                                        name = location.name,
-                                        x = location.x,
-                                        y = location.y
-                                    )
-                                    onDestinationSelected(dest)
-                                },
-                                onOpenAddLocationDialog = onOpenAddLocationDialog
-                            )
-                        }
+                        SavedLocationsList(
+                            locations = uiState.savedLocations,
+                            selectedDestination = uiState.selectedDestination,
+                            onLocationSelected = { location ->
+                                val dest = NavigationDestinationUi.SavedLocation(
+                                    id = location.id,
+                                    name = location.name,
+                                    x = location.x,
+                                    y = location.y
+                                )
+                                onDestinationSelected(dest)
+                            },
+                            onOpenAddLocationDialog = onOpenAddLocationDialog,
+                            onDeleteLocation = onDeleteSavedLocation
+                        )
                     }
 
                     NavigationTab.Coordinates -> {
@@ -589,7 +547,7 @@ fun MapPickerHelpView() {
     ) {
         Text("Tap Anywhere On Map", style = typography.body, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(4.dp))
-        Text("Tap directly on the floorplan map on the left to set custom navigation waypoints.", style = typography.caption)
+        Text("Tap directly on the live occupancy map to set custom target navigation waypoints.", style = typography.caption)
     }
 }
 
@@ -598,7 +556,8 @@ fun SavedLocationsList(
     locations: List<SavedLocationUi>,
     selectedDestination: NavigationDestinationUi,
     onLocationSelected: (SavedLocationUi) -> Unit,
-    onOpenAddLocationDialog: () -> Unit
+    onOpenAddLocationDialog: () -> Unit,
+    onDeleteLocation: (String) -> Unit
 ) {
     val colors = MonochromeTheme.colors
     val typography = MonochromeTheme.typography
@@ -625,12 +584,22 @@ fun SavedLocationsList(
             )
         }
 
+        if (locations.isEmpty()) {
+            Text(
+                text = "No saved waypoints on active map.",
+                style = typography.caption,
+                color = colors.mutedText,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        }
+
         locations.forEach { location ->
             val isSelected = selectedDestination is NavigationDestinationUi.SavedLocation && selectedDestination.id == location.id
             SavedLocationCard(
                 location = location,
                 isSelected = isSelected,
-                onClick = { onLocationSelected(location) }
+                onClick = { onLocationSelected(location) },
+                onDelete = { onDeleteLocation(location.id) }
             )
         }
     }
@@ -640,7 +609,8 @@ fun SavedLocationsList(
 fun SavedLocationCard(
     location: SavedLocationUi,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDelete: () -> Unit = {}
 ) {
     val colors = MonochromeTheme.colors
     val typography = MonochromeTheme.typography
@@ -658,8 +628,8 @@ fun SavedLocationCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
@@ -672,65 +642,36 @@ fun SavedLocationCard(
                         imageVector = Icons.Default.Place,
                         contentDescription = null,
                         tint = if (isSelected) colors.primaryActionFg else colors.primaryText,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
                 Column {
                     Text(
                         text = location.name,
-                        style = typography.body,
+                        style = typography.bodySmall,
                         fontWeight = FontWeight.Bold,
                         color = colors.primaryText
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Coordinates: ${location.coordinatesFormatted}",
+                        text = location.coordinatesFormatted,
                         style = typography.caption,
                         color = colors.secondaryText
                     )
                 }
             }
 
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = colors.mutedText,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-    }
-}
-
-@Composable
-fun EmptySavedLocationsView() {
-    val colors = MonochromeTheme.colors
-    val typography = MonochromeTheme.typography
-
-    MonochromeCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(160.dp),
-        backgroundColor = colors.interactiveSurface,
-        borderColor = colors.defaultBorder
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Place,
-                contentDescription = null,
-                tint = colors.mutedText,
+            IconButton(
+                onClick = onDelete,
                 modifier = Modifier.size(32.dp)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "No saved locations yet",
-                style = typography.bodySmall,
-                color = colors.secondaryText
-            )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete Waypoint",
+                    tint = colors.mutedText,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }
@@ -744,37 +685,45 @@ fun CoordinatesInputPanel(
     onYInputChanged: (String) -> Unit,
     onYawInputChanged: (String) -> Unit
 ) {
+    val colors = MonochromeTheme.colors
+    val typography = MonochromeTheme.typography
+
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(modifier = Modifier.weight(1f)) {
+        Text("TARGET POSE COORDINATES", style = typography.label, color = colors.secondaryText)
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("X (meters)", style = typography.caption, color = colors.secondaryText)
+                Spacer(modifier = Modifier.height(4.dp))
                 MonochromeTextField(
                     value = xInput,
                     onValueChange = onXInputChanged,
-                    label = "X Position (m)",
                     placeholder = "0.0"
                 )
             }
-            Box(modifier = Modifier.weight(1f)) {
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Y (meters)", style = typography.caption, color = colors.secondaryText)
+                Spacer(modifier = Modifier.height(4.dp))
                 MonochromeTextField(
                     value = yInput,
                     onValueChange = onYInputChanged,
-                    label = "Y Position (m)",
+                    placeholder = "0.0"
+                )
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Yaw (rad)", style = typography.caption, color = colors.secondaryText)
+                Spacer(modifier = Modifier.height(4.dp))
+                MonochromeTextField(
+                    value = yawInput,
+                    onValueChange = onYawInputChanged,
                     placeholder = "0.0"
                 )
             }
         }
-
-        MonochromeTextField(
-            value = yawInput,
-            onValueChange = onYawInputChanged,
-            label = "Yaw Heading (°)",
-            placeholder = "0.0°"
-        )
     }
 }
 
@@ -799,8 +748,8 @@ fun ChargingDockCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
@@ -813,20 +762,19 @@ fun ChargingDockCard(
                         imageVector = Icons.Default.Home,
                         contentDescription = null,
                         tint = if (isSelected) colors.primaryActionFg else colors.primaryText,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
                 Column {
                     Text(
-                        text = "Primary Charging Dock",
-                        style = typography.body,
+                        text = stringResource(R.string.loc_charging_dock),
+                        style = typography.bodySmall,
                         fontWeight = FontWeight.Bold,
                         color = colors.primaryText
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Available • Standard Dock",
+                        text = stringResource(R.string.charging_dock_subtitle),
                         style = typography.caption,
                         color = colors.secondaryText
                     )
@@ -836,82 +784,8 @@ fun ChargingDockCard(
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,
-                tint = colors.mutedText,
-                modifier = Modifier.size(20.dp)
+                tint = colors.secondaryText
             )
         }
-    }
-}
-
-@Composable
-fun AddLocationDialog(
-    onDismiss: () -> Unit,
-    onSave: (String, Double, Double) -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-    var xStr by remember { mutableStateOf("") }
-    var yStr by remember { mutableStateOf("") }
-
-    MonochromeDialog(
-        onDismissRequest = onDismiss,
-        title = "Add Saved Location",
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                MonochromeTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = "Location Name",
-                    placeholder = "e.g. Conference Room"
-                )
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        MonochromeTextField(
-                            value = xStr,
-                            onValueChange = { xStr = it },
-                            label = "X Coordinate",
-                            placeholder = "2.5"
-                        )
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        MonochromeTextField(
-                            value = yStr,
-                            onValueChange = { yStr = it },
-                            label = "Y Coordinate",
-                            placeholder = "4.0"
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            MonochromeButton(
-                text = "Save",
-                variant = MonochromeButtonVariant.Primary,
-                enabled = name.isNotBlank(),
-                onClick = {
-                    val x = xStr.toDoubleOrNull() ?: 0.0
-                    val y = yStr.toDoubleOrNull() ?: 0.0
-                    onSave(name, x, y)
-                }
-            )
-        },
-        dismissButton = {
-            MonochromeButton(
-                text = "Cancel",
-                variant = MonochromeButtonVariant.Ghost,
-                onClick = onDismiss
-            )
-        }
-    )
-}
-
-@Preview(name = "Pixel 7 Portrait", showBackground = true, device = "id:pixel_7")
-@Preview(name = "Pixel 8 Portrait", showBackground = true, device = "id:pixel_8")
-@Preview(name = "Navigation Screen Tablet", showBackground = true, widthDp = 1280, heightDp = 800)
-@Composable
-fun NavigationScreenPreview() {
-    MonochromeTheme(darkTheme = false) {
-        NavigationScreenContent()
     }
 }

@@ -162,10 +162,12 @@ fun HomeScreenContent(
     val deviceMode = LocalDeviceMode.current
 
     val paddingValues = if (deviceMode == DeviceMode.MOBILE) {
-        MonochromeTheme.spacing.space4
+        12.dp
     } else {
         MonochromeTheme.spacing.cardPadding
     }
+
+    val itemSpacing = if (deviceMode == DeviceMode.MOBILE) 10.dp else MonochromeTheme.spacing.cardPadding
 
     AdaptiveNavigationLayout(
         selectedItem = selectedNav,
@@ -179,58 +181,51 @@ fun HomeScreenContent(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(MonochromeTheme.spacing.cardPadding)
+            verticalArrangement = Arrangement.spacedBy(itemSpacing)
         ) {
             // Top Header Row & Battery Info
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 // Header Greeting & Status Title
                 Column {
                     Text(
                         text = "Good Morning",
-                        style = typography.body,
+                        style = typography.caption,
                         color = colors.secondaryText
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Robot is Ready",
-                        style = if (deviceMode == DeviceMode.MOBILE) typography.h2 else typography.h1,
+                        style = if (deviceMode == DeviceMode.MOBILE) typography.h3 else typography.h1,
                         color = colors.primaryText,
                         fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Connected and ready for operation",
-                        style = typography.bodySmall,
-                        color = colors.secondaryText
                     )
                 }
 
                 // Top-Right Battery Status Indicator
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.BatteryFull,
                         contentDescription = "Battery Status",
                         tint = colors.statusActive,
-                        modifier = Modifier.size(if (deviceMode == DeviceMode.MOBILE) 28.dp else 40.dp)
+                        modifier = Modifier.size(if (deviceMode == DeviceMode.MOBILE) 24.dp else 40.dp)
                     )
 
                     Column {
                         Text(
                             text = uiState.batteryStatus.displayText.ifBlank { "85%" },
-                            style = if (deviceMode == DeviceMode.MOBILE) typography.h4 else typography.h3,
+                            style = if (deviceMode == DeviceMode.MOBILE) typography.bodyLarge else typography.h3,
                             color = colors.primaryText,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = "Battery",
-                            style = typography.label,
+                            style = typography.caption,
                             color = colors.secondaryText
                         )
                     }
@@ -240,7 +235,7 @@ fun HomeScreenContent(
             // Main Section: Telemetry & Quick Actions
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(MonochromeTheme.spacing.space6)
+                verticalArrangement = Arrangement.spacedBy(itemSpacing)
             ) {
                 // Four Telemetry Cards
                 TelemetryRow(
@@ -313,18 +308,18 @@ private fun TelemetryRow(
     if (deviceMode == DeviceMode.MOBILE) {
         Column(
             modifier = modifier,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 card1(Modifier.weight(1f))
                 card2(Modifier.weight(1f))
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 card3(Modifier.weight(1f))
                 card4(Modifier.weight(1f))
@@ -355,23 +350,26 @@ private fun TelemetryCard(
 ) {
     val colors = MonochromeTheme.colors
     val typography = MonochromeTheme.typography
+    val deviceMode = LocalDeviceMode.current
+    val cardPadding = if (deviceMode == DeviceMode.MOBILE) 10.dp else MonochromeTheme.spacing.cardPadding
+    val iconSize = if (deviceMode == DeviceMode.MOBILE) 24.dp else 32.dp
 
     MonochromeCard(
         modifier = modifier,
         backgroundColor = colors.surface,
         borderColor = colors.defaultBorder,
-        padding = MonochromeTheme.spacing.cardPadding
+        padding = cardPadding
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = secondaryLabel,
                 tint = colors.primaryText,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(iconSize)
             )
 
             Column(
@@ -379,13 +377,12 @@ private fun TelemetryCard(
             ) {
                 Text(
                     text = primaryValue,
-                    style = typography.bodyLarge,
+                    style = if (deviceMode == DeviceMode.MOBILE) typography.bodySmall.copy(fontWeight = FontWeight.Bold) else typography.bodyLarge,
                     color = colors.primaryText,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = secondaryLabel,
                     style = typography.caption,
@@ -409,18 +406,21 @@ private fun QuickActionsGrid(
     onEmergencyReleaseClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val deviceMode = LocalDeviceMode.current
+    val spacing = if (deviceMode == DeviceMode.MOBILE) 8.dp else 16.dp
+
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(spacing)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(spacing)
         ) {
             QuickActionCard(
                 icon = Icons.AutoMirrored.Filled.Send,
                 title = "Navigate",
-                subtitle = "Go to a location on map",
+                subtitle = "Go to location",
                 onClick = onNavigateClick,
                 modifier = Modifier.weight(1f)
             )
@@ -428,7 +428,7 @@ private fun QuickActionsGrid(
             QuickActionCard(
                 icon = Icons.Default.SportsEsports,
                 title = "Manual Control",
-                subtitle = "Move robot manually",
+                subtitle = "Move manually",
                 onClick = onManualControlClick,
                 modifier = Modifier.weight(1f)
             )
@@ -436,20 +436,20 @@ private fun QuickActionsGrid(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(spacing)
         ) {
             QuickActionCard(
                 icon = Icons.Default.Home,
-                title = "Return to Home",
-                subtitle = "Go to charging dock",
+                title = "Return Home",
+                subtitle = "Dock to charge",
                 onClick = onReturnHomeClick,
                 modifier = Modifier.weight(1f)
             )
 
             QuickActionCard(
                 icon = Icons.Default.Warning,
-                title = "Emergency Release",
-                subtitle = "Release emergency stop",
+                title = "Emergency",
+                subtitle = "Release brake",
                 onClick = onEmergencyReleaseClick,
                 modifier = Modifier.weight(1f)
             )
@@ -470,12 +470,15 @@ private fun QuickActionCard(
 ) {
     val colors = MonochromeTheme.colors
     val typography = MonochromeTheme.typography
+    val deviceMode = LocalDeviceMode.current
+    val padding = if (deviceMode == DeviceMode.MOBILE) 10.dp else MonochromeTheme.spacing.cardPadding
+    val iconSize = if (deviceMode == DeviceMode.MOBILE) 24.dp else 32.dp
 
     MonochromeCard(
         modifier = modifier,
         backgroundColor = colors.surface,
         borderColor = colors.defaultBorder,
-        padding = MonochromeTheme.spacing.cardPadding,
+        padding = padding,
         onClick = onClick
     ) {
         Row(
@@ -486,13 +489,13 @@ private fun QuickActionCard(
             Row(
                 modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = title,
                     tint = colors.primaryText,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(iconSize)
                 )
 
                 Column(
@@ -500,13 +503,12 @@ private fun QuickActionCard(
                 ) {
                     Text(
                         text = title,
-                        style = typography.bodyLarge,
+                        style = if (deviceMode == DeviceMode.MOBILE) typography.bodySmall.copy(fontWeight = FontWeight.Bold) else typography.bodyLarge,
                         color = colors.primaryText,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = subtitle,
                         style = typography.caption,
@@ -517,13 +519,11 @@ private fun QuickActionCard(
                 }
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
-
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = "Action",
                 tint = colors.primaryText,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(if (deviceMode == DeviceMode.MOBILE) 18.dp else 24.dp)
             )
         }
     }
@@ -617,8 +617,13 @@ private fun SystemStatusOverviewCard(
 @Composable
 fun HomeScreenPreview() {
     MonochromeTheme(darkTheme = false) {
-        HomeScreenContent(
-            uiState = HomeUiState()
-        )
+        BoxWithConstraints {
+            val deviceMode = com.alokrathava.theme.calculateDeviceMode(this.maxWidth)
+            CompositionLocalProvider(LocalDeviceMode provides deviceMode) {
+                HomeScreenContent(
+                    uiState = HomeUiState()
+                )
+            }
+        }
     }
 }

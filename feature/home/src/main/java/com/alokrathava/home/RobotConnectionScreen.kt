@@ -188,8 +188,8 @@ fun ConnectionStepTabBar(
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         val steps = listOf(
-            RobotConnectionStep.AUTO_DISCOVERY to "1. Auto Discover",
-            RobotConnectionStep.IP_PORT_CONFIG to "2. IP & Port",
+            RobotConnectionStep.AUTO_DISCOVERY to "1. Discover",
+            RobotConnectionStep.IP_PORT_CONFIG to "2. IP Setup",
             RobotConnectionStep.NETWORK_SELECTION to "3. Wi-Fi"
         )
 

@@ -415,3 +415,33 @@ internal data class RobotStateSnapshotPayloadDto(
     val health: RobotHealthPayloadDto? = null,
     val mapState: RobotMapStateDto? = null
 )
+
+/**
+ * Protocol DTO carrying a full 2D occupancy grid map snapshot.
+ */
+@Serializable
+internal data class MapSnapshotPayloadDto(
+    val mapId: String = "",
+    val widthCells: Int = 0,
+    val heightCells: Int = 0,
+    val resolutionMetersPerCell: Double = 0.05,
+    val originX: Double = 0.0,
+    val originY: Double = 0.0,
+    val originYaw: Double = 0.0,
+    val dataBase64: String = "",
+    val data: List<Int> = emptyList()
+)
+
+/**
+ * Protocol DTO carrying partial live occupancy grid cell updates.
+ */
+@Serializable
+internal data class MapUpdatePayloadDto(
+    val mapId: String = "",
+    val startX: Int = 0,
+    val startY: Int = 0,
+    val width: Int = 0,
+    val height: Int = 0,
+    val dataBase64: String = "",
+    val data: List<Int> = emptyList()
+)

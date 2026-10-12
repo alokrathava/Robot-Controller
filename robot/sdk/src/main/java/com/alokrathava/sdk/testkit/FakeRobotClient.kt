@@ -68,6 +68,9 @@ class FakeRobotClient : RobotClient {
     val mutableActiveMap = MutableStateFlow<RobotMap?>(null)
     override val activeMap: StateFlow<RobotMap?> = mutableActiveMap.asStateFlow()
 
+    val mutableOccupancyGrid = MutableStateFlow<com.alokrathava.sdk.model.RobotOccupancyGrid?>(null)
+    override val occupancyGrid: StateFlow<com.alokrathava.sdk.model.RobotOccupancyGrid?> = mutableOccupancyGrid.asStateFlow()
+
     val mutableMapOperationState = MutableStateFlow<MapOperationState>(MapOperationState.Idle)
     override val mapOperationState: StateFlow<MapOperationState> = mutableMapOperationState.asStateFlow()
 

@@ -99,7 +99,11 @@ internal class RobotClientRepositoryImpl(
     private var battJob: Job? = null
     private var dockJob: Job? = null
     private var mapJob: Job? = null
+    private var gridJob: Job? = null
     private var metricsJob: Job? = null
+
+    private val _occupancyGrid = MutableStateFlow<com.alokrathava.sdk.model.RobotOccupancyGrid?>(null)
+    override val occupancyGrid: StateFlow<com.alokrathava.sdk.model.RobotOccupancyGrid?> = _occupancyGrid.asStateFlow()
 
     private val _connectionMetrics = MutableStateFlow(com.alokrathava.sdk.model.ConnectionMetrics())
     override val connectionMetrics: StateFlow<com.alokrathava.sdk.model.ConnectionMetrics> = _connectionMetrics.asStateFlow()
@@ -154,9 +158,16 @@ internal class RobotClientRepositoryImpl(
         battJob?.cancel()
         dockJob?.cancel()
         mapJob?.cancel()
+        gridJob?.cancel()
         metricsJob?.cancel()
 
         activeClient = client
+
+        gridJob = scope.launch {
+            client.occupancyGrid.collect { grid ->
+                _occupancyGrid.value = grid
+            }
+        }
 
         connJob = scope.launch {
             client.connectionState.collect { state ->
@@ -360,11 +371,17 @@ internal class RobotClientRepositoryImpl(
         scope.launch { activeClient.cancelDocking() }
     }
 
+    override suspend fun startMapping(): RobotResult<Unit> = activeClient.startMapping()
+
+    override suspend fun stopMapping(discardUnsaved: Boolean): RobotResult<Unit> = activeClient.stopMapping(discardUnsaved)
+
     override suspend fun listMaps(): RobotResult<List<RobotMap>> = activeClient.listMaps()
 
     override suspend fun switchMap(mapId: String): RobotResult<Unit> = activeClient.switchMap(mapId)
 
     override suspend fun saveCurrentMap(name: String): RobotResult<RobotMap> = activeClient.saveCurrentMap(name)
+
+    override suspend fun renameMap(mapId: String, newName: String): RobotResult<RobotMap> = activeClient.renameMap(mapId, newName)
 
     override suspend fun deleteMap(mapId: String): RobotResult<Unit> = activeClient.deleteMap(mapId)
 

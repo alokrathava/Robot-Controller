@@ -183,7 +183,7 @@ fun MobileTopHeader(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .height(56.dp),
+            .height(48.dp),
         color = colors.background
     ) {
         Row(
@@ -196,7 +196,7 @@ fun MobileTopHeader(
             Column {
                 Text(
                     text = title,
-                    style = typography.h4,
+                    style = typography.bodyLarge,
                     color = colors.primaryText,
                     fontWeight = FontWeight.Bold
                 )
@@ -209,11 +209,11 @@ fun MobileTopHeader(
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(spacing.space2)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(10.dp)
+                        .size(8.dp)
                         .clip(CircleShape)
                         .background(if (isConnected) colors.statusActive else colors.disabledText)
                 )
@@ -247,8 +247,8 @@ fun MobileBottomBar(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(60.dp)
-                    .padding(horizontal = 2.dp),
+                    .height(54.dp)
+                    .padding(horizontal = 2.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -256,6 +256,12 @@ fun MobileBottomBar(
                     val isSelected = selectedItem == item
                     val fg = if (isSelected) colors.primaryText else colors.secondaryText
                     val bg = if (isSelected) colors.interactiveSurface else Color.Transparent
+
+                    val displayLabel = when (item) {
+                        SidebarNavItem.MANUAL_CONTROL -> "Manual"
+                        SidebarNavItem.ROBOT_STATUS -> "Status"
+                        else -> item.title
+                    }
 
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -266,7 +272,7 @@ fun MobileBottomBar(
                             .clip(shapes.buttons)
                             .background(bg)
                             .clickable { onItemSelected(item) }
-                            .padding(vertical = 4.dp)
+                            .padding(vertical = 2.dp)
                     ) {
                         Icon(
                             imageVector = item.icon,
@@ -274,9 +280,8 @@ fun MobileBottomBar(
                             tint = fg,
                             modifier = Modifier.size(20.dp)
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = item.title,
+                            text = displayLabel,
                             style = typography.caption,
                             color = fg,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,

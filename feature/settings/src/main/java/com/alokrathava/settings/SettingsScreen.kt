@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -84,47 +85,59 @@ fun SettingsScreenContent(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(spacing.space4)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = "Settings",
-                    style = typography.h2,
-                    color = colors.primaryText
-                )
-                Text(
-                    text = "Configure robot, connection and app preferences",
-                    style = typography.bodySmall,
-                    color = colors.secondaryText
-                )
+                // Header
+                Column {
+                    Text(
+                        text = "Settings",
+                        style = typography.h3,
+                        color = colors.primaryText,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Configure robot & app preferences",
+                        style = typography.caption,
+                        color = colors.secondaryText
+                    )
+                }
 
-                // Connection Status Card
+                // Compact Connection Status Banner
                 MonochromeCard(
                     modifier = Modifier.fillMaxWidth(),
                     backgroundColor = colors.surface,
                     borderColor = colors.hoverSurface,
-                    padding = spacing.cardPadding
+                    padding = 10.dp
                 ) {
-                    Text(text = "Connection Status", style = typography.h4, color = colors.primaryText)
-                    Spacer(modifier = Modifier.height(spacing.space2))
-                    MonochromeStatusPill(
-                        text = if (uiState.isConnected) "Connected" else "Disconnected",
-                        level = if (uiState.isConnected) StatusLevel.Active else StatusLevel.Inactive
-                    )
-                    Spacer(modifier = Modifier.height(spacing.space3))
-                    Column(verticalArrangement = Arrangement.spacedBy(spacing.space2)) {
-                        ConnectionMetadataRow(label = "IP Address", value = uiState.robotIpAddress)
-                        ConnectionMetadataRow(label = "Port", value = uiState.port)
-                        ConnectionMetadataRow(label = "Latency", value = uiState.latencyMs?.let { "${it} ms" } ?: "--")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            MonochromeStatusPill(
+                                text = if (uiState.isConnected) "Connected" else "Disconnected",
+                                level = if (uiState.isConnected) StatusLevel.Active else StatusLevel.Inactive
+                            )
+                            Text(
+                                text = "${uiState.robotIpAddress}:${uiState.port}",
+                                style = typography.monoCaption,
+                                color = colors.secondaryText
+                            )
+                        }
+
+                        MonochromeButton(
+                            onClick = onToggleConnection,
+                            text = if (uiState.isConnected) "Disconnect" else "Connect",
+                            variant = MonochromeButtonVariant.Secondary,
+                            size = MonochromeButtonSize.Standard
+                        )
                     }
-                    Spacer(modifier = Modifier.height(spacing.space4))
-                    MonochromeButton(
-                        onClick = onToggleConnection,
-                        text = if (uiState.isConnected) "Disconnect" else "Connect",
-                        variant = MonochromeButtonVariant.Secondary,
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
 
                 MonochromeSegmentedControl(
@@ -549,19 +562,24 @@ private fun PlaceholderTabContent(
 @Composable
 fun SettingsScreenPreview() {
     MonochromeTheme(darkTheme = false) {
-        SettingsScreenContent(
-            uiState = SettingsUiState(
-                selectedTab = SettingsTab.CONNECTION,
-                robotIpAddress = "192.168.1.100",
-                port = "8080",
-                autoConnect = true,
-                reconnectionAttempts = 3,
-                connectionTimeoutSeconds = 10,
-                connectionStatus = com.alokrathava.sdk.model.ConnectionStatus.CONNECTED,
-                connectionAddress = "192.168.1.100:8080",
-                latencyMs = 12L,
-                lastConnected = "2m connected"
-            )
-        )
+        androidx.compose.foundation.layout.BoxWithConstraints {
+            val deviceMode = com.alokrathava.theme.calculateDeviceMode(this.maxWidth)
+            androidx.compose.runtime.CompositionLocalProvider(LocalDeviceMode provides deviceMode) {
+                SettingsScreenContent(
+                    uiState = SettingsUiState(
+                        selectedTab = SettingsTab.CONNECTION,
+                        robotIpAddress = "192.168.1.100",
+                        port = "8080",
+                        autoConnect = true,
+                        reconnectionAttempts = 3,
+                        connectionTimeoutSeconds = 10,
+                        connectionStatus = com.alokrathava.sdk.model.ConnectionStatus.CONNECTED,
+                        connectionAddress = "192.168.1.100:8080",
+                        latencyMs = 12L,
+                        lastConnected = "2m connected"
+                    )
+                )
+            }
+        }
     }
 }

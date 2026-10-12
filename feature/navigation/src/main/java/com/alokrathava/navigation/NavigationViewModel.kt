@@ -7,7 +7,6 @@ import com.alokrathava.sdk.error.RobotResult
 import com.alokrathava.sdk.model.BatteryStatus
 import com.alokrathava.sdk.model.ConnectionStatus
 import com.alokrathava.sdk.model.DockingStatus
-import com.alokrathava.sdk.model.MapData
 import com.alokrathava.sdk.model.NavigationStatus
 import com.alokrathava.sdk.model.Pose2D
 import com.alokrathava.sdk.model.RobotPosition
@@ -24,6 +23,7 @@ import javax.inject.Inject
 private data class FormInputState(
     val selectedTab: NavigationTab = NavigationTab.SavedLocations,
     val selectedDestination: NavigationDestinationUi = NavigationDestinationUi.None,
+    val targetPose: Pose2D? = null,
     val xInput: String = "",
     val yInput: String = "",
     val yawInput: String = "",
@@ -32,7 +32,7 @@ private data class FormInputState(
 )
 
 private data class SavedLocationsState(
-    val locations: List<SavedLocationUi> = sampleLocations,
+    val locations: List<SavedLocationUi> = emptyList(),
     val isAddDialogOpen: Boolean = false,
     val nameInput: String = "",
     val xInput: String = "",
@@ -45,16 +45,13 @@ private data class LocalNavigationState(
     val execution: NavigationExecutionStatus
 )
 
-private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
-
-private data class RobotNavigationState(
+private data class RobotStateGroup(
     val battery: BatteryStatus,
     val connection: ConnectionStatus,
-    val mapData: MapData,
-    val navStatus: NavigationStatus,
     val position: RobotPosition,
     val telemetry: RobotTelemetry,
-    val dockingStatus: DockingStatus
+    val dockingStatus: DockingStatus,
+    val occupancyGrid: com.alokrathava.sdk.model.RobotOccupancyGrid?
 )
 
 @HiltViewModel
@@ -70,21 +67,20 @@ class NavigationViewModel @Inject constructor(
         loadSavedLocationsFromRobot()
     }
 
-    private fun loadSavedLocationsFromRobot() {
+    /** Loads saved map destinations from the connected robot. */
+    fun loadSavedLocationsFromRobot() {
         viewModelScope.launch {
             when (val result = robotRepository.listSavedLocations()) {
                 is RobotResult.Success -> {
-                    if (result.value.isNotEmpty()) {
-                        val mapped = result.value.map { loc ->
-                            SavedLocationUi(
-                                id = loc.id,
-                                name = loc.name,
-                                x = loc.pose.xMeters,
-                                y = loc.pose.yMeters
-                            )
-                        }
-                        _locationsState.value = _locationsState.value.copy(locations = mapped)
+                    val mapped = result.value.map { loc ->
+                        SavedLocationUi(
+                            id = loc.id,
+                            name = loc.name,
+                            x = loc.pose.xMeters,
+                            y = loc.pose.yMeters
+                        )
                     }
+                    _locationsState.value = _locationsState.value.copy(locations = mapped)
                 }
                 is RobotResult.Failure -> { }
             }
@@ -99,33 +95,34 @@ class NavigationViewModel @Inject constructor(
         LocalNavigationState(form, locations, execution)
     }
 
-    private val _robotStateFlow = combine(
+    private val _robotStateGroup = combine(
         robotRepository.batteryStatus,
         robotRepository.connectionStatus,
-        robotRepository.mapData,
+        robotRepository.position,
+        robotRepository.telemetry,
         combine(
-            robotRepository.navigationStatus,
-            robotRepository.position,
-            robotRepository.telemetry,
-            robotRepository.dockingStatus
-        ) { nav, pos, telem, dock -> Quad(nav, pos, telem, dock) }
-    ) { battery, connection, mapData, (navStatus, pos, telem, dock) ->
-        RobotNavigationState(battery, connection, mapData, navStatus, pos, telem, dock)
+            robotRepository.dockingStatus,
+            robotRepository.occupancyGrid
+        ) { dock, grid -> Pair(dock, grid) }
+    ) { battery, connection, pos, telem, (dock, grid) ->
+        RobotStateGroup(battery, connection, pos, telem, dock, grid)
     }
 
     val uiState: StateFlow<NavigationUiState> = combine(
         _localNavigationFlow,
-        _robotStateFlow
+        _robotStateGroup
     ) { local, robot ->
-        val mappedExecution = when (robot.navStatus) {
-            NavigationStatus.NAVIGATING -> if (local.execution is NavigationExecutionStatus.Navigating) local.execution else NavigationExecutionStatus.Navigating(destination = local.form.selectedDestination)
-            NavigationStatus.CANCELLED -> NavigationExecutionStatus.Cancelled
-            NavigationStatus.EMERGENCY_STOP -> NavigationExecutionStatus.Failed("Emergency stop active")
+        val mappedExecution = when {
+            robot.telemetry.isMoving && robot.telemetry.navigationState.equals("NAVIGATING", ignoreCase = true) -> {
+                if (local.execution is NavigationExecutionStatus.Navigating) local.execution
+                else NavigationExecutionStatus.Navigating(destination = local.form.selectedDestination)
+            }
+            robot.telemetry.navigationState.equals("CANCELLED", ignoreCase = true) -> NavigationExecutionStatus.Cancelled
             else -> local.execution
         }
 
-        val mapState = if (robot.mapData.isAvailable) {
-            MapUiState.Loaded(mapName = robot.mapData.name, isAvailable = true)
+        val mapState = if (robot.occupancyGrid != null && robot.occupancyGrid.isValid) {
+            MapUiState.Loaded(mapName = robot.occupancyGrid.mapId.ifEmpty { "Active Map" }, isAvailable = true)
         } else {
             MapUiState.NoMapAvailable
         }
@@ -134,6 +131,7 @@ class NavigationViewModel @Inject constructor(
             selectedTab = local.form.selectedTab,
             savedLocations = local.locations.locations,
             selectedDestination = local.form.selectedDestination,
+            targetPose = local.form.targetPose,
             xInput = local.form.xInput,
             yInput = local.form.yInput,
             yawInput = local.form.yawInput,
@@ -141,6 +139,7 @@ class NavigationViewModel @Inject constructor(
             yInputError = local.form.yInputError,
             executionStatus = mappedExecution,
             mapUiState = mapState,
+            occupancyGrid = robot.occupancyGrid,
             isAddLocationDialogOpen = local.locations.isAddDialogOpen,
             newLocationNameInput = local.locations.nameInput,
             newLocationXInput = local.locations.xInput,
@@ -162,7 +161,34 @@ class NavigationViewModel @Inject constructor(
     }
 
     fun selectDestination(destination: NavigationDestinationUi) {
-        _formState.value = _formState.value.copy(selectedDestination = destination)
+        val target = when (destination) {
+            is NavigationDestinationUi.SavedLocation -> Pose2D(xMeters = destination.x, yMeters = destination.y, yawRadians = 0.0)
+            is NavigationDestinationUi.Coordinates -> {
+                val x = destination.x.toDoubleOrNull() ?: 0.0
+                val y = destination.y.toDoubleOrNull() ?: 0.0
+                val yaw = destination.yaw.toDoubleOrNull() ?: 0.0
+                Pose2D(xMeters = x, yMeters = y, yawRadians = yaw)
+            }
+            else -> null
+        }
+        _formState.value = _formState.value.copy(
+            selectedDestination = destination,
+            targetPose = target
+        )
+    }
+
+    /** Handles direct map tap gestures to place target destination pin. */
+    fun onMapTapped(worldX: Double, worldY: Double) {
+        val formattedX = "%.2f".format(worldX)
+        val formattedY = "%.2f".format(worldY)
+        val dest = NavigationDestinationUi.Coordinates(formattedX, formattedY, "0.0")
+        _formState.value = _formState.value.copy(
+            selectedDestination = dest,
+            targetPose = Pose2D(xMeters = worldX, yMeters = worldY, yawRadians = 0.0),
+            xInput = formattedX,
+            yInput = formattedY,
+            yawInput = "0.0"
+        )
     }
 
     fun updateXInput(x: String) {
@@ -179,6 +205,7 @@ class NavigationViewModel @Inject constructor(
         _formState.value = _formState.value.copy(yawInput = yaw)
     }
 
+    /** Dispatches autonomous navigation task to the robot. */
     fun startNavigation() {
         val dest = _formState.value.selectedDestination
         when (dest) {
@@ -210,6 +237,7 @@ class NavigationViewModel @Inject constructor(
         }
     }
 
+    /** Cancels current navigation task. */
     fun cancelNavigation() {
         robotRepository.cancelNavigation()
         _executionStatus.value = NavigationExecutionStatus.Cancelled
@@ -219,25 +247,30 @@ class NavigationViewModel @Inject constructor(
         _locationsState.value = _locationsState.value.copy(isAddDialogOpen = isOpen)
     }
 
+    /** Saves a new location on the active map on the robot. */
     fun saveNewLocation(name: String, x: Double, y: Double) {
         if (name.isBlank()) return
-        val newLoc = SavedLocationUi(
-            id = System.currentTimeMillis().toString(),
-            name = name,
-            x = x,
-            y = y
-        )
-        val updated = _locationsState.value.locations + newLoc
-        _locationsState.value = _locationsState.value.copy(
-            locations = updated,
-            isAddDialogOpen = false,
-            nameInput = "",
-            xInput = "",
-            yInput = ""
-        )
-
         viewModelScope.launch {
-            robotRepository.saveLocation(name, Pose2D(xMeters = x, yMeters = y, yawRadians = 0.0))
+            val result = robotRepository.saveLocation(name, Pose2D(xMeters = x, yMeters = y, yawRadians = 0.0))
+            if (result is RobotResult.Success) {
+                loadSavedLocationsFromRobot()
+            }
+            _locationsState.value = _locationsState.value.copy(
+                isAddDialogOpen = false,
+                nameInput = "",
+                xInput = "",
+                yInput = ""
+            )
+        }
+    }
+
+    /** Deletes a saved location from the robot. */
+    fun deleteSavedLocation(id: String) {
+        viewModelScope.launch {
+            when (robotRepository.deleteLocation(id)) {
+                is RobotResult.Success -> loadSavedLocationsFromRobot()
+                is RobotResult.Failure -> { }
+            }
         }
     }
 }

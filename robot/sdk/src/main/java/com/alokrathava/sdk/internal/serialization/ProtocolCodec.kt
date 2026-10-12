@@ -19,6 +19,9 @@ import com.alokrathava.sdk.internal.protocol.ListSavedLocationsAckPayloadDto
 import com.alokrathava.sdk.internal.protocol.ListSavedLocationsPayloadDto
 import com.alokrathava.sdk.internal.protocol.ListVirtualWallsAckPayloadDto
 import com.alokrathava.sdk.internal.protocol.ListVirtualWallsPayloadDto
+import com.alokrathava.sdk.internal.protocol.MapSnapshotPayloadDto
+import com.alokrathava.sdk.internal.protocol.MapUpdatePayloadDto
+import com.alokrathava.sdk.model.RobotOccupancyGrid
 import com.alokrathava.sdk.internal.protocol.ManualVelocityPayloadDto
 import com.alokrathava.sdk.internal.protocol.MapInfoDto
 import com.alokrathava.sdk.internal.protocol.MapPointDto
@@ -851,6 +854,84 @@ internal object ProtocolCodec {
             7 -> DockingState.FAILED
             8 -> DockingState.CANCELLED
             else -> DockingState.FAILED
+        }
+    }
+
+    /**
+     * Decodes a full occupancy grid map snapshot payload from JSON into a [RobotOccupancyGrid].
+     */
+    fun decodeMapSnapshot(payload: kotlinx.serialization.json.JsonObject?): RobotOccupancyGrid? {
+        if (payload == null) return null
+        val dto = json.decodeFromJsonElement<MapSnapshotPayloadDto>(payload)
+        val bytes = when {
+            dto.dataBase64.isNotBlank() -> decodeBase64(dto.dataBase64)
+            dto.data.isNotEmpty() -> dto.data.map { it.toByte() }.toByteArray()
+            else -> byteArrayOf()
+        }
+        return RobotOccupancyGrid(
+            mapId = dto.mapId,
+            widthCells = dto.widthCells,
+            heightCells = dto.heightCells,
+            resolutionMetersPerCell = dto.resolutionMetersPerCell,
+            originX = dto.originX,
+            originY = dto.originY,
+            originYaw = dto.originYaw,
+            data = bytes
+        )
+    }
+
+    /**
+     * Applies a partial occupancy grid update payload to an existing [RobotOccupancyGrid].
+     */
+    fun decodeMapUpdate(payload: kotlinx.serialization.json.JsonObject?, currentGrid: RobotOccupancyGrid?): RobotOccupancyGrid? {
+        if (payload == null) return currentGrid
+        if (currentGrid == null) return decodeMapSnapshot(payload)
+        val dto = json.decodeFromJsonElement<MapUpdatePayloadDto>(payload)
+        val updateBytes = when {
+            dto.dataBase64.isNotBlank() -> decodeBase64(dto.dataBase64)
+            dto.data.isNotEmpty() -> dto.data.map { it.toByte() }.toByteArray()
+            else -> byteArrayOf()
+        }
+        if (updateBytes.isEmpty()) return currentGrid
+
+        val newData = currentGrid.data.copyOf()
+        val fullW = currentGrid.widthCells
+        val fullH = currentGrid.heightCells
+
+        var updateIdx = 0
+        for (r in 0 until dto.height) {
+            val targetY = dto.startY + r
+            if (targetY in 0 until fullH) {
+                for (c in 0 until dto.width) {
+                    val targetX = dto.startX + c
+                    if (targetX in 0 until fullW && updateIdx < updateBytes.size) {
+                        val destIdx = targetY * fullW + targetX
+                        if (destIdx in newData.indices) {
+                            newData[destIdx] = updateBytes[updateIdx]
+                        }
+                    }
+                    updateIdx++
+                }
+            } else {
+                updateIdx += dto.width
+            }
+        }
+        return currentGrid.copy(data = newData)
+    }
+
+    /**
+     * Safely decodes a Base64 encoded string into a ByteArray across JVM and Android runtimes.
+     */
+    private fun decodeBase64(base64Str: String): ByteArray {
+        if (base64Str.isBlank()) return byteArrayOf()
+        return try {
+            java.util.Base64.getDecoder().decode(base64Str)
+        } catch (_: Throwable) {
+            try {
+                android.util.Base64.decode(base64Str, android.util.Base64.DEFAULT)
+            } catch (_: Throwable) {
+                byteArrayOf()
+            }
         }
     }
 }

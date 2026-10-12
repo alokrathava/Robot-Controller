@@ -119,87 +119,158 @@ fun ManualControlContent(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(spacing.space4)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                ManualControlHeader()
+                // Top Section: Header, Tabs, Banners
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ManualControlHeader()
 
-                MonochromeSegmentedControl(
-                    items = ManualControlTab.entries,
-                    selectedItem = uiState.selectedTab,
-                    onItemSelected = onTabSelected,
-                    itemLabel = { it.title },
-                    modifier = Modifier.fillMaxWidth()
-                )
+                    MonochromeSegmentedControl(
+                        items = ManualControlTab.entries,
+                        selectedItem = uiState.selectedTab,
+                        onItemSelected = onTabSelected,
+                        itemLabel = { it.title },
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-                if (uiState.isEmergencyStopped) {
-                    MonochromeBanner(
-                        title = "EMERGENCY BRAKE ENGAGED",
-                        description = "Robot controls are currently disabled for safety.",
-                        variant = BannerVariant.Critical,
-                        icon = Icons.Default.Warning,
-                        action = {
-                            MonochromeButton(
-                                onClick = onResetEmergencyBrake,
-                                text = "Reset Brake",
-                                variant = MonochromeButtonVariant.Primary
-                            )
-                        }
-                    )
-                } else if (uiState.isConnectionLost) {
-                    MonochromeBanner(
-                        title = "ROBOT DISCONNECTED",
-                        description = "Connection lost. Re-establish Wi-Fi/IP connection to control robot.",
-                        variant = BannerVariant.Critical,
-                        icon = Icons.Default.Warning,
-                        action = {
-                            MonochromeButton(
-                                onClick = onReconnect,
-                                text = "Reconnect",
-                                variant = MonochromeButtonVariant.Primary
-                            )
-                        }
-                    )
-                } else if (uiState.isObstacleNear) {
-                    MonochromeBanner(
-                        title = "PROXIMITY WARNING",
-                        description = "Obstacle detected within ${"%.1f".format(uiState.obstacleDistanceMeters)}m. Proceed with caution.",
-                        variant = BannerVariant.Warning,
-                        icon = Icons.Default.Warning
-                    )
+                    if (uiState.isEmergencyStopped) {
+                        MonochromeBanner(
+                            title = "EMERGENCY BRAKE ENGAGED",
+                            description = "Robot controls are currently disabled for safety.",
+                            variant = BannerVariant.Critical,
+                            icon = Icons.Default.Warning,
+                            action = {
+                                MonochromeButton(
+                                    onClick = onResetEmergencyBrake,
+                                    text = "Reset Brake",
+                                    variant = MonochromeButtonVariant.Primary
+                                )
+                            }
+                        )
+                    } else if (uiState.isConnectionLost) {
+                        MonochromeBanner(
+                            title = "ROBOT DISCONNECTED",
+                            description = "Connection lost. Re-establish Wi-Fi/IP connection.",
+                            variant = BannerVariant.Critical,
+                            icon = Icons.Default.Warning,
+                            action = {
+                                MonochromeButton(
+                                    onClick = onReconnect,
+                                    text = "Reconnect",
+                                    variant = MonochromeButtonVariant.Primary
+                                )
+                            }
+                        )
+                    } else if (uiState.isObstacleNear) {
+                        MonochromeBanner(
+                            title = "PROXIMITY WARNING",
+                            description = "Obstacle detected within ${"%.1f".format(uiState.obstacleDistanceMeters)}m.",
+                            variant = BannerVariant.Warning,
+                            icon = Icons.Default.Warning
+                        )
+                    }
                 }
 
-                SpeedControlCard(
-                    speedPercent = uiState.speedPercent,
-                    enabled = controlsEnabled,
-                    onSpeedChanged = onSpeedChanged
-                )
-
-                DirectionGrid(
-                    enabled = controlsEnabled,
-                    onDirectionHoldStart = onDirectionHoldStart,
-                    onDirectionHoldStop = onDirectionHoldStop
-                )
-
+                // Middle Section: Tab-dependent Controls
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
+                        .weight(1f)
+                        .fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    JoystickControlWheel(
-                        enabled = controlsEnabled,
-                        onDirectionHoldStart = onDirectionHoldStart,
-                        onDirectionHoldStop = onDirectionHoldStop,
-                        onJoystickPositionChanged = onJoystickPositionChanged
-                    )
+                    when (uiState.selectedTab) {
+                        ManualControlTab.MOVEMENT -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                SpeedControlCard(
+                                    speedPercent = uiState.speedPercent,
+                                    enabled = controlsEnabled,
+                                    onSpeedChanged = onSpeedChanged
+                                )
+
+                                JoystickControlWheel(
+                                    enabled = controlsEnabled,
+                                    outerSize = 210.dp,
+                                    onDirectionHoldStart = onDirectionHoldStart,
+                                    onDirectionHoldStop = onDirectionHoldStop,
+                                    onJoystickPositionChanged = onJoystickPositionChanged
+                                )
+                            }
+                        }
+
+                        ManualControlTab.ROTATION -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                SpeedControlCard(
+                                    speedPercent = uiState.speedPercent,
+                                    enabled = controlsEnabled,
+                                    onSpeedChanged = onSpeedChanged
+                                )
+
+                                DirectionGrid(
+                                    enabled = controlsEnabled,
+                                    onDirectionHoldStart = onDirectionHoldStart,
+                                    onDirectionHoldStop = onDirectionHoldStop
+                                )
+                            }
+                        }
+
+                        ManualControlTab.TELEMETRY -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                MonochromeCard(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    backgroundColor = colors.surface,
+                                    padding = 12.dp
+                                ) {
+                                    Text("Live Telemetry", style = MonochromeTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("Speed: ${uiState.speedPercent.toInt()}%", style = MonochromeTheme.typography.body)
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text("Obstacle Distance: ${"%.1f".format(uiState.obstacleDistanceMeters)} m", style = MonochromeTheme.typography.body)
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text("Connection: ${if (isConnected) "Connected" else "Disconnected"}", style = MonochromeTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+
+                        ManualControlTab.DIAGNOSTICS -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                MonochromeCard(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    backgroundColor = colors.surface,
+                                    padding = 12.dp
+                                ) {
+                                    Text("System Diagnostics", style = MonochromeTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("Proximity Sensors: Active", style = MonochromeTheme.typography.bodySmall)
+                                    Text("Motor Controllers: Nominal", style = MonochromeTheme.typography.bodySmall)
+                                    Text("Safety Brake: ${if (uiState.isEmergencyStopped) "Engaged" else "Clear"}", style = MonochromeTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    }
                 }
 
+                // Anchored Bottom Section: Emergency Brake
                 EmergencyBrakeButton(
                     isEmergencyStopped = uiState.isEmergencyStopped,
                     onEmergencyBrake = onEmergencyBrake,
-                    onResetEmergencyBrake = onResetEmergencyBrake
+                    onResetEmergencyBrake = onResetEmergencyBrake,
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
         } else {
@@ -344,14 +415,14 @@ private fun ManualControlHeader() {
 private fun JoystickControlWheel(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    outerSize: androidx.compose.ui.unit.Dp = 310.dp,
     onDirectionHoldStart: (ManualDirection) -> Unit = {},
     onDirectionHoldStop: () -> Unit = {},
     onJoystickPositionChanged: (Float, Float, Boolean) -> Unit = { _, _, _ -> }
 ) {
     val colors = MonochromeTheme.colors
-    val outerSize = 310.dp
-    val innerSize = 150.dp
-    val knobSize = 85.dp
+    val innerSize = outerSize * 0.48f
+    val knobSize = outerSize * 0.28f
 
     var knobOffset by remember { mutableStateOf(Offset.Zero) }
 
@@ -747,11 +818,16 @@ private fun EmergencyBrakeButton(
 @Composable
 fun ManualControlScreenPreview() {
     MonochromeTheme(darkTheme = false) {
-        ManualControlContent(
-            uiState = ManualControlUiState(
-                isEmergencyStopped = false
-            )
-        )
+        androidx.compose.foundation.layout.BoxWithConstraints {
+            val deviceMode = com.alokrathava.theme.calculateDeviceMode(this.maxWidth)
+            CompositionLocalProvider(LocalDeviceMode provides deviceMode) {
+                ManualControlContent(
+                    uiState = ManualControlUiState(
+                        isEmergencyStopped = false
+                    )
+                )
+            }
+        }
     }
 }
 

@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.alokrathava.sdk.RobotRepository
 import com.alokrathava.sdk.error.RobotResult
 import com.alokrathava.sdk.model.ConnectionStatus
+import com.alokrathava.sdk.model.MapOperationState
+import com.alokrathava.sdk.model.RobotMap
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,9 +14,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.UUID
 import javax.inject.Inject
 
+/**
+ * ViewModel managing Map Management UI, SLAM mapping lifecycle,
+ * live occupancy grid streams, and map operations.
+ */
 @HiltViewModel
 class MapViewModel @Inject constructor(
     private val robotRepository: RobotRepository
@@ -28,27 +33,23 @@ class MapViewModel @Inject constructor(
         refreshMapsFromRobot()
     }
 
+    /** Observes robot repository flows for connection, telemetry, occupancy grid, and position updates. */
     private fun observeRepository() {
         viewModelScope.launch {
             combine(
                 robotRepository.connectionStatus,
                 robotRepository.connectionConfig,
                 robotRepository.position,
-                combine(
-                    robotRepository.navigationStatus,
-                    robotRepository.mapData,
-                    robotRepository.telemetry
-                ) { nav, map, telem -> Triple(nav, map, telem) }
-            ) { connStatus, connConfig, pos, navMapTelem ->
-                val (navStatus, mapData, telem) = navMapTelem
+                robotRepository.occupancyGrid,
+                robotRepository.telemetry
+            ) { connStatus, connConfig, pos, grid, telem ->
                 val address = if (connConfig.ipAddress.isNotEmpty()) "${connConfig.ipAddress}:${connConfig.port}" else "192.168.1.108:8080"
                 _uiState.update { currentState ->
                     currentState.copy(
                         isConnected = (connStatus == ConnectionStatus.CONNECTED),
                         connectionAddress = address,
                         robotPosition = pos,
-                        navigationStatus = navStatus,
-                        mapData = mapData,
+                        occupancyGrid = grid,
                         telemetry = telem
                     )
                 }
@@ -56,56 +57,115 @@ class MapViewModel @Inject constructor(
         }
     }
 
+    /** Synchronizes saved map list from the connected robot. */
     fun refreshMapsFromRobot() {
         viewModelScope.launch {
-            robotRepository.fetchMap()
             when (val result = robotRepository.listMaps()) {
                 is RobotResult.Success -> {
-                    if (result.value.isNotEmpty()) {
-                        val mappedList = result.value.map { sdkMap ->
-                            RobotMapItem(
-                                id = sdkMap.id,
-                                name = sdkMap.name,
-                                lastUpdated = "Synchronized from robot",
-                                isActive = sdkMap.isActive,
-                                floorPlanType = FloorPlanType.MAIN_FLOOR
-                            )
-                        }
-                        _uiState.update { currentState ->
-                            currentState.copy(
-                                maps = mappedList,
-                                selectedMapId = mappedList.firstOrNull { it.isActive }?.id ?: mappedList.first().id
-                            )
-                        }
+                    val mapList = result.value
+                    val activeMap = mapList.firstOrNull { it.isActive }
+                    _uiState.update { currentState ->
+                        currentState.copy(
+                            maps = mapList,
+                            activeMap = activeMap,
+                            selectedMapId = currentState.selectedMapId.ifEmpty {
+                                activeMap?.id ?: mapList.firstOrNull()?.id ?: ""
+                            }
+                        )
                     }
                 }
-                is RobotResult.Failure -> { }
+                is RobotResult.Failure -> {
+                    _uiState.update { it.copy(errorMessage = result.error.message) }
+                }
             }
         }
     }
 
+    /** Selects a map from the UI list. */
     fun selectMap(mapId: String) {
         _uiState.update { currentState ->
             currentState.copy(selectedMapId = mapId)
         }
     }
 
+    /** Switches active map on the robot gateway without triggering unsaved map save. */
     fun setMapActive(mapId: String) {
-        _uiState.update { currentState ->
-            val updatedMaps = currentState.maps.map { mapItem ->
-                mapItem.copy(isActive = (mapItem.id == mapId))
-            }
-            currentState.copy(
-                maps = updatedMaps,
-                selectedMapId = mapId
-            )
-        }
         viewModelScope.launch {
-            robotRepository.switchMap(mapId)
-            robotRepository.saveMap()
+            _uiState.update { it.copy(mapOperationState = MapOperationState.Switching(mapId)) }
+            when (val result = robotRepository.switchMap(mapId)) {
+                is RobotResult.Success -> {
+                    refreshMapsFromRobot()
+                    _uiState.update {
+                        it.copy(
+                            selectedMapId = mapId,
+                            mapOperationState = MapOperationState.Idle
+                        )
+                    }
+                }
+                is RobotResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            mapOperationState = MapOperationState.Failed(mapId, result.error.message),
+                            errorMessage = result.error.message
+                        )
+                    }
+                }
+            }
         }
     }
 
+    /** Initiates real-time SLAM mapping on the robot. */
+    fun startMapping() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(mapOperationState = MapOperationState.Mapping(null)) }
+            when (val result = robotRepository.startMapping()) {
+                is RobotResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isMappingActive = true,
+                            mapOperationState = MapOperationState.Mapping(null)
+                        )
+                    }
+                }
+                is RobotResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            mapOperationState = MapOperationState.Failed(null, result.error.message),
+                            errorMessage = result.error.message
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /** Stops SLAM mapping on the robot, optionally discarding unsaved updates. */
+    fun stopMapping(discardUnsaved: Boolean = false) {
+        viewModelScope.launch {
+            when (val result = robotRepository.stopMapping(discardUnsaved)) {
+                is RobotResult.Success -> {
+                    _uiState.update {
+                        it.copy(
+                            isMappingActive = false,
+                            isStopMappingConfirmDialogOpen = false,
+                            mapOperationState = MapOperationState.Idle
+                        )
+                    }
+                    refreshMapsFromRobot()
+                }
+                is RobotResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isStopMappingConfirmDialogOpen = false,
+                            errorMessage = result.error.message
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /** Opens dialog to add/save new map. */
     fun openAddMapDialog() {
         _uiState.update {
             it.copy(
@@ -115,6 +175,7 @@ class MapViewModel @Inject constructor(
         }
     }
 
+    /** Closes add/save new map dialog. */
     fun closeAddMapDialog() {
         _uiState.update {
             it.copy(
@@ -124,40 +185,46 @@ class MapViewModel @Inject constructor(
         }
     }
 
+    /** Updates text input for new map name. */
     fun updateNewMapNameInput(name: String) {
         _uiState.update {
             it.copy(newMapNameInput = name)
         }
     }
 
+    /** Saves current mapped session into a permanent named map. */
     fun addMap() {
         val name = _uiState.value.newMapNameInput.trim()
         if (name.isEmpty()) return
 
-        val newId = "map_${UUID.randomUUID().toString().take(8)}"
-        val newMap = RobotMapItem(
-            id = newId,
-            name = name,
-            lastUpdated = "Just now",
-            isActive = false,
-            floorPlanType = FloorPlanType.MAIN_FLOOR
-        )
-
-        _uiState.update { currentState ->
-            val updatedList = currentState.maps + newMap
-            currentState.copy(
-                maps = updatedList,
-                selectedMapId = newId,
-                isAddMapDialogOpen = false,
-                newMapNameInput = ""
-            )
-        }
-
         viewModelScope.launch {
-            robotRepository.saveCurrentMap(name)
+            _uiState.update { it.copy(mapOperationState = MapOperationState.Saving(name)) }
+            when (val result = robotRepository.saveCurrentMap(name)) {
+                is RobotResult.Success -> {
+                    refreshMapsFromRobot()
+                    _uiState.update {
+                        it.copy(
+                            isAddMapDialogOpen = false,
+                            newMapNameInput = "",
+                            selectedMapId = result.value.id,
+                            isMappingActive = false,
+                            mapOperationState = MapOperationState.Idle
+                        )
+                    }
+                }
+                is RobotResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            mapOperationState = MapOperationState.Failed(null, result.error.message),
+                            errorMessage = result.error.message
+                        )
+                    }
+                }
+            }
         }
     }
 
+    /** Opens rename map dialog. */
     fun openEditMapDialog(mapId: String) {
         val map = _uiState.value.maps.find { it.id == mapId } ?: return
         _uiState.update {
@@ -169,6 +236,7 @@ class MapViewModel @Inject constructor(
         }
     }
 
+    /** Closes rename map dialog. */
     fun closeEditMapDialog() {
         _uiState.update {
             it.copy(
@@ -179,30 +247,39 @@ class MapViewModel @Inject constructor(
         }
     }
 
+    /** Updates text input for map rename. */
     fun updateEditMapNameInput(name: String) {
         _uiState.update {
             it.copy(editMapNameInput = name)
         }
     }
 
+    /** Commits map rename command to the robot. */
     fun saveMapName() {
         val editingId = _uiState.value.editingMapId ?: return
         val newName = _uiState.value.editMapNameInput.trim()
         if (newName.isEmpty()) return
 
-        _uiState.update { currentState ->
-            val updatedMaps = currentState.maps.map { map ->
-                if (map.id == editingId) map.copy(name = newName, lastUpdated = "Updated just now") else map
+        viewModelScope.launch {
+            when (val result = robotRepository.renameMap(editingId, newName)) {
+                is RobotResult.Success -> {
+                    refreshMapsFromRobot()
+                    _uiState.update {
+                        it.copy(
+                            isEditMapDialogOpen = false,
+                            editingMapId = null,
+                            editMapNameInput = ""
+                        )
+                    }
+                }
+                is RobotResult.Failure -> {
+                    _uiState.update { it.copy(errorMessage = result.error.message) }
+                }
             }
-            currentState.copy(
-                maps = updatedMaps,
-                isEditMapDialogOpen = false,
-                editingMapId = null,
-                editMapNameInput = ""
-            )
         }
     }
 
+    /** Opens delete map confirmation dialog. */
     fun openDeleteConfirmDialog(mapId: String) {
         _uiState.update {
             it.copy(
@@ -212,6 +289,7 @@ class MapViewModel @Inject constructor(
         }
     }
 
+    /** Closes delete map confirmation dialog. */
     fun closeDeleteConfirmDialog() {
         _uiState.update {
             it.copy(
@@ -221,25 +299,34 @@ class MapViewModel @Inject constructor(
         }
     }
 
+    /** Deletes specified map from the robot. */
     fun deleteMap() {
         val mapIdToDelete = _uiState.value.editingMapId ?: return
-        _uiState.update { currentState ->
-            val updatedMaps = currentState.maps.filterNot { it.id == mapIdToDelete }
-            val nextSelectedId = if (currentState.selectedMapId == mapIdToDelete) {
-                updatedMaps.firstOrNull()?.id ?: ""
-            } else {
-                currentState.selectedMapId
-            }
-            currentState.copy(
-                maps = updatedMaps,
-                selectedMapId = nextSelectedId,
-                isDeleteConfirmDialogOpen = false,
-                editingMapId = null
-            )
-        }
-
         viewModelScope.launch {
-            robotRepository.deleteMap(mapIdToDelete)
+            when (val result = robotRepository.deleteMap(mapIdToDelete)) {
+                is RobotResult.Success -> {
+                    refreshMapsFromRobot()
+                    _uiState.update {
+                        it.copy(
+                            isDeleteConfirmDialogOpen = false,
+                            editingMapId = null
+                        )
+                    }
+                }
+                is RobotResult.Failure -> {
+                    _uiState.update {
+                        it.copy(
+                            isDeleteConfirmDialogOpen = false,
+                            errorMessage = result.error.message
+                        )
+                    }
+                }
+            }
         }
+    }
+
+    /** Clears active error message banner. */
+    fun dismissError() {
+        _uiState.update { it.copy(errorMessage = null) }
     }
 }

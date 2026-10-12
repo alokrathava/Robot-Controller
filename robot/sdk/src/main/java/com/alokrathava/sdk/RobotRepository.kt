@@ -27,6 +27,8 @@ interface RobotRepository {
     val simulationConfig: StateFlow<RobotSimulationConfig>
     val dockingStatus: StateFlow<DockingStatus>
     val dockStation: StateFlow<DockStation>
+    val occupancyGrid: StateFlow<com.alokrathava.sdk.model.RobotOccupancyGrid?>
+        get() = kotlinx.coroutines.flow.MutableStateFlow(null)
     val connectionMetrics: StateFlow<com.alokrathava.sdk.model.ConnectionMetrics>
         get() = kotlinx.coroutines.flow.MutableStateFlow(com.alokrathava.sdk.model.ConnectionMetrics())
 
@@ -50,6 +52,12 @@ interface RobotRepository {
     fun undock()
     fun cancelDocking()
 
+    suspend fun startMapping(): com.alokrathava.sdk.error.RobotResult<Unit> =
+        com.alokrathava.sdk.error.RobotResult.Success(Unit)
+
+    suspend fun stopMapping(discardUnsaved: Boolean = false): com.alokrathava.sdk.error.RobotResult<Unit> =
+        com.alokrathava.sdk.error.RobotResult.Success(Unit)
+
     suspend fun listMaps(): com.alokrathava.sdk.error.RobotResult<List<com.alokrathava.sdk.model.RobotMap>> =
         com.alokrathava.sdk.error.RobotResult.Success(emptyList())
 
@@ -60,6 +68,13 @@ interface RobotRepository {
         com.alokrathava.sdk.error.RobotResult.Success(
             com.alokrathava.sdk.model.RobotMap(
                 id = "map_1", name = name, isActive = true
+            )
+        )
+
+    suspend fun renameMap(mapId: String, newName: String): com.alokrathava.sdk.error.RobotResult<com.alokrathava.sdk.model.RobotMap> =
+        com.alokrathava.sdk.error.RobotResult.Success(
+            com.alokrathava.sdk.model.RobotMap(
+                id = mapId, name = newName, isActive = true
             )
         )
 

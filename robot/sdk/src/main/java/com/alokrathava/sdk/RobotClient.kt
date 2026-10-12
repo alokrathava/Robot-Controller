@@ -52,6 +52,8 @@ interface RobotClient : AutoCloseable {
 
     val activeMap: StateFlow<RobotMap?>
 
+    val occupancyGrid: StateFlow<com.alokrathava.sdk.model.RobotOccupancyGrid?>
+
     val mapOperationState: StateFlow<MapOperationState>
 
     val navigation: StateFlow<NavigationState>
