@@ -120,6 +120,16 @@ fun NavigationScreenContent(
                 ) {
                     NavigationHeader()
 
+                    if (uiState.connectionStatus != ConnectionStatus.CONNECTED) {
+                        MonochromeBanner(
+                            title = "ROBOT DISCONNECTED",
+                            description = "Connect to robot in Home or Robot Status screen to start navigation.",
+                            variant = BannerVariant.Warning,
+                            icon = Icons.Default.Warning,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
                     NavigationExecutionBanner(
                         executionStatus = uiState.executionStatus,
                         onCancelClick = onCancelNavigationClick
@@ -224,6 +234,17 @@ fun NavigationScreenContent(
                 NavigationHeader()
 
                 Spacer(modifier = Modifier.height(spacing.space4))
+
+                if (uiState.connectionStatus != ConnectionStatus.CONNECTED) {
+                    MonochromeBanner(
+                        title = "ROBOT DISCONNECTED",
+                        description = "Connect to robot in Home or Robot Status screen to start autonomous navigation.",
+                        variant = BannerVariant.Warning,
+                        icon = Icons.Default.Warning,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(spacing.space3))
+                }
 
                 NavigationExecutionBanner(
                     executionStatus = uiState.executionStatus,

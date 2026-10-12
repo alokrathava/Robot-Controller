@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -148,6 +149,35 @@ fun MapScreenContent(
                                 )
                             }
                         }
+                    }
+
+                    // Disconnected Warning Banner
+                    if (!uiState.isConnected) {
+                        MonochromeBanner(
+                            title = "ROBOT DISCONNECTED",
+                            description = "Connect to robot in Home or Robot Status to start mapping or perform map operations",
+                            variant = BannerVariant.Warning,
+                            icon = Icons.Default.Warning,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    // Error Message Banner
+                    if (uiState.errorMessage != null) {
+                        MonochromeBanner(
+                            title = "MAP OPERATION FAILED",
+                            description = uiState.errorMessage,
+                            variant = BannerVariant.Critical,
+                            icon = Icons.Default.Warning,
+                            modifier = Modifier.fillMaxWidth(),
+                            action = {
+                                MonochromeButton(
+                                    onClick = onDismissError,
+                                    text = "Dismiss",
+                                    variant = MonochromeButtonVariant.Ghost
+                                )
+                            }
+                        )
                     }
 
                     // Mapping Status Banner
@@ -326,6 +356,37 @@ fun MapScreenContent(
                 }
 
                 Spacer(modifier = Modifier.height(spacing.space4))
+
+                // Disconnected Warning Banner
+                if (!uiState.isConnected) {
+                    MonochromeBanner(
+                        title = "ROBOT DISCONNECTED",
+                        description = "Connect to robot in Home or Robot Status to start SLAM mapping or manage maps.",
+                        variant = BannerVariant.Warning,
+                        icon = Icons.Default.Warning,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(spacing.space3))
+                }
+
+                // Error Message Banner
+                if (uiState.errorMessage != null) {
+                    MonochromeBanner(
+                        title = "MAP OPERATION FAILED",
+                        description = uiState.errorMessage,
+                        variant = BannerVariant.Critical,
+                        icon = Icons.Default.Warning,
+                        modifier = Modifier.fillMaxWidth(),
+                        action = {
+                            MonochromeButton(
+                                onClick = onDismissError,
+                                text = "Dismiss",
+                                variant = MonochromeButtonVariant.Ghost
+                            )
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(spacing.space3))
+                }
 
                 // Split Layout: Left Map List + Right Live Map View Pane
                 Row(
