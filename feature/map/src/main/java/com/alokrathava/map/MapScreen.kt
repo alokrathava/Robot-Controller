@@ -18,6 +18,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.alokrathava.home.AdaptiveNavigationLayout
 import com.alokrathava.home.Sidebar
 import com.alokrathava.home.SidebarNavItem
 import com.alokrathava.theme.*
@@ -76,270 +77,436 @@ fun MapScreenContent(
     val typography = MonochromeTheme.typography
     val spacing = MonochromeTheme.spacing
     val shapes = MonochromeTheme.shapes
+    val deviceMode = LocalDeviceMode.current
 
     val selectedMap = uiState.selectedMap
+    val paddingValues = if (deviceMode == DeviceMode.MOBILE) spacing.space4 else spacing.cardPadding
 
-    Row(
+    AdaptiveNavigationLayout(
+        selectedItem = selectedNav,
+        onItemSelected = onSidebarItemSelected,
+        isConnected = uiState.isConnected,
+        connectionAddress = uiState.connectionAddress,
         modifier = modifier
-            .fillMaxSize()
-            .background(colors.background)
     ) {
-        // Left Sidebar Navigation
-        Sidebar(
-            selectedItem = selectedNav,
-            onItemSelected = onSidebarItemSelected,
-            isConnected = uiState.isConnected,
-            connectionAddress = uiState.connectionAddress
-        )
-
-        // Main Dashboard Area
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .padding(
-                    start = spacing.space6,
-                    top = spacing.cardPadding,
-                    end = spacing.space6,
-                    bottom = spacing.cardPadding
-                )
-        ) {
-            // Header Bar: Title & Add Map Action Button
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        if (deviceMode == DeviceMode.MOBILE) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(spacing.space4)
             ) {
-                Column {
-                    Text(
-                        text = "Map Management",
-                        style = typography.h2,
-                        color = colors.primaryText,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(spacing.space1))
-                    Text(
-                        text = "View, switch or manage robot maps",
-                        style = typography.bodySmall,
-                        color = colors.secondaryText
+                // Header Bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Map Management",
+                            style = typography.h2,
+                            color = colors.primaryText,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(spacing.space1))
+                        Text(
+                            text = "View, switch or manage robot maps",
+                            style = typography.bodySmall,
+                            color = colors.secondaryText
+                        )
+                    }
+
+                    MonochromeButton(
+                        onClick = onAddMapClick,
+                        text = "Add",
+                        icon = Icons.Default.Add,
+                        variant = MonochromeButtonVariant.Primary
                     )
                 }
 
-                MonochromeButton(
-                    onClick = onAddMapClick,
-                    text = "Add Map",
-                    icon = Icons.Default.Add,
-                    variant = MonochromeButtonVariant.Primary,
-                    size = MonochromeButtonSize.Large
-                )
-            }
-
-            Spacer(modifier = Modifier.height(spacing.space5))
-
-            // Split Layout: Left Map List + Right Map Preview Pane
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(spacing.space6)
-            ) {
-                // Left Panel: Scrollable Map Cards List
-                Column(
+                // Map Preview Card
+                Box(
                     modifier = Modifier
-                        .weight(0.45f)
-                        .fillMaxHeight()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(spacing.space3)
+                        .fillMaxWidth()
+                        .height(220.dp)
+                        .clip(shapes.largeCards)
+                        .border(1.dp, colors.defaultBorder, shapes.largeCards)
                 ) {
-                    uiState.maps.forEach { mapItem ->
-                        val isSelected = (mapItem.id == uiState.selectedMapId)
-                        var menuExpanded by remember { mutableStateOf(false) }
-
-                        val cardBorderColor = if (isSelected) {
-                            colors.focusBorder
-                        } else {
-                            colors.defaultBorder
-                        }
-
-                        val cardBg = if (isSelected) {
-                            colors.elevatedSurface
-                        } else {
-                            colors.surface
-                        }
-
-                        MonochromeCard(
-                            modifier = Modifier.fillMaxWidth(),
-                            backgroundColor = cardBg,
-                            borderColor = cardBorderColor,
-                            padding = 14.dp,
-                            onClick = { onSelectMap(mapItem.id) }
+                    if (selectedMap != null) {
+                        MapFloorPlanCanvas(
+                            floorPlanType = selectedMap.floorPlanType,
+                            isThumbnail = false,
+                            robotPosition = uiState.robotPosition,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(colors.surface),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Thumbnail Box
-                                MapFloorPlanCanvas(
-                                    floorPlanType = mapItem.floorPlanType,
-                                    isThumbnail = true,
-                                    modifier = Modifier.size(68.dp)
-                                )
+                            Text(
+                                text = "No map selected",
+                                style = typography.body,
+                                color = colors.mutedText
+                            )
+                        }
+                    }
+                }
 
-                                Spacer(modifier = Modifier.width(14.dp))
+                // Map Cards List
+                uiState.maps.forEach { mapItem ->
+                    val isSelected = (mapItem.id == uiState.selectedMapId)
+                    var menuExpanded by remember { mutableStateOf(false) }
 
-                                // Map Info
-                                Column(
-                                    modifier = Modifier.weight(1f)
+                    val cardBorderColor = if (isSelected) colors.focusBorder else colors.defaultBorder
+                    val cardBg = if (isSelected) colors.elevatedSurface else colors.surface
+
+                    MonochromeCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        backgroundColor = cardBg,
+                        borderColor = cardBorderColor,
+                        padding = 14.dp,
+                        onClick = { onSelectMap(mapItem.id) }
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            MapFloorPlanCanvas(
+                                floorPlanType = mapItem.floorPlanType,
+                                isThumbnail = true,
+                                modifier = Modifier.size(56.dp)
+                            )
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Text(
-                                            text = mapItem.name,
-                                            style = typography.h4,
-                                            color = colors.primaryText,
-                                            fontWeight = FontWeight.Bold
-                                        )
-
-                                        if (mapItem.isActive) {
-                                            MonochromeStatusPill(
-                                                text = "Active",
-                                                level = StatusLevel.Active
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(4.dp))
-
                                     Text(
-                                        text = mapItem.lastUpdated,
-                                        style = typography.caption,
-                                        color = colors.mutedText
+                                        text = mapItem.name,
+                                        style = typography.h4,
+                                        color = colors.primaryText,
+                                        fontWeight = FontWeight.Bold
+                                    )
+
+                                    if (mapItem.isActive) {
+                                        MonochromeStatusPill(
+                                            text = "Active",
+                                            level = StatusLevel.Active
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                Text(
+                                    text = mapItem.lastUpdated,
+                                    style = typography.caption,
+                                    color = colors.mutedText
+                                )
+                            }
+
+                            Box {
+                                IconButton(
+                                    onClick = { menuExpanded = true },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "Map Options",
+                                        tint = colors.secondaryText
                                     )
                                 }
 
-                                // Three-dots overflow options menu
-                                Box {
-                                    IconButton(
-                                        onClick = { menuExpanded = true },
-                                        modifier = Modifier.size(32.dp)
+                                DropdownMenu(
+                                    expanded = menuExpanded,
+                                    onDismissRequest = { menuExpanded = false },
+                                    modifier = Modifier.background(colors.surface)
+                                ) {
+                                    if (!mapItem.isActive) {
+                                        DropdownMenuItem(
+                                            text = { Text("Set as Active", style = typography.bodySmall) },
+                                            onClick = {
+                                                onSetActiveMap(mapItem.id)
+                                                menuExpanded = false
+                                            }
+                                        )
+                                    }
+                                    DropdownMenuItem(
+                                        text = { Text("Edit Name", style = typography.bodySmall) },
+                                        onClick = {
+                                            onEditMapClick(mapItem.id)
+                                            menuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete Map", style = typography.bodySmall) },
+                                        onClick = {
+                                            onDeleteMapClick(mapItem.id)
+                                            menuExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        start = spacing.space6,
+                        top = spacing.cardPadding,
+                        end = spacing.space6,
+                        bottom = spacing.cardPadding
+                    )
+            ) {
+                // Header Bar: Title & Add Map Action Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Map Management",
+                            style = typography.h2,
+                            color = colors.primaryText,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(spacing.space1))
+                        Text(
+                            text = "View, switch or manage robot maps",
+                            style = typography.bodySmall,
+                            color = colors.secondaryText
+                        )
+                    }
+
+                    MonochromeButton(
+                        onClick = onAddMapClick,
+                        text = "Add Map",
+                        icon = Icons.Default.Add,
+                        variant = MonochromeButtonVariant.Primary,
+                        size = MonochromeButtonSize.Large
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(spacing.space5))
+
+                // Split Layout: Left Map List + Right Map Preview Pane
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.space6)
+                ) {
+                    // Left Panel: Scrollable Map Cards List
+                    Column(
+                        modifier = Modifier
+                            .weight(0.45f)
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(spacing.space3)
+                    ) {
+                        uiState.maps.forEach { mapItem ->
+                            val isSelected = (mapItem.id == uiState.selectedMapId)
+                            var menuExpanded by remember { mutableStateOf(false) }
+
+                            val cardBorderColor = if (isSelected) {
+                                colors.focusBorder
+                            } else {
+                                colors.defaultBorder
+                            }
+
+                            val cardBg = if (isSelected) {
+                                colors.elevatedSurface
+                            } else {
+                                colors.surface
+                            }
+
+                            MonochromeCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                backgroundColor = cardBg,
+                                borderColor = cardBorderColor,
+                                padding = 14.dp,
+                                onClick = { onSelectMap(mapItem.id) }
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Thumbnail Box
+                                    MapFloorPlanCanvas(
+                                        floorPlanType = mapItem.floorPlanType,
+                                        isThumbnail = true,
+                                        modifier = Modifier.size(68.dp)
+                                    )
+
+                                    Spacer(modifier = Modifier.width(14.dp))
+
+                                    // Map Info
+                                    Column(
+                                        modifier = Modifier.weight(1f)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.MoreVert,
-                                            contentDescription = "Map Options",
-                                            tint = colors.secondaryText
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text(
+                                                text = mapItem.name,
+                                                style = typography.h4,
+                                                color = colors.primaryText,
+                                                fontWeight = FontWeight.Bold
+                                            )
+
+                                            if (mapItem.isActive) {
+                                                MonochromeStatusPill(
+                                                    text = "Active",
+                                                    level = StatusLevel.Active
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+
+                                        Text(
+                                            text = mapItem.lastUpdated,
+                                            style = typography.caption,
+                                            color = colors.mutedText
                                         )
                                     }
 
-                                    DropdownMenu(
-                                        expanded = menuExpanded,
-                                        onDismissRequest = { menuExpanded = false },
-                                        modifier = Modifier.background(colors.surface)
-                                    ) {
-                                        if (!mapItem.isActive) {
+                                    // Three-dots overflow options menu
+                                    Box {
+                                        IconButton(
+                                            onClick = { menuExpanded = true },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.MoreVert,
+                                                contentDescription = "Map Options",
+                                                tint = colors.secondaryText
+                                            )
+                                        }
+
+                                        DropdownMenu(
+                                            expanded = menuExpanded,
+                                            onDismissRequest = { menuExpanded = false },
+                                            modifier = Modifier.background(colors.surface)
+                                        ) {
+                                            if (!mapItem.isActive) {
+                                                DropdownMenuItem(
+                                                    text = { Text("Set as Active", style = typography.bodySmall) },
+                                                    onClick = {
+                                                        onSetActiveMap(mapItem.id)
+                                                        menuExpanded = false
+                                                    }
+                                                )
+                                            }
                                             DropdownMenuItem(
-                                                text = { Text("Set as Active", style = typography.bodySmall) },
+                                                text = { Text("Edit Name", style = typography.bodySmall) },
                                                 onClick = {
-                                                    onSetActiveMap(mapItem.id)
+                                                    onEditMapClick(mapItem.id)
+                                                    menuExpanded = false
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Delete Map", style = typography.bodySmall) },
+                                                onClick = {
+                                                    onDeleteMapClick(mapItem.id)
                                                     menuExpanded = false
                                                 }
                                             )
                                         }
-                                        DropdownMenuItem(
-                                            text = { Text("Edit Name", style = typography.bodySmall) },
-                                            onClick = {
-                                                onEditMapClick(mapItem.id)
-                                                menuExpanded = false
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Delete Map", style = typography.bodySmall) },
-                                            onClick = {
-                                                onDeleteMapClick(mapItem.id)
-                                                menuExpanded = false
-                                            }
-                                        )
                                     }
                                 }
                             }
                         }
                     }
-                }
 
-                // Right Panel: Map Preview Card + Action Buttons
-                Column(
-                    modifier = Modifier
-                        .weight(0.55f)
-                        .fillMaxHeight(),
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // Large Floor Plan Preview Container
-                    Box(
+                    // Right Panel: Map Preview Card + Action Buttons
+                    Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .clip(shapes.largeCards)
-                            .border(1.dp, colors.defaultBorder, shapes.largeCards)
+                            .weight(0.55f)
+                            .fillMaxHeight(),
+                        verticalArrangement = Arrangement.SpaceBetween
                     ) {
-                        if (selectedMap != null) {
-                            MapFloorPlanCanvas(
-                                floorPlanType = selectedMap.floorPlanType,
-                                isThumbnail = false,
-                                robotPosition = uiState.robotPosition,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(colors.surface),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "No map selected",
-                                    style = typography.body,
-                                    color = colors.mutedText
+                        // Large Floor Plan Preview Container
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .clip(shapes.largeCards)
+                                .border(1.dp, colors.defaultBorder, shapes.largeCards)
+                        ) {
+                            if (selectedMap != null) {
+                                MapFloorPlanCanvas(
+                                    floorPlanType = selectedMap.floorPlanType,
+                                    isThumbnail = false,
+                                    robotPosition = uiState.robotPosition,
+                                    modifier = Modifier.fillMaxSize()
                                 )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(colors.surface),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "No map selected",
+                                        style = typography.body,
+                                        color = colors.mutedText
+                                    )
+                                }
                             }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(spacing.space4))
+                        Spacer(modifier = Modifier.height(spacing.space4))
 
-                    // Bottom Row of Action Buttons: "Set as Active", "Edit", "Delete"
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(spacing.space3)
-                    ) {
-                        val isSelectedActive = selectedMap?.isActive == true
+                        // Bottom Row of Action Buttons: "Set as Active", "Edit", "Delete"
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(spacing.space3)
+                        ) {
+                            val isSelectedActive = selectedMap?.isActive == true
 
-                        MonochromeButton(
-                            onClick = { selectedMap?.let { onSetActiveMap(it.id) } },
-                            text = if (isSelectedActive) "Active Map" else "Set as Active",
-                            enabled = selectedMap != null && !isSelectedActive,
-                            variant = if (isSelectedActive) MonochromeButtonVariant.Ghost else MonochromeButtonVariant.Primary,
-                            size = MonochromeButtonSize.Large,
-                            modifier = Modifier.weight(1.2f)
-                        )
+                            MonochromeButton(
+                                onClick = { selectedMap?.let { onSetActiveMap(it.id) } },
+                                text = if (isSelectedActive) "Active Map" else "Set as Active",
+                                enabled = selectedMap != null && !isSelectedActive,
+                                variant = if (isSelectedActive) MonochromeButtonVariant.Ghost else MonochromeButtonVariant.Primary,
+                                size = MonochromeButtonSize.Large,
+                                modifier = Modifier.weight(1.2f)
+                            )
 
-                        MonochromeButton(
-                            onClick = { selectedMap?.let { onEditMapClick(it.id) } },
-                            text = "Edit",
-                            enabled = selectedMap != null,
-                            variant = MonochromeButtonVariant.Secondary,
-                            size = MonochromeButtonSize.Large,
-                            modifier = Modifier.weight(0.9f)
-                        )
+                            MonochromeButton(
+                                onClick = { selectedMap?.let { onEditMapClick(it.id) } },
+                                text = "Edit",
+                                enabled = selectedMap != null,
+                                variant = MonochromeButtonVariant.Secondary,
+                                size = MonochromeButtonSize.Large,
+                                modifier = Modifier.weight(0.9f)
+                            )
 
-                        MonochromeButton(
-                            onClick = { selectedMap?.let { onDeleteMapClick(it.id) } },
-                            text = "Delete",
-                            enabled = selectedMap != null,
-                            variant = MonochromeButtonVariant.Secondary,
-                            size = MonochromeButtonSize.Large,
-                            modifier = Modifier.weight(0.9f)
-                        )
+                            MonochromeButton(
+                                onClick = { selectedMap?.let { onDeleteMapClick(it.id) } },
+                                text = "Delete",
+                                enabled = selectedMap != null,
+                                variant = MonochromeButtonVariant.Secondary,
+                                size = MonochromeButtonSize.Large,
+                                modifier = Modifier.weight(0.9f)
+                            )
+                        }
                     }
                 }
             }
@@ -452,6 +619,8 @@ fun MapScreenContent(
     }
 }
 
+@Preview(name = "Pixel 7 Portrait", showBackground = true, device = "id:pixel_7")
+@Preview(name = "Pixel 8 Portrait", showBackground = true, device = "id:pixel_8")
 @Preview(name = "Map Management Screen Light Preview", showBackground = true, widthDp = 1024, heightDp = 600)
 @Composable
 fun MapScreenPreviewLight() {

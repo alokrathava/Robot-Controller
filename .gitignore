@@ -1,15 +1,60 @@
+# Gradle & Build Artifacts
+.gradle/
+.kotlin/
+.gradle-test-kit/
+/build
+**/build/
+
+# Local Properties & Secrets
+local.properties
+secrets.properties
+signing.properties
+
+# Android Studio / IntelliJ / IDE Files
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
+*.ipr
+*.iws
 /.idea/workspace.xml
+/.idea/caches/
+/.idea/libraries/
+/.idea/modules/
+/.idea/modules.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
-.DS_Store
-/build
+/.idea/appInsightsSettings.xml
+/.idea/deploymentTargetSelector.xml
+/.idea/deviceManager.xml
+/.idea/shelf/
+/.idea/tasks.xml
+.vscode/
+
+# Signing & Key Stores
+*.keystore
+*.jks
+*.pepk
+*.p12
+*.pfx
+
+# Android Native & Performance Captures
 /captures
 .externalNativeBuild
 .cxx
-local.properties
+*.hprof
+*.trace
+*.prof
+*.log
+
+# OS & System Files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+
+# Temporary & Agent Artifacts
+.artifacts/
+.cache/
+*.tmp
+*.bak

@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -41,6 +43,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.alokrathava.home.AdaptiveNavigationLayout
 import com.alokrathava.home.Sidebar
 import com.alokrathava.home.SidebarNavItem
 import com.alokrathava.theme.*
@@ -93,60 +96,52 @@ fun NavigationScreenContent(
 ) {
     val colors = MonochromeTheme.colors
     val spacing = MonochromeTheme.spacing
+    val deviceMode = LocalDeviceMode.current
 
-    Row(
+    val paddingValues = if (deviceMode == DeviceMode.MOBILE) {
+        spacing.space4
+    } else {
+        spacing.cardPadding
+    }
+
+    AdaptiveNavigationLayout(
+        selectedItem = SidebarNavItem.NAVIGATION,
+        onItemSelected = onSidebarItemSelected,
+        isConnected = true,
+        connectionAddress = "192.168.1.108:8080",
         modifier = modifier
-            .fillMaxSize()
-            .background(colors.background)
     ) {
-        Sidebar(
-            selectedItem = SidebarNavItem.NAVIGATION,
-            onItemSelected = onSidebarItemSelected,
-            isConnected = true,
-            connectionAddress = "192.168.1.108:8080"
-        )
-
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .padding(
-                    start = spacing.space6,
-                    top = spacing.cardPadding,
-                    end = spacing.space6,
-                    bottom = spacing.cardPadding
-                )
-        ) {
-            NavigationHeader()
-
-            Spacer(modifier = Modifier.height(spacing.space4))
-
-            // Navigation Execution Alert Banner
-            NavigationExecutionBanner(
-                executionStatus = uiState.executionStatus,
-                onCancelClick = onCancelNavigationClick
-            )
-
-            Spacer(modifier = Modifier.height(spacing.space4))
-
-            // Main Content: Map (Left) + Right Control Panel
-            Row(
+        if (deviceMode == DeviceMode.MOBILE) {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(spacing.space6)
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .verticalScroll(rememberScrollState())
             ) {
+                NavigationHeader()
+
+                Spacer(modifier = Modifier.height(spacing.space3))
+
+                NavigationExecutionBanner(
+                    executionStatus = uiState.executionStatus,
+                    onCancelClick = onCancelNavigationClick
+                )
+
+                Spacer(modifier = Modifier.height(spacing.space3))
+
                 NavigationMapPanel(
                     modifier = Modifier
-                        .weight(1.4f)
-                        .fillMaxHeight(),
+                        .fillMaxWidth()
+                        .height(260.dp),
                     selectedDestination = uiState.selectedDestination
                 )
 
+                Spacer(modifier = Modifier.height(spacing.space4))
+
                 NavigationDestinationPanel(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
+                        .fillMaxWidth()
+                        .heightIn(min = 360.dp),
                     uiState = uiState,
                     onTabSelected = onTabSelected,
                     onDestinationSelected = onDestinationSelected,
@@ -156,6 +151,56 @@ fun NavigationScreenContent(
                     onStartNavigationClick = onStartNavigationClick,
                     onOpenAddLocationDialog = { onOpenAddLocationDialog(true) }
                 )
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        start = spacing.space6,
+                        top = spacing.cardPadding,
+                        end = spacing.space6,
+                        bottom = spacing.cardPadding
+                    )
+            ) {
+                NavigationHeader()
+
+                Spacer(modifier = Modifier.height(spacing.space4))
+
+                NavigationExecutionBanner(
+                    executionStatus = uiState.executionStatus,
+                    onCancelClick = onCancelNavigationClick
+                )
+
+                Spacer(modifier = Modifier.height(spacing.space4))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.space6)
+                ) {
+                    NavigationMapPanel(
+                        modifier = Modifier
+                            .weight(1.4f)
+                            .fillMaxHeight(),
+                        selectedDestination = uiState.selectedDestination
+                    )
+
+                    NavigationDestinationPanel(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                        uiState = uiState,
+                        onTabSelected = onTabSelected,
+                        onDestinationSelected = onDestinationSelected,
+                        onXInputChanged = onXInputChanged,
+                        onYInputChanged = onYInputChanged,
+                        onYawInputChanged = onYawInputChanged,
+                        onStartNavigationClick = onStartNavigationClick,
+                        onOpenAddLocationDialog = { onOpenAddLocationDialog(true) }
+                    )
+                }
             }
         }
     }
@@ -861,7 +906,9 @@ fun AddLocationDialog(
     )
 }
 
-@Preview(name = "Navigation Screen Preview", showBackground = true, widthDp = 1280, heightDp = 800)
+@Preview(name = "Pixel 7 Portrait", showBackground = true, device = "id:pixel_7")
+@Preview(name = "Pixel 8 Portrait", showBackground = true, device = "id:pixel_8")
+@Preview(name = "Navigation Screen Tablet", showBackground = true, widthDp = 1280, heightDp = 800)
 @Composable
 fun NavigationScreenPreview() {
     MonochromeTheme(darkTheme = false) {

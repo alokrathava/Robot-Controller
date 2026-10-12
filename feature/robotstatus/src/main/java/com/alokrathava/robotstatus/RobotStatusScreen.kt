@@ -28,8 +28,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.alokrathava.home.AdaptiveNavigationLayout
 import com.alokrathava.home.Sidebar
 import com.alokrathava.home.SidebarNavItem
+import com.alokrathava.theme.DeviceMode
+import com.alokrathava.theme.LocalDeviceMode
 import com.alokrathava.theme.MonochromeCard
 import com.alokrathava.theme.MonochromeTheme
 import com.alokrathava.theme.R as ThemeR
@@ -61,219 +66,427 @@ fun RobotStatusScreenContent(
     val colors = MonochromeTheme.colors
     val typography = MonochromeTheme.typography
     val spacing = MonochromeTheme.spacing
+    val deviceMode = LocalDeviceMode.current
 
-    Row(
+    val paddingValues = if (deviceMode == DeviceMode.MOBILE) spacing.space4 else spacing.cardPadding
+
+    AdaptiveNavigationLayout(
+        selectedItem = selectedNav,
+        onItemSelected = onSidebarItemSelected,
+        isConnected = uiState.isConnected,
+        connectionAddress = uiState.connectionAddress,
         modifier = modifier
-            .fillMaxSize()
-            .background(colors.background)
     ) {
-        // Left Sidebar Navigation
-        Sidebar(
-            selectedItem = selectedNav,
-            onItemSelected = onSidebarItemSelected,
-            isConnected = uiState.isConnected,
-            connectionAddress = uiState.connectionAddress
-        )
-
-        // Main Dashboard Area
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .padding(
-                    start = spacing.space6,
-                    top = spacing.cardPadding,
-                    end = spacing.space6,
-                    bottom = spacing.cardPadding
-                )
-        ) {
-            // Header Title & Subtitle
-            Text(
-                text = "Robot Status",
-                style = typography.h2,
-                color = colors.primaryText,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(spacing.space1))
-            Text(
-                text = "Live information from the robot",
-                style = typography.bodySmall,
-                color = colors.secondaryText
-            )
-
-            Spacer(modifier = Modifier.height(spacing.space4))
-
-            // Main Content Area: Robot Illustration (Left) + Metric Cards Grid (Right)
-            Row(
+        if (deviceMode == DeviceMode.MOBILE) {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(spacing.space6),
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(spacing.space4)
             ) {
-                // Left Hero Section: Robot Image
+                // Header
+                Text(
+                    text = "Robot Status",
+                    style = typography.h2,
+                    color = colors.primaryText,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Live information from the robot",
+                    style = typography.bodySmall,
+                    color = colors.secondaryText
+                )
+
+                // Robot Image
                 Box(
                     modifier = Modifier
-                        .weight(0.40f)
-                        .fillMaxHeight(),
+                        .fillMaxWidth()
+                        .height(180.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
                         painter = painterResource(id = ThemeR.drawable.robot_splash),
                         contentDescription = "Robot Illustration",
                         modifier = Modifier
-                            .fillMaxHeight(0.9f)
+                            .fillMaxHeight()
                             .aspectRatio(0.65f),
                         contentScale = ContentScale.Fit
                     )
                 }
 
-                // Right Section: Grid of Cards
-                Column(
-                    modifier = Modifier
-                        .weight(0.60f)
-                        .fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(spacing.space4, Alignment.CenterVertically)
+                // Battery Card
+                MonochromeCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    backgroundColor = colors.surface,
+                    padding = spacing.cardPadding
                 ) {
-                    // Top Card: Battery Status Card
-                    MonochromeCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        backgroundColor = colors.surface,
-                        padding = spacing.cardPadding
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(20.dp)
-                        ) {
-                            // Large Battery Icon
-                            BatteryIcon(
-                                percent = uiState.batteryPercent,
-                                color = colors.statusActive
-                            )
-
-                            // Battery Progress & Info
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(
-                                    text = "${uiState.batteryPercent}%",
-                                    style = typography.h3,
-                                    color = colors.primaryText,
-                                    fontWeight = FontWeight.Bold
-                                )
-
-                                // Progress Bar
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(12.dp)
-                                        .clip(CircleShape)
-                                        .background(colors.disabledSurface)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth(uiState.batteryPercent / 100f)
-                                            .fillMaxHeight()
-                                            .clip(CircleShape)
-                                            .background(colors.statusActive)
-                                    )
-                                }
-
-                                Text(
-                                    text = uiState.estimatedTimeRemaining,
-                                    style = typography.caption,
-                                    color = colors.secondaryText
-                                )
-                            }
-                        }
-                    }
-
-                    // Middle Row: 3 Cards (Position, Yaw Angle, State)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(spacing.space4)
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        // Position Card
-                        MonochromeCard(
+                        BatteryIcon(
+                            percent = uiState.batteryPercent,
+                            color = colors.statusActive
+                        )
+
+                        Column(
                             modifier = Modifier.weight(1f),
-                            backgroundColor = colors.surface,
-                            padding = spacing.cardPadding
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Place,
-                                    contentDescription = "Position Icon",
-                                    modifier = Modifier.size(20.dp),
-                                    tint = colors.primaryText
-                                )
-                                Text(
-                                    text = "Position",
-                                    style = typography.label,
-                                    color = colors.secondaryText
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
                             Text(
-                                text = "(${String.format(java.util.Locale.US, "%.1f", uiState.positionX)}, ${String.format(java.util.Locale.US, "%.1f", uiState.positionY)})",
-                                style = typography.h4,
+                                text = "${uiState.batteryPercent}%",
+                                style = typography.h3,
                                 color = colors.primaryText,
                                 fontWeight = FontWeight.Bold
                             )
 
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(10.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.disabledSurface)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(uiState.batteryPercent / 100f)
+                                        .fillMaxHeight()
+                                        .clip(CircleShape)
+                                        .background(colors.statusActive)
+                                )
+                            }
 
                             Text(
-                                text = "X, Y (meters)",
+                                text = uiState.estimatedTimeRemaining,
                                 style = typography.caption,
-                                color = colors.mutedText
+                                color = colors.secondaryText
                             )
                         }
+                    }
+                }
 
-                        // Yaw Angle Card
+                // Metric Cards 2x2 Grid
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.space3)
+                ) {
+                    MonochromeCard(
+                        modifier = Modifier.weight(1f),
+                        backgroundColor = colors.surface,
+                        padding = spacing.cardPadding
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(imageVector = Icons.Default.Place, contentDescription = null, modifier = Modifier.size(18.dp), tint = colors.primaryText)
+                            Text(text = "Position", style = typography.label, color = colors.secondaryText)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = "(${String.format(java.util.Locale.US, "%.1f", uiState.positionX)}, ${String.format(java.util.Locale.US, "%.1f", uiState.positionY)})", style = typography.bodyLarge, color = colors.primaryText, fontWeight = FontWeight.Bold)
+                    }
+
+                    MonochromeCard(
+                        modifier = Modifier.weight(1f),
+                        backgroundColor = colors.surface,
+                        padding = spacing.cardPadding
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(imageVector = Icons.Default.GpsFixed, contentDescription = null, modifier = Modifier.size(18.dp), tint = colors.primaryText)
+                            Text(text = "Yaw Angle", style = typography.label, color = colors.secondaryText)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = "${uiState.yawDegrees.toInt()}°", style = typography.bodyLarge, color = colors.primaryText, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.space3)
+                ) {
+                    MonochromeCard(
+                        modifier = Modifier.weight(1f),
+                        backgroundColor = colors.surface,
+                        padding = spacing.cardPadding
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(imageVector = Icons.Default.SportsEsports, contentDescription = null, modifier = Modifier.size(18.dp), tint = colors.primaryText)
+                            Text(text = "State", style = typography.label, color = colors.secondaryText)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = uiState.robotState, style = typography.bodyLarge, color = colors.primaryText, fontWeight = FontWeight.Bold)
+                    }
+
+                    MonochromeCard(
+                        modifier = Modifier.weight(1f),
+                        backgroundColor = colors.surface,
+                        padding = spacing.cardPadding
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(imageVector = Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(18.dp), tint = colors.primaryText)
+                            Text(text = "Speed", style = typography.label, color = colors.secondaryText)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = "${String.format(java.util.Locale.US, "%.1f", uiState.speedMps)} m/s", style = typography.bodyLarge, color = colors.primaryText, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.space3)
+                ) {
+                    MonochromeCard(
+                        modifier = Modifier.weight(1f),
+                        backgroundColor = colors.surface,
+                        padding = spacing.cardPadding
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(imageVector = Icons.Default.Wifi, contentDescription = null, modifier = Modifier.size(18.dp), tint = colors.primaryText)
+                            Text(text = "Connection", style = typography.label, color = colors.secondaryText)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = if (uiState.isConnected) "Connected" else "Disconnected", style = typography.bodyLarge, color = colors.primaryText, fontWeight = FontWeight.Bold)
+                    }
+
+                    MonochromeCard(
+                        modifier = Modifier.weight(1f),
+                        backgroundColor = colors.surface,
+                        padding = spacing.cardPadding
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(imageVector = Icons.Default.Thermostat, contentDescription = null, modifier = Modifier.size(18.dp), tint = colors.primaryText)
+                            Text(text = "Temp", style = typography.label, color = colors.secondaryText)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = "${uiState.temperatureCelsius.toInt()}°C", style = typography.bodyLarge, color = colors.primaryText, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        start = spacing.space6,
+                        top = spacing.cardPadding,
+                        end = spacing.space6,
+                        bottom = spacing.cardPadding
+                    )
+            ) {
+                // Header Title & Subtitle
+                Text(
+                    text = "Robot Status",
+                    style = typography.h2,
+                    color = colors.primaryText,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(spacing.space1))
+                Text(
+                    text = "Live information from the robot",
+                    style = typography.bodySmall,
+                    color = colors.secondaryText
+                )
+
+                Spacer(modifier = Modifier.height(spacing.space4))
+
+                // Main Content Area: Robot Illustration (Left) + Metric Cards Grid (Right)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.space6),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Left Hero Section: Robot Image
+                    Box(
+                        modifier = Modifier
+                            .weight(0.40f)
+                            .fillMaxHeight(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = ThemeR.drawable.robot_splash),
+                            contentDescription = "Robot Illustration",
+                            modifier = Modifier
+                                .fillMaxHeight(0.9f)
+                                .aspectRatio(0.65f),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+
+                    // Right Section: Grid of Cards
+                    Column(
+                        modifier = Modifier
+                            .weight(0.60f)
+                            .fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(spacing.space4, Alignment.CenterVertically)
+                    ) {
+                        // Top Card: Battery Status Card
                         MonochromeCard(
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.fillMaxWidth(),
                             backgroundColor = colors.surface,
                             padding = spacing.cardPadding
                         ) {
                             Row(
+                                modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(20.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.GpsFixed,
-                                    contentDescription = "Yaw Angle Icon",
-                                    modifier = Modifier.size(20.dp),
-                                    tint = colors.primaryText
+                                BatteryIcon(
+                                    percent = uiState.batteryPercent,
+                                    color = colors.statusActive
                                 )
+
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = "${uiState.batteryPercent}%",
+                                        style = typography.h3,
+                                        color = colors.primaryText,
+                                        fontWeight = FontWeight.Bold
+                                    )
+
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(12.dp)
+                                            .clip(CircleShape)
+                                            .background(colors.disabledSurface)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth(uiState.batteryPercent / 100f)
+                                                .fillMaxHeight()
+                                                .clip(CircleShape)
+                                                .background(colors.statusActive)
+                                        )
+                                    }
+
+                                    Text(
+                                        text = uiState.estimatedTimeRemaining,
+                                        style = typography.caption,
+                                        color = colors.secondaryText
+                                    )
+                                }
+                            }
+                        }
+
+                        // Middle Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(spacing.space4)
+                        ) {
+                            MonochromeCard(
+                                modifier = Modifier.weight(1f),
+                                backgroundColor = colors.surface,
+                                padding = spacing.cardPadding
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Place,
+                                        contentDescription = "Position Icon",
+                                        modifier = Modifier.size(20.dp),
+                                        tint = colors.primaryText
+                                    )
+                                    Text(
+                                        text = "Position",
+                                        style = typography.label,
+                                        color = colors.secondaryText
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
                                 Text(
-                                    text = "Yaw Angle",
-                                    style = typography.label,
-                                    color = colors.secondaryText
+                                    text = "(${String.format(java.util.Locale.US, "%.1f", uiState.positionX)}, ${String.format(java.util.Locale.US, "%.1f", uiState.positionY)})",
+                                    style = typography.h4,
+                                    color = colors.primaryText,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Spacer(modifier = Modifier.height(2.dp))
+
+                                Text(
+                                    text = "X, Y (meters)",
+                                    style = typography.caption,
+                                    color = colors.mutedText
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            MonochromeCard(
+                                modifier = Modifier.weight(1f),
+                                backgroundColor = colors.surface,
+                                padding = spacing.cardPadding
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(16.dp)
-                                        .clip(CircleShape)
-                                        .border(1.5.dp, colors.disabledText, CircleShape)
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.GpsFixed,
+                                        contentDescription = "Yaw Angle Icon",
+                                        modifier = Modifier.size(20.dp),
+                                        tint = colors.primaryText
+                                    )
+                                    Text(
+                                        text = "Yaw Angle",
+                                        style = typography.label,
+                                        color = colors.secondaryText
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .clip(CircleShape)
+                                            .border(1.5.dp, colors.disabledText, CircleShape)
+                                    )
+
+                                    Text(
+                                        text = "${uiState.yawDegrees.toInt()}°",
+                                        style = typography.h4,
+                                        color = colors.primaryText,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            MonochromeCard(
+                                modifier = Modifier.weight(1f),
+                                backgroundColor = colors.surface,
+                                padding = spacing.cardPadding
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.SportsEsports,
+                                        contentDescription = "State Icon",
+                                        modifier = Modifier.size(20.dp),
+                                        tint = colors.primaryText
+                                    )
+                                    Text(
+                                        text = "State",
+                                        style = typography.label,
+                                        color = colors.secondaryText
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
 
                                 Text(
-                                    text = "${uiState.yawDegrees.toInt()}°",
+                                    text = uiState.robotState,
                                     style = typography.h4,
                                     color = colors.primaryText,
                                     fontWeight = FontWeight.Bold
@@ -281,142 +494,106 @@ fun RobotStatusScreenContent(
                             }
                         }
 
-                        // State Card
-                        MonochromeCard(
-                            modifier = Modifier.weight(1f),
-                            backgroundColor = colors.surface,
-                            padding = spacing.cardPadding
+                        // Bottom Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(spacing.space4)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            MonochromeCard(
+                                modifier = Modifier.weight(1f),
+                                backgroundColor = colors.surface,
+                                padding = spacing.cardPadding
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.SportsEsports,
-                                    contentDescription = "State Icon",
-                                    modifier = Modifier.size(20.dp),
-                                    tint = colors.primaryText
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Wifi,
+                                        contentDescription = "Connection Icon",
+                                        modifier = Modifier.size(20.dp),
+                                        tint = colors.primaryText
+                                    )
+                                    Text(
+                                        text = "Connection",
+                                        style = typography.label,
+                                        color = colors.secondaryText
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
                                 Text(
-                                    text = "State",
-                                    style = typography.label,
-                                    color = colors.secondaryText
+                                    text = if (uiState.isConnected) "Connected" else "Disconnected",
+                                    style = typography.h4,
+                                    color = colors.primaryText,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Text(
-                                text = uiState.robotState,
-                                style = typography.h4,
-                                color = colors.primaryText,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    // Bottom Row: 3 Cards (Connection, Speed, Temperature)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(spacing.space4)
-                    ) {
-                        // Connection Card
-                        MonochromeCard(
-                            modifier = Modifier.weight(1f),
-                            backgroundColor = colors.surface,
-                            padding = spacing.cardPadding
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            MonochromeCard(
+                                modifier = Modifier.weight(1f),
+                                backgroundColor = colors.surface,
+                                padding = spacing.cardPadding
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Wifi,
-                                    contentDescription = "Connection Icon",
-                                    modifier = Modifier.size(20.dp),
-                                    tint = colors.primaryText
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Speed,
+                                        contentDescription = "Speed Icon",
+                                        modifier = Modifier.size(20.dp),
+                                        tint = colors.primaryText
+                                    )
+                                    Text(
+                                        text = "Speed",
+                                        style = typography.label,
+                                        color = colors.secondaryText
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
                                 Text(
-                                    text = "Connection",
-                                    style = typography.label,
-                                    color = colors.secondaryText
+                                    text = "${String.format(java.util.Locale.US, "%.1f", uiState.speedMps)} m/s",
+                                    style = typography.h4,
+                                    color = colors.primaryText,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Text(
-                                text = if (uiState.isConnected) "Connected" else "Disconnected",
-                                style = typography.h4,
-                                color = colors.primaryText,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        // Speed Card
-                        MonochromeCard(
-                            modifier = Modifier.weight(1f),
-                            backgroundColor = colors.surface,
-                            padding = spacing.cardPadding
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            MonochromeCard(
+                                modifier = Modifier.weight(1f),
+                                backgroundColor = colors.surface,
+                                padding = spacing.cardPadding
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Speed,
-                                    contentDescription = "Speed Icon",
-                                    modifier = Modifier.size(20.dp),
-                                    tint = colors.primaryText
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Thermostat,
+                                        contentDescription = "Temperature Icon",
+                                        modifier = Modifier.size(20.dp),
+                                        tint = colors.primaryText
+                                    )
+                                    Text(
+                                        text = "Temperature",
+                                        style = typography.label,
+                                        color = colors.secondaryText
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
                                 Text(
-                                    text = "Speed",
-                                    style = typography.label,
-                                    color = colors.secondaryText
+                                    text = "${uiState.temperatureCelsius.toInt()}°C",
+                                    style = typography.h4,
+                                    color = colors.primaryText,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Text(
-                                text = "${String.format(java.util.Locale.US, "%.1f", uiState.speedMps)} m/s",
-                                style = typography.h4,
-                                color = colors.primaryText,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        // Temperature Card
-                        MonochromeCard(
-                            modifier = Modifier.weight(1f),
-                            backgroundColor = colors.surface,
-                            padding = spacing.cardPadding
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Thermostat,
-                                    contentDescription = "Temperature Icon",
-                                    modifier = Modifier.size(20.dp),
-                                    tint = colors.primaryText
-                                )
-                                Text(
-                                    text = "Temperature",
-                                    style = typography.label,
-                                    color = colors.secondaryText
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Text(
-                                text = "${uiState.temperatureCelsius.toInt()}°C",
-                                style = typography.h4,
-                                color = colors.primaryText,
-                                fontWeight = FontWeight.Bold
-                            )
                         }
                     }
                 }
@@ -470,6 +647,8 @@ fun BatteryIcon(
     }
 }
 
+@Preview(name = "Pixel 7 Portrait", showBackground = true, device = "id:pixel_7")
+@Preview(name = "Pixel 8 Portrait", showBackground = true, device = "id:pixel_8")
 @Preview(name = "Robot Status Screen Preview", showBackground = true, widthDp = 1000, heightDp = 600)
 @Composable
 fun RobotStatusScreenPreview() {

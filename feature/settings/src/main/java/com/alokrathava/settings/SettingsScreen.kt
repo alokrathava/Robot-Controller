@@ -19,6 +19,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.alokrathava.home.AdaptiveNavigationLayout
 import com.alokrathava.home.Sidebar
 import com.alokrathava.home.SidebarNavItem
 import com.alokrathava.theme.*
@@ -66,147 +69,198 @@ fun SettingsScreenContent(
     val colors = MonochromeTheme.colors
     val typography = MonochromeTheme.typography
     val spacing = MonochromeTheme.spacing
+    val deviceMode = LocalDeviceMode.current
 
-    Row(
+    val paddingValues = if (deviceMode == DeviceMode.MOBILE) spacing.space4 else spacing.cardPadding
+
+    AdaptiveNavigationLayout(
+        selectedItem = selectedNav,
+        onItemSelected = onSidebarItemSelected,
+        isConnected = uiState.isConnected,
+        connectionAddress = uiState.connectionAddress,
         modifier = modifier
-            .fillMaxSize()
-            .background(colors.background)
     ) {
-        // Left Sidebar Navigation
-        Sidebar(
-            selectedItem = selectedNav,
-            onItemSelected = onSidebarItemSelected,
-            isConnected = uiState.isConnected,
-            connectionAddress = uiState.connectionAddress
-        )
-
-        // Main Dashboard Area
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .padding(
-                    start = spacing.space6,
-                    top = spacing.cardPadding,
-                    end = spacing.space6,
-                    bottom = spacing.cardPadding
-                )
-        ) {
-            // Header Title & Subtitle
-            Text(
-                text = "Settings",
-                style = typography.h2,
-                color = colors.primaryText
-            )
-            Spacer(modifier = Modifier.height(spacing.space1))
-            Text(
-                text = "Configure robot, connection and app preferences",
-                style = typography.bodySmall,
-                color = colors.secondaryText
-            )
-
-            Spacer(modifier = Modifier.height(spacing.space5))
-
-            // Main Content Area: Left Form Controls + Right Connection Status Card
-            Row(
+        if (deviceMode == DeviceMode.MOBILE) {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(spacing.space6),
-                verticalAlignment = Alignment.Top
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(spacing.space4)
             ) {
-                // Left Column: Form Controls Section
-                Column(
-                    modifier = Modifier
-                        .weight(0.62f)
-                        .fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(spacing.space5)
+                Text(
+                    text = "Settings",
+                    style = typography.h2,
+                    color = colors.primaryText
+                )
+                Text(
+                    text = "Configure robot, connection and app preferences",
+                    style = typography.bodySmall,
+                    color = colors.secondaryText
+                )
+
+                // Connection Status Card
+                MonochromeCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    backgroundColor = colors.surface,
+                    borderColor = colors.hoverSurface,
+                    padding = spacing.cardPadding
                 ) {
-                    // Segmented Tab Bar Switcher
-                    MonochromeSegmentedControl(
-                        items = SettingsTab.entries,
-                        selectedItem = uiState.selectedTab,
-                        onItemSelected = onTabSelected,
-                        itemLabel = { it.title }
+                    Text(text = "Connection Status", style = typography.h4, color = colors.primaryText)
+                    Spacer(modifier = Modifier.height(spacing.space2))
+                    MonochromeStatusPill(
+                        text = if (uiState.isConnected) "Connected" else "Disconnected",
+                        level = if (uiState.isConnected) StatusLevel.Active else StatusLevel.Inactive
                     )
-
-                    // Tab Content
-                    when (uiState.selectedTab) {
-                        SettingsTab.CONNECTION -> {
-                            ConnectionTabContent(
-                                uiState = uiState,
-                                onIpAddressChanged = onIpAddressChanged,
-                                onPortChanged = onPortChanged,
-                                onTokenChanged = onTokenChanged,
-                                onAutoConnectToggled = onAutoConnectToggled,
-                                onReconnectionAttemptsChanged = onReconnectionAttemptsChanged,
-                                onConnectionTimeoutChanged = onConnectionTimeoutChanged
-                            )
-                        }
-
-                        SettingsTab.NAVIGATION -> {
-                            PlaceholderTabContent(title = "Navigation Settings")
-                        }
-
-                        SettingsTab.ROBOT -> {
-                            PlaceholderTabContent(title = "Robot Preferences")
-                        }
-
-                        SettingsTab.ADVANCED -> {
-                            PlaceholderTabContent(title = "Advanced Configurations")
-                        }
+                    Spacer(modifier = Modifier.height(spacing.space3))
+                    Column(verticalArrangement = Arrangement.spacedBy(spacing.space2)) {
+                        ConnectionMetadataRow(label = "IP Address", value = uiState.robotIpAddress)
+                        ConnectionMetadataRow(label = "Port", value = uiState.port)
+                        ConnectionMetadataRow(label = "Latency", value = uiState.latencyMs?.let { "${it} ms" } ?: "--")
                     }
+                    Spacer(modifier = Modifier.height(spacing.space4))
+                    MonochromeButton(
+                        onClick = onToggleConnection,
+                        text = if (uiState.isConnected) "Disconnect" else "Connect",
+                        variant = MonochromeButtonVariant.Secondary,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
 
-                // Right Column: Connection Status Card
-                Column(
+                MonochromeSegmentedControl(
+                    items = SettingsTab.entries,
+                    selectedItem = uiState.selectedTab,
+                    onItemSelected = onTabSelected,
+                    itemLabel = { it.title },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                when (uiState.selectedTab) {
+                    SettingsTab.CONNECTION -> {
+                        ConnectionTabContent(
+                            uiState = uiState,
+                            onIpAddressChanged = onIpAddressChanged,
+                            onPortChanged = onPortChanged,
+                            onTokenChanged = onTokenChanged,
+                            onAutoConnectToggled = onAutoConnectToggled,
+                            onReconnectionAttemptsChanged = onReconnectionAttemptsChanged,
+                            onConnectionTimeoutChanged = onConnectionTimeoutChanged
+                        )
+                    }
+                    SettingsTab.NAVIGATION -> PlaceholderTabContent(title = "Navigation Settings")
+                    SettingsTab.ROBOT -> PlaceholderTabContent(title = "Robot Preferences")
+                    SettingsTab.ADVANCED -> PlaceholderTabContent(title = "Advanced Configurations")
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        start = spacing.space6,
+                        top = spacing.cardPadding,
+                        end = spacing.space6,
+                        bottom = spacing.cardPadding
+                    )
+            ) {
+                Text(
+                    text = "Settings",
+                    style = typography.h2,
+                    color = colors.primaryText
+                )
+                Spacer(modifier = Modifier.height(spacing.space1))
+                Text(
+                    text = "Configure robot, connection and app preferences",
+                    style = typography.bodySmall,
+                    color = colors.secondaryText
+                )
+
+                Spacer(modifier = Modifier.height(spacing.space5))
+
+                Row(
                     modifier = Modifier
-                        .weight(0.38f)
-                        .fillMaxHeight()
+                        .fillMaxWidth()
+                        .weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.space6),
+                    verticalAlignment = Alignment.Top
                 ) {
-                    MonochromeCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        backgroundColor = colors.surface,
-                        borderColor = colors.hoverSurface,
-                        padding = spacing.cardPadding
+                    Column(
+                        modifier = Modifier
+                            .weight(0.62f)
+                            .fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(spacing.space5)
                     ) {
-                        Text(
-                            text = "Connection Status",
-                            style = typography.h4,
-                            color = colors.primaryText
+                        MonochromeSegmentedControl(
+                            items = SettingsTab.entries,
+                            selectedItem = uiState.selectedTab,
+                            onItemSelected = onTabSelected,
+                            itemLabel = { it.title }
                         )
 
-                        Spacer(modifier = Modifier.height(spacing.space3))
-
-                        // Live Status Pill
-                        MonochromeStatusPill(
-                            text = if (uiState.isConnected) "Connected" else "Disconnected",
-                            level = if (uiState.isConnected) StatusLevel.Active else StatusLevel.Inactive
-                        )
-
-                        Spacer(modifier = Modifier.height(spacing.space5))
-
-                        // Connection Details List
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(spacing.space3)
-                        ) {
-                            ConnectionMetadataRow(label = "IP Address", value = uiState.robotIpAddress)
-                            ConnectionMetadataRow(label = "Port", value = uiState.port)
-                            ConnectionMetadataRow(label = "Latency", value = uiState.latencyMs?.let { "${it} ms" } ?: "--")
-                            ConnectionMetadataRow(label = "Reconnects", value = "${uiState.reconnectCount}")
-                            ConnectionMetadataRow(label = "Last Msg Age", value = if (uiState.isConnected) "${uiState.lastMessageAgeMs} ms" else "--")
-                            ConnectionMetadataRow(label = "Session", value = uiState.lastConnected)
+                        when (uiState.selectedTab) {
+                            SettingsTab.CONNECTION -> {
+                                ConnectionTabContent(
+                                    uiState = uiState,
+                                    onIpAddressChanged = onIpAddressChanged,
+                                    onPortChanged = onPortChanged,
+                                    onTokenChanged = onTokenChanged,
+                                    onAutoConnectToggled = onAutoConnectToggled,
+                                    onReconnectionAttemptsChanged = onReconnectionAttemptsChanged,
+                                    onConnectionTimeoutChanged = onConnectionTimeoutChanged
+                                )
+                            }
+                            SettingsTab.NAVIGATION -> PlaceholderTabContent(title = "Navigation Settings")
+                            SettingsTab.ROBOT -> PlaceholderTabContent(title = "Robot Preferences")
+                            SettingsTab.ADVANCED -> PlaceholderTabContent(title = "Advanced Configurations")
                         }
+                    }
 
-                        Spacer(modifier = Modifier.height(spacing.space6))
+                    Column(
+                        modifier = Modifier
+                            .weight(0.38f)
+                            .fillMaxHeight()
+                    ) {
+                        MonochromeCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            backgroundColor = colors.surface,
+                            borderColor = colors.hoverSurface,
+                            padding = spacing.cardPadding
+                        ) {
+                            Text(
+                                text = "Connection Status",
+                                style = typography.h4,
+                                color = colors.primaryText
+                            )
 
-                        // Disconnect Action Button
-                        MonochromeButton(
-                            onClick = onToggleConnection,
-                            text = if (uiState.isConnected) "Disconnect" else "Connect",
-                            variant = MonochromeButtonVariant.Secondary,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                            Spacer(modifier = Modifier.height(spacing.space3))
+
+                            MonochromeStatusPill(
+                                text = if (uiState.isConnected) "Connected" else "Disconnected",
+                                level = if (uiState.isConnected) StatusLevel.Active else StatusLevel.Inactive
+                            )
+
+                            Spacer(modifier = Modifier.height(spacing.space5))
+
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(spacing.space3)
+                            ) {
+                                ConnectionMetadataRow(label = "IP Address", value = uiState.robotIpAddress)
+                                ConnectionMetadataRow(label = "Port", value = uiState.port)
+                                ConnectionMetadataRow(label = "Latency", value = uiState.latencyMs?.let { "${it} ms" } ?: "--")
+                                ConnectionMetadataRow(label = "Reconnects", value = "${uiState.reconnectCount}")
+                                ConnectionMetadataRow(label = "Last Msg Age", value = if (uiState.isConnected) "${uiState.lastMessageAgeMs} ms" else "--")
+                                ConnectionMetadataRow(label = "Session", value = uiState.lastConnected)
+                            }
+
+                            Spacer(modifier = Modifier.height(spacing.space6))
+
+                            MonochromeButton(
+                                onClick = onToggleConnection,
+                                text = if (uiState.isConnected) "Disconnect" else "Connect",
+                                variant = MonochromeButtonVariant.Secondary,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             }
@@ -489,7 +543,9 @@ private fun PlaceholderTabContent(
     }
 }
 
-@Preview(name = "Settings Screen Preview", showBackground = true, widthDp = 1000, heightDp = 600)
+@Preview(name = "Pixel 7 Portrait", showBackground = true, device = "id:pixel_7")
+@Preview(name = "Pixel 8 Portrait", showBackground = true, device = "id:pixel_8")
+@Preview(name = "Settings Screen Tablet Preview", showBackground = true, widthDp = 1000, heightDp = 600)
 @Composable
 fun SettingsScreenPreview() {
     MonochromeTheme(darkTheme = false) {

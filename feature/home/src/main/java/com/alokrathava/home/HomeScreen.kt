@@ -33,6 +33,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.alokrathava.sdk.model.ConnectionStatus
+import com.alokrathava.theme.DeviceMode
+import com.alokrathava.theme.LocalDeviceMode
 import com.alokrathava.theme.MonochromeCard
 import com.alokrathava.theme.MonochromeTheme
 
@@ -157,175 +159,187 @@ fun HomeScreenContent(
 ) {
     val colors = MonochromeTheme.colors
     val typography = MonochromeTheme.typography
+    val deviceMode = LocalDeviceMode.current
 
-    Row(
+    val paddingValues = if (deviceMode == DeviceMode.MOBILE) {
+        MonochromeTheme.spacing.space4
+    } else {
+        MonochromeTheme.spacing.cardPadding
+    }
+
+    AdaptiveNavigationLayout(
+        selectedItem = selectedNav,
+        onItemSelected = onSidebarItemSelected,
+        isConnected = (uiState.connectionStatus == ConnectionStatus.CONNECTED || uiState.connectionStatus == ConnectionStatus.DISCONNECTED),
+        connectionAddress = "${uiState.ipAddress}:${uiState.port}",
         modifier = modifier
-            .fillMaxSize()
-            .background(colors.background)
     ) {
-        // Left Sidebar Navigation
-        Sidebar(
-            selectedItem = selectedNav,
-            onItemSelected = onSidebarItemSelected,
-            isConnected = (uiState.connectionStatus == ConnectionStatus.CONNECTED || uiState.connectionStatus == ConnectionStatus.DISCONNECTED),
-            connectionAddress = "${uiState.ipAddress}:${uiState.port}"
-        )
-
-        // Main Dashboard Content Area
-        Box(
+        Column(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .padding(
-                    start = MonochromeTheme.spacing.space6,
-                    top = MonochromeTheme.spacing.cardPadding,
-                    end = MonochromeTheme.spacing.space6,
-                    bottom = MonochromeTheme.spacing.cardPadding
-                )
+                .fillMaxSize()
+                .padding(paddingValues)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(MonochromeTheme.spacing.cardPadding)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(MonochromeTheme.spacing.cardPadding)
+            // Top Header Row & Battery Info
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-                // Top Header Row & Battery Info
+                // Header Greeting & Status Title
+                Column {
+                    Text(
+                        text = "Good Morning",
+                        style = typography.body,
+                        color = colors.secondaryText
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Robot is Ready",
+                        style = if (deviceMode == DeviceMode.MOBILE) typography.h2 else typography.h1,
+                        color = colors.primaryText,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Connected and ready for operation",
+                        style = typography.bodySmall,
+                        color = colors.secondaryText
+                    )
+                }
+
+                // Top-Right Battery Status Indicator
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Header Greeting & Status Title
+                    Icon(
+                        imageVector = Icons.Default.BatteryFull,
+                        contentDescription = "Battery Status",
+                        tint = colors.statusActive,
+                        modifier = Modifier.size(if (deviceMode == DeviceMode.MOBILE) 28.dp else 40.dp)
+                    )
+
                     Column {
                         Text(
-                            text = "Good Morning",
-                            style = typography.body,
-                            color = colors.secondaryText
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Robot is Ready",
-                            style = typography.h1,
+                            text = uiState.batteryStatus.displayText.ifBlank { "85%" },
+                            style = if (deviceMode == DeviceMode.MOBILE) typography.h4 else typography.h3,
                             color = colors.primaryText,
                             fontWeight = FontWeight.Bold
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Connected and ready for operation",
-                            style = typography.bodySmall,
+                            text = "Battery",
+                            style = typography.label,
                             color = colors.secondaryText
                         )
                     }
-
-                    // Top-Right Battery Status Indicator
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.BatteryFull,
-                            contentDescription = "Battery Status",
-                            tint = colors.statusActive,
-                            modifier = Modifier.size(40.dp)
-                        )
-
-                        Column {
-                            Text(
-                                text = uiState.batteryStatus.displayText.ifBlank { "85%" },
-                                style = typography.h3,
-                                color = colors.primaryText,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Battery",
-                                style = typography.label,
-                                color = colors.secondaryText
-                            )
-                            Text(
-                                text = uiState.batteryTimeRemainingFormatted,
-                                style = typography.caption,
-                                color = colors.mutedText
-                            )
-                        }
-                    }
                 }
+            }
 
-                // Main Section: Telemetry & Quick Actions Column on left
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(MonochromeTheme.spacing.space6),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(MonochromeTheme.spacing.space6)
-                    ) {
-                        // Four Horizontal Telemetry Cards
-                        TelemetryRow(
-                            uiState = uiState,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+            // Main Section: Telemetry & Quick Actions
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(MonochromeTheme.spacing.space6)
+            ) {
+                // Four Telemetry Cards
+                TelemetryRow(
+                    uiState = uiState,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
-                        // 2 x 2 Quick Actions Grid
-                        QuickActionsGrid(
-                            onNavigateClick = onNavigateClick,
-                            onManualControlClick = onManualControlClick,
-                            onReturnHomeClick = onReturnHomeClick,
-                            onEmergencyReleaseClick = onEmergencyReleaseClick,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                // 2 x 2 Quick Actions Grid
+                QuickActionsGrid(
+                    onNavigateClick = onNavigateClick,
+                    onManualControlClick = onManualControlClick,
+                    onReturnHomeClick = onReturnHomeClick,
+                    onEmergencyReleaseClick = onEmergencyReleaseClick,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
-                        // System Diagnostic & Mission Overview Card
-                        SystemStatusOverviewCard(
-                            uiState = uiState,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
+                // System Diagnostic & Mission Overview Card
+                SystemStatusOverviewCard(
+                    uiState = uiState,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
 }
 
 /**
- * Horizontal Telemetry Cards Row (4 cards)
+ * Telemetry Cards Row
  */
 @Composable
 private fun TelemetryRow(
     uiState: HomeUiState,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+    val deviceMode = LocalDeviceMode.current
+
+    val card1 = @Composable { m: Modifier ->
         TelemetryCard(
             icon = Icons.Default.SmartToy,
             primaryValue = uiState.statusMessage.ifBlank { "Ready" },
             secondaryLabel = "Robot State",
-            modifier = Modifier.weight(1f)
+            modifier = m
         )
-
+    }
+    val card2 = @Composable { m: Modifier ->
         TelemetryCard(
             icon = Icons.Default.Place,
             primaryValue = if (uiState.position.displayText.isBlank() || uiState.position.displayText == "(0.0, 0.0)") "(2.4, 5.1)" else uiState.position.displayText,
             secondaryLabel = "Current Position",
-            modifier = Modifier.weight(1f)
+            modifier = m
         )
-
+    }
+    val card3 = @Composable { m: Modifier ->
         TelemetryCard(
             icon = Icons.Default.Navigation,
             primaryValue = "180°",
             secondaryLabel = "Yaw Angle",
-            modifier = Modifier.weight(1f)
+            modifier = m
         )
-
+    }
+    val card4 = @Composable { m: Modifier ->
         TelemetryCard(
             icon = Icons.Default.Thermostat,
             primaryValue = "24°C",
             secondaryLabel = "Temperature",
-            modifier = Modifier.weight(1f)
+            modifier = m
         )
+    }
+
+    if (deviceMode == DeviceMode.MOBILE) {
+        Column(
+            modifier = modifier,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                card1(Modifier.weight(1f))
+                card2(Modifier.weight(1f))
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                card3(Modifier.weight(1f))
+                card4(Modifier.weight(1f))
+            }
+        }
+    } else {
+        Row(
+            modifier = modifier,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            card1(Modifier.weight(1f))
+            card2(Modifier.weight(1f))
+            card3(Modifier.weight(1f))
+            card4(Modifier.weight(1f))
+        }
     }
 }
 
@@ -525,6 +539,7 @@ private fun SystemStatusOverviewCard(
 ) {
     val colors = MonochromeTheme.colors
     val typography = MonochromeTheme.typography
+    val deviceMode = LocalDeviceMode.current
 
     MonochromeCard(
         modifier = modifier,
@@ -541,88 +556,64 @@ private fun SystemStatusOverviewCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "System Diagnostics & Mission Status",
+                    text = "System Diagnostics",
                     style = typography.bodyLarge,
                     color = colors.primaryText,
                     fontWeight = FontWeight.Bold
                 )
 
                 com.alokrathava.theme.MonochromeStatusPill(
-                    text = "SYSTEM OPERATIONAL",
+                    text = "OPERATIONAL",
                     level = com.alokrathava.theme.StatusLevel.Active
                 )
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Active Map Detail
+            if (deviceMode == DeviceMode.MOBILE) {
                 Column(
-                    modifier = Modifier.weight(1f)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        text = "Active Map",
-                        style = typography.caption,
-                        color = colors.mutedText
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = uiState.mapData.displayText,
-                        style = typography.bodySmall,
-                        color = colors.primaryText,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Column {
+                        Text(text = "Active Map", style = typography.caption, color = colors.mutedText)
+                        Text(text = uiState.mapData.displayText, style = typography.bodySmall, color = colors.primaryText, fontWeight = FontWeight.SemiBold)
+                    }
+                    Column {
+                        Text(text = "Dock Station", style = typography.caption, color = colors.mutedText)
+                        Text(text = "Primary Charging Dock", style = typography.bodySmall, color = colors.primaryText, fontWeight = FontWeight.SemiBold)
+                    }
+                    Column {
+                        Text(text = "Network Endpoint", style = typography.caption, color = colors.mutedText)
+                        Text(text = "${uiState.ipAddress}:${uiState.port}", style = typography.bodySmall, color = colors.primaryText, fontWeight = FontWeight.SemiBold)
+                    }
                 }
-
-                // Dock Station Status
-                Column(
-                    modifier = Modifier.weight(1f)
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        text = "Dock Station",
-                        style = typography.caption,
-                        color = colors.mutedText
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "Primary Charging Dock",
-                        style = typography.bodySmall,
-                        color = colors.primaryText,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                // Connection Network
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = "Network Endpoint",
-                        style = typography.caption,
-                        color = colors.mutedText
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "${uiState.ipAddress}:${uiState.port}",
-                        style = typography.bodySmall,
-                        color = colors.primaryText,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "Active Map", style = typography.caption, color = colors.mutedText)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(text = uiState.mapData.displayText, style = typography.bodySmall, color = colors.primaryText, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "Dock Station", style = typography.caption, color = colors.mutedText)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(text = "Primary Charging Dock", style = typography.bodySmall, color = colors.primaryText, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "Network Endpoint", style = typography.caption, color = colors.mutedText)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(text = "${uiState.ipAddress}:${uiState.port}", style = typography.bodySmall, color = colors.primaryText, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
             }
         }
     }
 }
 
+@Preview(name = "Pixel 7 Portrait", showBackground = true, device = "id:pixel_7")
+@Preview(name = "Pixel 8 Portrait", showBackground = true, device = "id:pixel_8")
 @Preview(name = "1920x1080 Widescreen", showBackground = true, device = "spec:width=1920px,height=1080px,dpi=160")
-@Preview(name = "1920x1080 High DPI", showBackground = true, device = "spec:width=1920px,height=1080px,dpi=240")
 @Composable
 fun HomeScreenPreview() {
     MonochromeTheme(darkTheme = false) {

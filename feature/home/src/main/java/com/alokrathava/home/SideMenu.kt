@@ -22,9 +22,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-
+import com.alokrathava.theme.DeviceMode
+import com.alokrathava.theme.LocalDeviceMode
 import com.alokrathava.theme.MonochromeTheme
 
 enum class SidebarNavItem(
@@ -167,10 +169,201 @@ fun Sidebar(
     }
 }
 
+@Composable
+fun MobileTopHeader(
+    modifier: Modifier = Modifier,
+    title: String = "Robot Controller",
+    isConnected: Boolean = true,
+    connectionAddress: String = "192.168.1.108:8080"
+) {
+    val colors = MonochromeTheme.colors
+    val typography = MonochromeTheme.typography
+    val spacing = MonochromeTheme.spacing
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        color = colors.background
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = spacing.space4),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = title,
+                    style = typography.h4,
+                    color = colors.primaryText,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = connectionAddress,
+                    style = typography.monoCaption,
+                    color = colors.mutedText
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(spacing.space2)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(if (isConnected) colors.statusActive else colors.disabledText)
+                )
+                Text(
+                    text = if (isConnected) "Connected" else "Disconnected",
+                    style = typography.caption,
+                    color = colors.secondaryText,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun MobileBottomBar(
+    modifier: Modifier = Modifier,
+    selectedItem: SidebarNavItem = SidebarNavItem.HOME,
+    onItemSelected: (SidebarNavItem) -> Unit = {}
+) {
+    val colors = MonochromeTheme.colors
+    val typography = MonochromeTheme.typography
+    val shapes = MonochromeTheme.shapes
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = colors.background
+    ) {
+        Column {
+            HorizontalDivider(color = colors.subtleBorder, thickness = 1.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp)
+                    .padding(horizontal = 2.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SidebarNavItem.entries.forEach { item ->
+                    val isSelected = selectedItem == item
+                    val fg = if (isSelected) colors.primaryText else colors.secondaryText
+                    val bg = if (isSelected) colors.interactiveSurface else Color.Transparent
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(shapes.buttons)
+                            .background(bg)
+                            .clickable { onItemSelected(item) }
+                            .padding(vertical = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = item.icon,
+                            contentDescription = item.title,
+                            tint = fg,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = item.title,
+                            style = typography.caption,
+                            color = fg,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AdaptiveNavigationLayout(
+    modifier: Modifier = Modifier,
+    selectedItem: SidebarNavItem = SidebarNavItem.HOME,
+    onItemSelected: (SidebarNavItem) -> Unit = {},
+    isConnected: Boolean = true,
+    connectionAddress: String = "192.168.1.108:8080",
+    content: @Composable () -> Unit
+) {
+    val deviceMode = LocalDeviceMode.current
+
+    if (deviceMode == DeviceMode.TABLET) {
+        Row(
+            modifier = modifier
+                .fillMaxSize()
+                .background(MonochromeTheme.colors.background)
+        ) {
+            Sidebar(
+                selectedItem = selectedItem,
+                onItemSelected = onItemSelected,
+                isConnected = isConnected,
+                connectionAddress = connectionAddress
+            )
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            ) {
+                content()
+            }
+        }
+    } else {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .background(MonochromeTheme.colors.background)
+        ) {
+            MobileTopHeader(
+                title = selectedItem.title,
+                isConnected = isConnected,
+                connectionAddress = connectionAddress
+            )
+
+            HorizontalDivider(color = MonochromeTheme.colors.subtleBorder, thickness = 1.dp)
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                content()
+            }
+
+            MobileBottomBar(
+                selectedItem = selectedItem,
+                onItemSelected = onItemSelected
+            )
+        }
+    }
+}
+
 @Preview(name = "Sidebar Preview", showBackground = true)
 @Composable
 fun SidebarPreview() {
     MonochromeTheme(darkTheme = false) {
         Sidebar()
+    }
+}
+
+@Preview(name = "Mobile Bottom Bar Preview", showBackground = true, widthDp = 412)
+@Composable
+fun MobileBottomBarPreview() {
+    MonochromeTheme(darkTheme = false) {
+        MobileBottomBar()
     }
 }
