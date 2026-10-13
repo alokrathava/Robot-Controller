@@ -70,4 +70,26 @@ class ProtocolCodecTest {
         assertEquals("map_lab", updatedGrid!!.mapId)
         assertEquals(16, updatedGrid.data.size)
     }
+
+    @Test
+    fun encodeEnvelope_normalizesNullPayloadToEmptyJsonObject() {
+        val simpleEnvelope = ProtocolCodec.createSimpleCommandEnvelope("list_maps", "cmd-1001")
+        val jsonString = ProtocolCodec.encodeEnvelope(simpleEnvelope)
+
+        assertTrue(jsonString.contains("\"payload\":{}"))
+        assertTrue(jsonString.contains("\"type\":\"list_maps\""))
+        assertTrue(jsonString.contains("\"id\":\"cmd-1001\""))
+        assertTrue(jsonString.contains("\"protocolVersion\":1"))
+        assertTrue(!jsonString.contains("\"error\""))
+    }
+
+    @Test
+    fun encodeStartMappingEnvelope_serializesRecoveryOptionsPayload() {
+        val envelope = ProtocolCodec.createStartMappingEnvelope("cmd-1002", resumeUnsaved = true, discardUnsaved = false)
+        val jsonString = ProtocolCodec.encodeEnvelope(envelope)
+
+        assertTrue(jsonString.contains("\"type\":\"start_mapping\""))
+        assertTrue(jsonString.contains("\"resumeUnsaved\":true"))
+        assertTrue(jsonString.contains("\"discardUnsaved\":false"))
+    }
 }

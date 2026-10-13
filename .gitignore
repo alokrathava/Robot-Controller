@@ -58,3 +58,10 @@ Desktop.ini
 .cache/
 *.tmp
 *.bak
+
+# AI & Agent Instruction Files
+AGENTS.md
+CLAUDE.md
+.cursorrules
+.windsurfrules
+.github/copilot-instructions.md

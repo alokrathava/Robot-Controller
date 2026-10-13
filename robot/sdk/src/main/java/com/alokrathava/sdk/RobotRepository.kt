@@ -31,6 +31,8 @@ interface RobotRepository {
         get() = kotlinx.coroutines.flow.MutableStateFlow(null)
     val connectionMetrics: StateFlow<com.alokrathava.sdk.model.ConnectionMetrics>
         get() = kotlinx.coroutines.flow.MutableStateFlow(com.alokrathava.sdk.model.ConnectionMetrics())
+    val mapOperationState: StateFlow<com.alokrathava.sdk.model.MapOperationState>
+        get() = kotlinx.coroutines.flow.MutableStateFlow(com.alokrathava.sdk.model.MapOperationState.Idle)
 
     fun move(direction: DirectionCommand)
     fun setManualVelocity(linearMps: Double, angularRadPerSec: Double) {}
@@ -52,7 +54,14 @@ interface RobotRepository {
     fun undock()
     fun cancelDocking()
 
-    suspend fun startMapping(): com.alokrathava.sdk.error.RobotResult<Unit> =
+    /**
+     * Initiates real-time SLAM mapping on the robot.
+     * Supports recovery parameters to resume or discard unsaved session state.
+     */
+    suspend fun startMapping(
+        resumeUnsaved: Boolean = false,
+        discardUnsaved: Boolean = false
+    ): com.alokrathava.sdk.error.RobotResult<Unit> =
         com.alokrathava.sdk.error.RobotResult.Success(Unit)
 
     suspend fun stopMapping(discardUnsaved: Boolean = false): com.alokrathava.sdk.error.RobotResult<Unit> =

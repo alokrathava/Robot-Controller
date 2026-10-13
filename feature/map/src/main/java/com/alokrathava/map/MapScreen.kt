@@ -42,8 +42,13 @@ fun MapScreen(
         onSidebarItemSelected = onSidebarItemSelected,
         onSelectMap = viewModel::selectMap,
         onSetActiveMap = viewModel::setMapActive,
-        onStartMapping = viewModel::startMapping,
+        onStartMapping = { viewModel.startMapping() },
         onStopMapping = { viewModel.stopMapping(false) },
+        onResumeMappingSession = viewModel::resumeMappingSession,
+        onStartFreshClick = viewModel::openStartFreshConfirmDialog,
+        onConfirmStartFresh = viewModel::confirmStartFreshMapping,
+        onCloseStartFreshConfirm = viewModel::cancelStartFreshConfirmDialog,
+        onCloseRecoverableSessionDialog = viewModel::cancelRecoverableSessionDialog,
         onAddMapClick = viewModel::openAddMapDialog,
         onCloseAddMapDialog = viewModel::closeAddMapDialog,
         onUpdateNewMapNameInput = viewModel::updateNewMapNameInput,
@@ -60,6 +65,9 @@ fun MapScreen(
     )
 }
 
+/**
+ * Main composable content layout for Map Management and SLAM visualization.
+ */
 @Composable
 fun MapScreenContent(
     uiState: MapUiState,
@@ -70,6 +78,11 @@ fun MapScreenContent(
     onSetActiveMap: (String) -> Unit = {},
     onStartMapping: () -> Unit = {},
     onStopMapping: () -> Unit = {},
+    onResumeMappingSession: () -> Unit = {},
+    onStartFreshClick: () -> Unit = {},
+    onConfirmStartFresh: () -> Unit = {},
+    onCloseStartFreshConfirm: () -> Unit = {},
+    onCloseRecoverableSessionDialog: () -> Unit = {},
     onAddMapClick: () -> Unit = {},
     onCloseAddMapDialog: () -> Unit = {},
     onUpdateNewMapNameInput: (String) -> Unit = {},
@@ -678,6 +691,71 @@ fun MapScreenContent(
             dismissButton = {
                 MonochromeButton(
                     onClick = onCloseDeleteConfirmDialog,
+                    text = "Cancel",
+                    variant = MonochromeButtonVariant.Ghost
+                )
+            }
+        )
+    }
+
+    // Modal Dialog: Previous Mapping Session Found
+    if (uiState.isRecoverableSessionDialogOpen) {
+        MonochromeDialog(
+            onDismissRequest = onCloseRecoverableSessionDialog,
+            title = "Previous Mapping Session Found",
+            text = {
+                Text(
+                    text = "An unfinished mapping session was detected. Would you like to continue it or start a new map?",
+                    style = typography.bodySmall,
+                    color = colors.secondaryText
+                )
+            },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MonochromeButton(
+                        onClick = onStartFreshClick,
+                        text = "Start Fresh",
+                        variant = MonochromeButtonVariant.Secondary
+                    )
+                    MonochromeButton(
+                        onClick = onResumeMappingSession,
+                        text = "Resume Mapping",
+                        variant = MonochromeButtonVariant.Primary
+                    )
+                }
+            },
+            dismissButton = {
+                MonochromeButton(
+                    onClick = onCloseRecoverableSessionDialog,
+                    text = "Cancel",
+                    variant = MonochromeButtonVariant.Ghost
+                )
+            }
+        )
+    }
+
+    // Modal Dialog: Confirm Start Fresh Session
+    if (uiState.isStartFreshConfirmDialogOpen) {
+        MonochromeDialog(
+            onDismissRequest = onCloseStartFreshConfirm,
+            title = "Start Fresh Session?",
+            text = {
+                Text(
+                    text = "Starting a fresh mapping session will permanently discard unsaved data from the previous unfinished mapping session. Are you sure you want to proceed?",
+                    style = typography.bodySmall,
+                    color = colors.secondaryText
+                )
+            },
+            confirmButton = {
+                MonochromeButton(
+                    onClick = onConfirmStartFresh,
+                    text = "Start Fresh",
+                    variant = MonochromeButtonVariant.Primary
+                )
+            },
+            dismissButton = {
+                MonochromeButton(
+                    onClick = onCloseStartFreshConfirm,
                     text = "Cancel",
                     variant = MonochromeButtonVariant.Ghost
                 )

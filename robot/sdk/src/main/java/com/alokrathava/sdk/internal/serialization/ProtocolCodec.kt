@@ -45,6 +45,7 @@ import com.alokrathava.sdk.internal.protocol.RobotHealthPayloadDto
 import com.alokrathava.sdk.internal.protocol.RobotMapStateDto
 import com.alokrathava.sdk.internal.protocol.RobotMissionDto
 import com.alokrathava.sdk.internal.protocol.RobotStateSnapshotPayloadDto
+import com.alokrathava.sdk.internal.protocol.StartMappingPayloadDto
 import com.alokrathava.sdk.internal.protocol.StopMappingPayloadDto
 import com.alokrathava.sdk.internal.protocol.SafetyStatePayloadDto
 import com.alokrathava.sdk.internal.protocol.SaveLocationAckPayloadDto
@@ -84,6 +85,7 @@ import com.alokrathava.sdk.model.VirtualWall
 import com.alokrathava.sdk.model.VirtualWallDraft
 import com.alokrathava.sdk.model.VirtualWallType
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
 
@@ -92,11 +94,15 @@ internal object ProtocolCodec {
     val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
+        explicitNulls = false
         isLenient = true
     }
 
     fun encodeEnvelope(envelope: ProtocolEnvelope): String {
-        return json.encodeToString(ProtocolEnvelope.serializer(), envelope)
+        val normalized = envelope.copy(
+            payload = envelope.payload ?: JsonObject(emptyMap())
+        )
+        return json.encodeToString(ProtocolEnvelope.serializer(), normalized)
     }
 
     fun decodeEnvelope(text: String): ProtocolEnvelope {
@@ -104,12 +110,12 @@ internal object ProtocolCodec {
     }
 
     fun createHelloEnvelope(id: String, token: String?): ProtocolEnvelope {
-        val payload = json.encodeToJsonElement(HelloPayloadDto(token = token)) as? kotlinx.serialization.json.JsonObject
+        val payload = json.encodeToJsonElement(HelloPayloadDto(token = token)) as? JsonObject
         return ProtocolEnvelope(
             type = "hello",
             id = id,
             protocolVersion = ROBOT_PROTOCOL_VERSION,
-            payload = payload
+            payload = payload ?: JsonObject(emptyMap())
         )
     }
 
@@ -559,11 +565,21 @@ internal object ProtocolCodec {
         }
     }
 
-    internal fun createStartMappingEnvelope(id: String): ProtocolEnvelope {
+    /**
+     * Constructs a start_mapping protocol envelope containing session recovery options.
+     */
+    internal fun createStartMappingEnvelope(
+        id: String,
+        resumeUnsaved: Boolean = false,
+        discardUnsaved: Boolean = false
+    ): ProtocolEnvelope {
+        val dto = StartMappingPayloadDto(resumeUnsaved = resumeUnsaved, discardUnsaved = discardUnsaved)
+        val payload = json.encodeToJsonElement(dto) as? kotlinx.serialization.json.JsonObject
         return ProtocolEnvelope(
             type = "start_mapping",
             id = id,
-            protocolVersion = ROBOT_PROTOCOL_VERSION
+            protocolVersion = ROBOT_PROTOCOL_VERSION,
+            payload = payload
         )
     }
 

@@ -104,7 +104,14 @@ interface RobotClient : AutoCloseable {
 
     suspend fun deleteMap(mapId: String): RobotResult<Unit>
 
-    suspend fun startMapping(): RobotResult<Unit>
+    /**
+     * Initiates SLAM mapping session on the robot.
+     * Optionally resumes an unsaved previous session or discards it to start fresh.
+     */
+    suspend fun startMapping(
+        resumeUnsaved: Boolean = false,
+        discardUnsaved: Boolean = false
+    ): RobotResult<Unit>
 
     suspend fun stopMapping(discardUnsaved: Boolean = false): RobotResult<Unit>
 

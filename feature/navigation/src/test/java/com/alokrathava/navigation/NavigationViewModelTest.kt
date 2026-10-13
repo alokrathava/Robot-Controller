@@ -139,7 +139,10 @@ private class FakeNavTestRepository : RobotRepository {
     override fun undock() {}
     override fun cancelDocking() {}
 
-    override suspend fun startMapping(): RobotResult<Unit> = RobotResult.Success(Unit)
+    override suspend fun startMapping(
+        resumeUnsaved: Boolean,
+        discardUnsaved: Boolean
+    ): RobotResult<Unit> = RobotResult.Success(Unit)
     override suspend fun stopMapping(discardUnsaved: Boolean): RobotResult<Unit> = RobotResult.Success(Unit)
     override suspend fun listMaps(): RobotResult<List<RobotMap>> = RobotResult.Success(emptyList())
     override suspend fun switchMap(mapId: String): RobotResult<Unit> = RobotResult.Success(Unit)

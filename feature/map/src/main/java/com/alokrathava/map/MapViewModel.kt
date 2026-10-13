@@ -33,7 +33,7 @@ class MapViewModel @Inject constructor(
         refreshMapsFromRobot()
     }
 
-    /** Observes robot repository flows for connection, telemetry, occupancy grid, and position updates. */
+    /** Observes robot repository flows for connection, telemetry, occupancy grid, position, and map operation states. */
     private fun observeRepository() {
         viewModelScope.launch {
             combine(
@@ -54,6 +54,17 @@ class MapViewModel @Inject constructor(
                     )
                 }
             }.collect {}
+        }
+
+        viewModelScope.launch {
+            robotRepository.mapOperationState.collect { opState ->
+                _uiState.update { currentState ->
+                    currentState.copy(
+                        mapOperationState = opState,
+                        isMappingActive = (opState is MapOperationState.Mapping)
+                    )
+                }
+            }
         }
     }
 
@@ -114,28 +125,100 @@ class MapViewModel @Inject constructor(
         }
     }
 
-    /** Initiates real-time SLAM mapping on the robot. */
-    fun startMapping() {
+    /** Initiates real-time SLAM mapping on the robot with optional session recovery parameters. */
+    fun startMapping(
+        resumeUnsaved: Boolean = false,
+        discardUnsaved: Boolean = false
+    ) {
         viewModelScope.launch {
-            _uiState.update { it.copy(mapOperationState = MapOperationState.Mapping(null)) }
-            when (val result = robotRepository.startMapping()) {
+            _uiState.update {
+                it.copy(
+                    isStartMappingLoading = true,
+                    errorMessage = null
+                )
+            }
+            when (val result = robotRepository.startMapping(resumeUnsaved, discardUnsaved)) {
                 is RobotResult.Success -> {
                     _uiState.update {
                         it.copy(
-                            isMappingActive = true,
-                            mapOperationState = MapOperationState.Mapping(null)
+                            isStartMappingLoading = false,
+                            isRecoverableSessionDialogOpen = false,
+                            isStartFreshConfirmDialogOpen = false
                         )
                     }
                 }
                 is RobotResult.Failure -> {
-                    _uiState.update {
-                        it.copy(
-                            mapOperationState = MapOperationState.Failed(null, result.error.message),
-                            errorMessage = result.error.message
-                        )
+                    val errorCode = result.error.code
+                    if (errorCode == "RECOVERABLE_SESSION_EXISTS") {
+                        _uiState.update {
+                            it.copy(
+                                isStartMappingLoading = false,
+                                isRecoverableSessionDialogOpen = true,
+                                errorMessage = null
+                            )
+                        }
+                    } else {
+                        val friendlyMessage = formatErrorMessage(errorCode, result.error.message)
+                        _uiState.update {
+                            it.copy(
+                                isStartMappingLoading = false,
+                                mapOperationState = MapOperationState.Failed(null, friendlyMessage),
+                                errorMessage = friendlyMessage
+                            )
+                        }
                     }
                 }
             }
+        }
+    }
+
+    /** Resumes the previous unfinished mapping session. */
+    fun resumeMappingSession() {
+        startMapping(resumeUnsaved = true, discardUnsaved = false)
+    }
+
+    /** Opens confirmation dialog before starting a fresh session and discarding unsaved data. */
+    fun openStartFreshConfirmDialog() {
+        _uiState.update {
+            it.copy(isStartFreshConfirmDialogOpen = true)
+        }
+    }
+
+    /** Confirms starting a fresh mapping session, discarding previous unsaved session data. */
+    fun confirmStartFreshMapping() {
+        startMapping(resumeUnsaved = false, discardUnsaved = true)
+    }
+
+    /** Cancels start fresh confirmation dialog. */
+    fun cancelStartFreshConfirmDialog() {
+        _uiState.update {
+            it.copy(isStartFreshConfirmDialogOpen = false)
+        }
+    }
+
+    /** Cancels recoverable session dialog without sending commands or discarding data. */
+    fun cancelRecoverableSessionDialog() {
+        _uiState.update {
+            it.copy(
+                isRecoverableSessionDialogOpen = false,
+                isStartFreshConfirmDialogOpen = false,
+                mapOperationState = MapOperationState.Idle
+            )
+        }
+    }
+
+    /** Formats gateway error codes into friendly user messages. */
+    private fun formatErrorMessage(code: String, defaultMsg: String): String {
+        return when (code) {
+            "RECOVERABLE_SESSION_EXISTS" -> "An unfinished mapping session exists on the robot."
+            "MAPPING_ACTIVE" -> "Mapping is already running."
+            "MAP_TRANSITION" -> "Another map operation is in progress."
+            "SERVICE_UNAVAILABLE" -> "Robot mapping service is unavailable."
+            "COMMAND_TIMEOUT" -> "Robot did not respond to the mapping request."
+            "CONTROL_SESSION_IN_USE" -> "Another device currently controls the robot."
+            "NOT_CONNECTED" -> "Not connected to robot."
+            "INVALID_ARGUMENT" -> "Invalid mapping parameter requested."
+            else -> defaultMsg.ifBlank { "Map operation failed" }
         }
     }
 

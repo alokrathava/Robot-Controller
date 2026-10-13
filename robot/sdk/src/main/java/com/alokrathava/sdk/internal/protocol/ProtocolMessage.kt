@@ -401,6 +401,15 @@ internal data class RobotMapStateDto(
     val detail: String? = null
 )
 
+/**
+ * Payload DTO for start_mapping requests specifying session recovery options.
+ */
+@Serializable
+internal data class StartMappingPayloadDto(
+    val resumeUnsaved: Boolean = false,
+    val discardUnsaved: Boolean = false
+)
+
 @Serializable
 internal data class StopMappingPayloadDto(
     val discardUnsaved: Boolean = false

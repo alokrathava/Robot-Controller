@@ -461,14 +461,43 @@ internal class RobotClientImpl(
         return result
     }
 
-    override suspend fun startMapping(): RobotResult<Unit> {
+    /**
+     * Initiates SLAM mapping on the robot gateway with optional session recovery flags.
+     * Logs diagnostic events and tracks request timing and gateway errors.
+     */
+    override suspend fun startMapping(
+        resumeUnsaved: Boolean,
+        discardUnsaved: Boolean
+    ): RobotResult<Unit> {
         checkCapability(RobotCapability.MAPPING)?.let { return it }
 
+        if (resumeUnsaved && discardUnsaved) {
+            return RobotResult.Failure(
+                RobotError(
+                    code = "INVALID_ARGUMENT",
+                    subsystem = "sdk",
+                    severity = ErrorSeverity.ERROR,
+                    message = "resumeUnsaved and discardUnsaved cannot both be true simultaneously",
+                    recoverable = false
+                )
+            )
+        }
+
+        val startTime = System.currentTimeMillis()
         val cmdId = commandRegistry.generateCommandId()
-        val envelope = ProtocolCodec.createStartMappingEnvelope(cmdId)
+        val envelope = ProtocolCodec.createStartMappingEnvelope(cmdId, resumeUnsaved, discardUnsaved)
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
-        return commandRegistry.registerAndAwait(cmdId, config.commandTimeouts.mappingMs) {
+        config.logger.log(
+            RobotLogEvent(
+                RobotLogLevel.INFO,
+                "RobotSDK",
+                "SEND type=start_mapping id=$cmdId payload=$jsonText"
+            )
+        )
+        android.util.Log.d("RobotSDK", "SEND type=start_mapping id=$cmdId payload=$jsonText")
+
+        val result = commandRegistry.registerAndAwait(cmdId, config.commandTimeouts.mappingMs) {
             if (!transport.send(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
@@ -476,6 +505,35 @@ internal class RobotClientImpl(
                 )
             }
         }
+
+        val elapsedMs = System.currentTimeMillis() - startTime
+        when (result) {
+            is RobotResult.Success -> {
+                config.logger.log(
+                    RobotLogEvent(
+                        RobotLogLevel.INFO,
+                        "RobotSDK",
+                        "RECEIVE command_ack id=$cmdId in ${elapsedMs}ms"
+                    )
+                )
+                android.util.Log.d("RobotSDK", "RECEIVE type=command_ack id=$cmdId in ${elapsedMs}ms")
+            }
+            is RobotResult.Failure -> {
+                config.logger.log(
+                    RobotLogEvent(
+                        RobotLogLevel.WARN,
+                        "RobotSDK",
+                        "ERROR code=${result.error.code} msg=${result.error.message} id=$cmdId in ${elapsedMs}ms"
+                    )
+                )
+                android.util.Log.w(
+                    "RobotSDK",
+                    "ERROR code=${result.error.code} msg='${result.error.message}' id=$cmdId in ${elapsedMs}ms"
+                )
+            }
+        }
+
+        return result
     }
 
     override suspend fun stopMapping(discardUnsaved: Boolean): RobotResult<Unit> {
@@ -1014,11 +1072,16 @@ internal class RobotClientImpl(
                     ProtocolCodec.decodeMissionProgress(envelope)?.let { _missionProgress.value = it }
                 }
                 "command_ack" -> {
+                    config.logger.log(RobotLogEvent(RobotLogLevel.INFO, "RobotSDK", "RECEIVE type=command_ack id=${envelope.id}"))
+                    android.util.Log.d("RobotSDK", "RECEIVE type=command_ack id=${envelope.id}")
                     envelope.id?.let { commandRegistry.completeSuccess(it) }
                 }
                 "command_error" -> {
                     val err = envelope.error?.let { ProtocolCodec.mapRobotError(it) }
                         ?: RobotError("UNKNOWN_ERROR", "gateway", ErrorSeverity.ERROR, "Command error", true)
+
+                    config.logger.log(RobotLogEvent(RobotLogLevel.WARN, "RobotSDK", "RECEIVE type=command_error id=${envelope.id} code=${err.code} msg=${err.message}"))
+                    android.util.Log.w("RobotSDK", "RECEIVE type=command_error id=${envelope.id} code=${err.code} msg='${err.message}'")
 
                     if (err.code == "INVALID_AUTHENTICATION" || err.code == "PROTOCOL_VERSION_MISMATCH") {
                         _connectionState.value = ConnectionState.Failed(err)
@@ -1091,8 +1154,20 @@ internal class RobotClientImpl(
         )
     }
 
+    /**
+     * Applies state updates from map_state telemetry onto internal flows.
+     */
     private fun applyMapState(mapState: RobotMapStateDto) {
         hasMapState = true
+        config.logger.log(
+            RobotLogEvent(
+                RobotLogLevel.INFO,
+                "RobotMapping",
+                "MapState update received: state=${mapState.state}, mode=${mapState.mode}, activeMapId=${mapState.activeMapId}, errorCode=${mapState.errorCode}"
+            )
+        )
+        android.util.Log.d("RobotMapping", "MapState update: state=${mapState.state}, activeMap=${mapState.activeMapId}")
+
         val activeId = mapState.activeMapId?.takeIf { it.isNotBlank() }
         if (activeId == null) {
             _activeMap.value = null

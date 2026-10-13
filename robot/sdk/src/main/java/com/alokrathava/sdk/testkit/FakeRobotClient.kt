@@ -172,7 +172,13 @@ class FakeRobotClient : RobotClient {
         return RobotResult.Success(Unit)
     }
 
-    override suspend fun startMapping(): RobotResult<Unit> {
+    /**
+     * Simulates start_mapping command execution on fake robot client.
+     */
+    override suspend fun startMapping(
+        resumeUnsaved: Boolean,
+        discardUnsaved: Boolean
+    ): RobotResult<Unit> {
         mutableMapOperationState.value = MapOperationState.Mapping(null)
         return RobotResult.Success(Unit)
     }

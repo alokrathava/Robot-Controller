@@ -101,6 +101,10 @@ internal class RobotClientRepositoryImpl(
     private var mapJob: Job? = null
     private var gridJob: Job? = null
     private var metricsJob: Job? = null
+    private var mapOpJob: Job? = null
+
+    private val _mapOperationState = MutableStateFlow<com.alokrathava.sdk.model.MapOperationState>(com.alokrathava.sdk.model.MapOperationState.Idle)
+    override val mapOperationState: StateFlow<com.alokrathava.sdk.model.MapOperationState> = _mapOperationState.asStateFlow()
 
     private val _occupancyGrid = MutableStateFlow<com.alokrathava.sdk.model.RobotOccupancyGrid?>(null)
     override val occupancyGrid: StateFlow<com.alokrathava.sdk.model.RobotOccupancyGrid?> = _occupancyGrid.asStateFlow()
@@ -160,8 +164,15 @@ internal class RobotClientRepositoryImpl(
         mapJob?.cancel()
         gridJob?.cancel()
         metricsJob?.cancel()
+        mapOpJob?.cancel()
 
         activeClient = client
+
+        mapOpJob = scope.launch {
+            client.mapOperationState.collect { opState ->
+                _mapOperationState.value = opState
+            }
+        }
 
         gridJob = scope.launch {
             client.occupancyGrid.collect { grid ->
@@ -371,7 +382,13 @@ internal class RobotClientRepositoryImpl(
         scope.launch { activeClient.cancelDocking() }
     }
 
-    override suspend fun startMapping(): RobotResult<Unit> = activeClient.startMapping()
+    /**
+     * Initiates start mapping request on active client with session recovery options.
+     */
+    override suspend fun startMapping(
+        resumeUnsaved: Boolean,
+        discardUnsaved: Boolean
+    ): RobotResult<Unit> = activeClient.startMapping(resumeUnsaved, discardUnsaved)
 
     override suspend fun stopMapping(discardUnsaved: Boolean): RobotResult<Unit> = activeClient.stopMapping(discardUnsaved)
 

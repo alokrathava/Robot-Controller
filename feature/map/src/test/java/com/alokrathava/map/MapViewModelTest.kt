@@ -78,6 +78,9 @@ class MapViewModelTest {
         viewModel.startMapping()
         testDispatcher.scheduler.advanceUntilIdle()
 
+        fakeRepository.mapOperationState.value = MapOperationState.Mapping(null)
+        testDispatcher.scheduler.advanceUntilIdle()
+
         val state = viewModel.uiState.value
         assertTrue(state.isMappingActive)
         assertTrue(state.mapOperationState is MapOperationState.Mapping)
@@ -93,7 +96,7 @@ class MapViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        assertEquals("Client is not connected", state.errorMessage)
+        assertEquals("Not connected to robot.", state.errorMessage)
         assertTrue(state.mapOperationState is MapOperationState.Failed)
     }
 
@@ -106,7 +109,7 @@ class MapViewModelTest {
         viewModel.startMapping()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("Client is not connected", viewModel.uiState.value.errorMessage)
+        assertEquals("Not connected to robot.", viewModel.uiState.value.errorMessage)
 
         viewModel.dismissError()
 
@@ -141,6 +144,7 @@ private class FakeTestRepository : RobotRepository {
     override val dockStation = MutableStateFlow(DockStation())
     override val connectionMetrics = MutableStateFlow(ConnectionMetrics())
     override val occupancyGrid = MutableStateFlow<RobotOccupancyGrid?>(null)
+    override val mapOperationState = MutableStateFlow<MapOperationState>(MapOperationState.Idle)
 
     override fun move(direction: DirectionCommand) {}
     override fun goToCharge() {}
@@ -160,7 +164,10 @@ private class FakeTestRepository : RobotRepository {
     override fun undock() {}
     override fun cancelDocking() {}
 
-    override suspend fun startMapping(): RobotResult<Unit> = startMappingResult
+    override suspend fun startMapping(
+        resumeUnsaved: Boolean,
+        discardUnsaved: Boolean
+    ): RobotResult<Unit> = startMappingResult
     override suspend fun stopMapping(discardUnsaved: Boolean): RobotResult<Unit> = RobotResult.Success(Unit)
     override suspend fun listMaps(): RobotResult<List<RobotMap>> = RobotResult.Success(mapList)
     override suspend fun switchMap(mapId: String): RobotResult<Unit> {
