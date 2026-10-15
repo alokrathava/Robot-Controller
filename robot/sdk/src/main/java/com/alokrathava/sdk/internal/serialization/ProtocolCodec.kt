@@ -127,6 +127,15 @@ internal object ProtocolCodec {
         )
     }
 
+    internal fun createSubscribeMapEnvelope(id: String): ProtocolEnvelope {
+        return ProtocolEnvelope(
+            type = "subscribe_map",
+            id = id,
+            protocolVersion = 1,
+            payload = json.encodeToJsonElement(com.alokrathava.sdk.internal.protocol.SubscribeMapPayloadDto(streamVersion = 1)) as kotlinx.serialization.json.JsonObject
+        )
+    }
+
     fun createNavigateToEnvelope(id: String, pose: Pose2D): ProtocolEnvelope {
         val dto = NavigateToPayloadDto(pose.xMeters, pose.yMeters, pose.yawRadians)
         val payload = json.encodeToJsonElement(dto) as? kotlinx.serialization.json.JsonObject
@@ -876,24 +885,54 @@ internal object ProtocolCodec {
     /**
      * Decodes a full occupancy grid map snapshot payload from JSON into a [RobotOccupancyGrid].
      */
+    /**
+     * Decodes a full occupancy grid map snapshot payload from JSON into a [RobotOccupancyGrid].
+     */
     fun decodeMapSnapshot(payload: kotlinx.serialization.json.JsonObject?): RobotOccupancyGrid? {
         if (payload == null) return null
-        val dto = json.decodeFromJsonElement<MapSnapshotPayloadDto>(payload)
-        val bytes = when {
-            dto.dataBase64.isNotBlank() -> decodeBase64(dto.dataBase64)
-            dto.data.isNotEmpty() -> dto.data.map { it.toByte() }.toByteArray()
-            else -> byteArrayOf()
+        return try {
+            val dto = json.decodeFromJsonElement<MapSnapshotPayloadDto>(payload)
+            val dataStr = dto.data ?: ""
+            val enc = dto.encoding ?: ""
+            
+            val bytes = when {
+                dataStr.isNotBlank() && enc.contains("zlib") -> {
+                    val compressedBytes = decodeBase64(dataStr)
+                    decompressZlib(compressedBytes)
+                }
+                dataStr.isNotBlank() -> decodeBase64(dataStr)
+                else -> byteArrayOf()
+            }
+
+            if (bytes.size != dto.width * dto.height) {
+                // Validation failed: dimension mismatch
+                return null
+            }
+            if (dto.cellCount > 0 && bytes.size != dto.cellCount) {
+                // Validation failed: cell count mismatch
+                return null
+            }
+
+            // Validate byte values: must be between -1 and 100
+            for (b in bytes) {
+                if (b < -1 || b > 100) return null
+            }
+
+            val yaw = yawFromQuaternion(dto.origin.orientation.x, dto.origin.orientation.y, dto.origin.orientation.z, dto.origin.orientation.w)
+
+            RobotOccupancyGrid(
+                mapId = dto.mapId ?: "",
+                widthCells = dto.width,
+                heightCells = dto.height,
+                resolutionMetersPerCell = dto.resolution,
+                originX = dto.origin.position.x,
+                originY = dto.origin.position.y,
+                originYaw = yaw,
+                data = bytes
+            )
+        } catch (_: Exception) {
+            null
         }
-        return RobotOccupancyGrid(
-            mapId = dto.mapId,
-            widthCells = dto.widthCells,
-            heightCells = dto.heightCells,
-            resolutionMetersPerCell = dto.resolutionMetersPerCell,
-            originX = dto.originX,
-            originY = dto.originY,
-            originYaw = dto.originYaw,
-            data = bytes
-        )
     }
 
     /**
@@ -901,38 +940,67 @@ internal object ProtocolCodec {
      */
     fun decodeMapUpdate(payload: kotlinx.serialization.json.JsonObject?, currentGrid: RobotOccupancyGrid?): RobotOccupancyGrid? {
         if (payload == null) return currentGrid
-        if (currentGrid == null) return decodeMapSnapshot(payload)
-        val dto = json.decodeFromJsonElement<MapUpdatePayloadDto>(payload)
-        val updateBytes = when {
-            dto.dataBase64.isNotBlank() -> decodeBase64(dto.dataBase64)
-            dto.data.isNotEmpty() -> dto.data.map { it.toByte() }.toByteArray()
-            else -> byteArrayOf()
-        }
-        if (updateBytes.isEmpty()) return currentGrid
-
-        val newData = currentGrid.data.copyOf()
-        val fullW = currentGrid.widthCells
-        val fullH = currentGrid.heightCells
-
-        var updateIdx = 0
-        for (r in 0 until dto.height) {
-            val targetY = dto.startY + r
-            if (targetY in 0 until fullH) {
-                for (c in 0 until dto.width) {
-                    val targetX = dto.startX + c
-                    if (targetX in 0 until fullW && updateIdx < updateBytes.size) {
-                        val destIdx = targetY * fullW + targetX
-                        if (destIdx in newData.indices) {
-                            newData[destIdx] = updateBytes[updateIdx]
-                        }
-                    }
-                    updateIdx++
-                }
-            } else {
-                updateIdx += dto.width
+        return try {
+            val dto = json.decodeFromJsonElement<MapUpdatePayloadDto>(payload)
+            if (currentGrid == null) {
+                // Can't apply patch to a null grid. It's caller's responsibility to request a snapshot.
+                return null
             }
+            
+            val dataStr = dto.data ?: ""
+            val enc = dto.encoding ?: ""
+            
+            val updateBytes = when {
+                dataStr.isNotBlank() && enc.contains("zlib") -> {
+                    val compressedBytes = decodeBase64(dataStr)
+                    decompressZlib(compressedBytes)
+                }
+                dataStr.isNotBlank() -> decodeBase64(dataStr)
+                else -> byteArrayOf()
+            }
+            
+            if (updateBytes.isEmpty()) return currentGrid
+            
+            if (updateBytes.size != dto.width * dto.height) return null
+            if (dto.cellCount > 0 && updateBytes.size != dto.cellCount) return null
+            
+            // Validate byte values
+            for (b in updateBytes) {
+                if (b < -1 || b > 100) return null
+            }
+
+            val newData = currentGrid.data.copyOf()
+            val fullW = currentGrid.widthCells
+            val fullH = currentGrid.heightCells
+
+            var updateIdx = 0
+            for (r in 0 until dto.height) {
+                val targetY = dto.y + r
+                if (targetY in 0 until fullH) {
+                    for (c in 0 until dto.width) {
+                        val targetX = dto.x + c
+                        if (targetX in 0 until fullW && updateIdx < updateBytes.size) {
+                            val destIdx = targetY * fullW + targetX
+                            if (destIdx in newData.indices) {
+                                newData[destIdx] = updateBytes[updateIdx]
+                            }
+                        }
+                        updateIdx++
+                    }
+                } else {
+                    updateIdx += dto.width
+                }
+            }
+            currentGrid.copy(data = newData)
+        } catch (_: Exception) {
+            null
         }
-        return currentGrid.copy(data = newData)
+    }
+
+    private fun yawFromQuaternion(x: Double, y: Double, z: Double, w: Double): Double {
+        val siny_cosp = 2.0 * (w * z + x * y)
+        val cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
+        return kotlin.math.atan2(siny_cosp, cosy_cosp)
     }
 
     /**

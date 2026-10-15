@@ -425,32 +425,73 @@ internal data class RobotStateSnapshotPayloadDto(
     val mapState: RobotMapStateDto? = null
 )
 
+@Serializable
+internal data class PositionDto(
+    val x: Double = 0.0,
+    val y: Double = 0.0,
+    val z: Double = 0.0
+)
+
+@Serializable
+internal data class OrientationDto(
+    val x: Double = 0.0,
+    val y: Double = 0.0,
+    val z: Double = 0.0,
+    val w: Double = 1.0
+)
+
+@Serializable
+internal data class PoseDto(
+    val position: PositionDto = PositionDto(),
+    val orientation: OrientationDto = OrientationDto()
+)
+
+@Serializable
+internal data class SubscribeMapPayloadDto(
+    val streamVersion: Int = 1
+)
+
 /**
  * Protocol DTO carrying a full 2D occupancy grid map snapshot.
+ * Retains the gateway's ROS timestamp object without interpreting it as a numeric value.
  */
 @Serializable
 internal data class MapSnapshotPayloadDto(
-    val mapId: String = "",
-    val widthCells: Int = 0,
-    val heightCells: Int = 0,
-    val resolutionMetersPerCell: Double = 0.05,
-    val originX: Double = 0.0,
-    val originY: Double = 0.0,
-    val originYaw: Double = 0.0,
-    val dataBase64: String = "",
-    val data: List<Int> = emptyList()
+    val streamVersion: Int = 1,
+    val sequence: Long = 0,
+    val mapId: String? = null,
+    val mode: String? = null,
+    val frameId: String? = null,
+    val stamp: JsonObject? = null,
+    val width: Int = 0,
+    val height: Int = 0,
+    val resolution: Double = 0.05,
+    val origin: PoseDto = PoseDto(),
+    val encoding: String? = null,
+    val cellCount: Int = 0,
+    val data: String? = null
 )
 
 /**
  * Protocol DTO carrying partial live occupancy grid cell updates.
+ * Retains the gateway's ROS timestamp object without interpreting it as a numeric value.
  */
 @Serializable
 internal data class MapUpdatePayloadDto(
-    val mapId: String = "",
-    val startX: Int = 0,
-    val startY: Int = 0,
+    val streamVersion: Int = 1,
+    val baseSequence: Long = 0,
+    val sequence: Long = 0,
+    val mapId: String? = null,
+    val mode: String? = null,
+    val frameId: String? = null,
+    val stamp: JsonObject? = null,
+    val x: Int = 0,
+    val y: Int = 0,
     val width: Int = 0,
     val height: Int = 0,
-    val dataBase64: String = "",
-    val data: List<Int> = emptyList()
+    val resolution: Double = 0.05,
+    val origin: PoseDto = PoseDto(),
+    val encoding: String? = null,
+    val cellCount: Int = 0,
+    val data: String? = null
 )

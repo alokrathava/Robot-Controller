@@ -228,10 +228,10 @@ class ManualControlViewModel @Inject constructor(
     private fun startVelocityStreaming(linear: Double, angular: Double) {
         targetLinear = linear
         targetAngular = angular
-        robotRepository.setManualVelocity(linear, angular)
 
         if (velocityStreamJob == null || velocityStreamJob?.isActive == false) {
             velocityStreamJob = viewModelScope.launch {
+                robotRepository.setManualVelocity(targetLinear, targetAngular)
                 while (isActive) {
                     delay(100) // 10 Hz streaming
                     robotRepository.setManualVelocity(targetLinear, targetAngular)

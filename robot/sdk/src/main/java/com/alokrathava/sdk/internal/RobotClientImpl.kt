@@ -48,6 +48,7 @@ import com.alokrathava.sdk.model.MapPoint
 import com.alokrathava.sdk.model.RobotEvent
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -61,11 +62,28 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Response
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.pow
 import kotlin.random.Random
 
+// Tracks the single map-stream subscription across acknowledgement, snapshot, and failure phases.
+private enum class MapSubscriptionState {
+    IDLE,
+    REQUESTING,
+    AWAITING_SNAPSHOT,
+    ACTIVE,
+    FAILED
+}
+
+private const val MIN_ORDINARY_COMMAND_INTERVAL_MS = 75L
+
+/**
+ * Owns one robot WebSocket session, including paced command dispatch and map subscription lifecycle.
+ */
 internal class RobotClientImpl(
     private val config: RobotSdkConfig,
     transportFactory: ((TransportListener) -> RobotTransport)? = null
@@ -75,6 +93,16 @@ internal class RobotClientImpl(
     private val scope = CoroutineScope(sdkJob + Dispatchers.IO)
 
     private val commandRegistry = PendingCommandRegistry()
+    private val ordinaryCommandMutex = Mutex()
+    private val connectionGeneration = AtomicLong(0L)
+    private var lastOrdinarySendGeneration = -1L
+    private var lastOrdinarySendNanos = 0L
+    private val mapSubscriptionRetryDelaysMs = longArrayOf(250L, 500L, 1_000L)
+
+    private val mapSubscriptionLock = Any()
+    @Volatile private var mapSubscriptionState = MapSubscriptionState.IDLE
+    @Volatile private var mapSubscriptionRequestId: String? = null
+    private var rejectedMapSubscriptionRequestId: String? = null
     private val transport: RobotTransport = transportFactory?.invoke(this) ?: WebSocketRobotTransport(
         endpoint = config.endpoint,
         logger = config.logger,
@@ -112,6 +140,8 @@ internal class RobotClientImpl(
 
     private val _occupancyGrid = MutableStateFlow<com.alokrathava.sdk.model.RobotOccupancyGrid?>(null)
     override val occupancyGrid: StateFlow<com.alokrathava.sdk.model.RobotOccupancyGrid?> = _occupancyGrid.asStateFlow()
+
+    private var mapStreamSequence: Long = -1L
 
     private val _mapOperationState = MutableStateFlow<MapOperationState>(MapOperationState.Idle)
     override val mapOperationState: StateFlow<MapOperationState> = _mapOperationState.asStateFlow()
@@ -154,6 +184,8 @@ internal class RobotClientImpl(
     private var heartbeatJob: Job? = null
     private var staleCheckJob: Job? = null
     private var reconnectJob: Job? = null
+    private var postAuthenticationJob: Job? = null
+    private var mapSubscriptionJob: Job? = null
 
     override suspend fun connect(): RobotResult<Unit> {
         if (_connectionState.value is ConnectionState.Connected) {
@@ -223,7 +255,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         val result = commandRegistry.registerAndAwait(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -253,7 +286,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         val result = commandRegistry.registerAndAwait(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -284,7 +318,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         return commandRegistry.registerAndAwait(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // A zero-velocity frame stops manual motion immediately, even while commands are queued.
+            if (!sendGatewayCommand(jsonText, bypassPacing = linearMps == 0.0 && angularRadPerSec == 0.0)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -329,7 +364,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         return commandRegistry.registerAndAwaitTyped<List<RobotMap>>(cmdId, config.commandTimeouts.mapQueryMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -353,7 +389,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         val result = commandRegistry.registerAndAwait(cmdId, config.commandTimeouts.mapSwitchMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -382,7 +419,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         val raw = commandRegistry.registerAndAwaitTyped<Any>(cmdId, config.commandTimeouts.mapSaveMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -417,7 +455,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         return commandRegistry.registerAndAwaitTyped<RobotMap>(cmdId, config.commandTimeouts.mapQueryMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -447,7 +486,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         val result = commandRegistry.registerAndAwait(cmdId, config.commandTimeouts.mapDeleteMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -498,7 +538,8 @@ internal class RobotClientImpl(
         android.util.Log.d("RobotSDK", "SEND type=start_mapping id=$cmdId payload=$jsonText")
 
         val result = commandRegistry.registerAndAwait(cmdId, config.commandTimeouts.mappingMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -544,7 +585,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         return commandRegistry.registerAndAwait(cmdId, config.commandTimeouts.mappingMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -567,7 +609,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         return commandRegistry.registerAndAwaitTyped<List<VirtualWall>>(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -587,7 +630,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         return commandRegistry.registerAndAwaitTyped<VirtualWall>(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -611,7 +655,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         return commandRegistry.registerAndAwaitTyped<VirtualWall>(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -632,7 +677,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         return commandRegistry.registerAndAwait(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -653,7 +699,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         return commandRegistry.registerAndAwait(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -676,7 +723,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         return commandRegistry.registerAndAwait(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -699,7 +747,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         return commandRegistry.registerAndAwaitTyped<List<SavedLocation>>(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -720,7 +769,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         return commandRegistry.registerAndAwaitTyped<SavedLocation>(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -741,7 +791,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         return commandRegistry.registerAndAwaitTyped<SavedLocation>(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -762,7 +813,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         return commandRegistry.registerAndAwait(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -783,7 +835,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         val res = commandRegistry.registerAndAwait(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -802,7 +855,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         return commandRegistry.registerAndAwaitTyped<MapPointValidity>(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -823,7 +877,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         val result = commandRegistry.registerAndAwait(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -845,7 +900,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         return commandRegistry.registerAndAwait(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // Mission cancellation can halt autonomous motion and must not wait behind ordinary commands.
+            if (!sendGatewayCommand(jsonText, bypassPacing = true)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -866,7 +922,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         val res = commandRegistry.registerAndAwait(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -912,7 +969,8 @@ internal class RobotClientImpl(
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         return commandRegistry.registerAndAwaitTyped<List<RobotLogEntry>>(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            // Keeps this ordinary request in the per-connection send order.
+            if (!sendGatewayCommand(jsonText)) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -934,13 +992,54 @@ internal class RobotClientImpl(
         return null
     }
 
+    // Serializes ordinary commands with margin above the gateway's 50 ms receive limit.
+    // Safety commands bypass this lock so a queued map or control request cannot delay a stop.
+    private suspend fun sendGatewayCommand(
+        jsonText: String,
+        bypassPacing: Boolean = false,
+        expectedGeneration: Long = connectionGeneration.get()
+    ): Boolean {
+        if (bypassPacing) {
+            return expectedGeneration == connectionGeneration.get() &&
+                _connectionState.value is ConnectionState.Connected && transport.send(jsonText)
+        }
+
+        return ordinaryCommandMutex.withLock {
+            if (expectedGeneration != connectionGeneration.get() ||
+                _connectionState.value !is ConnectionState.Connected
+            ) return@withLock false
+
+            if (lastOrdinarySendGeneration == expectedGeneration) {
+                val elapsedNanos = System.nanoTime() - lastOrdinarySendNanos
+                val remainingNanos = MIN_ORDINARY_COMMAND_INTERVAL_MS * 1_000_000L - elapsedNanos
+                if (remainingNanos > 0L) delay((remainingNanos + 999_999L) / 1_000_000L)
+            }
+
+            if (expectedGeneration != connectionGeneration.get() ||
+                _connectionState.value !is ConnectionState.Connected
+            ) return@withLock false
+
+            val sent = transport.send(jsonText)
+            if (sent) {
+                lastOrdinarySendGeneration = expectedGeneration
+                lastOrdinarySendNanos = System.nanoTime()
+            }
+            sent
+        }
+    }
+
+    // Registers simple commands while allowing motion-stopping requests to bypass ordinary pacing.
     private suspend fun sendSimpleCommand(type: String): RobotResult<Unit> {
         val cmdId = commandRegistry.generateCommandId()
         val envelope = ProtocolCodec.createSimpleCommandEnvelope(type, cmdId)
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
         return commandRegistry.registerAndAwait(cmdId, config.commandTimeoutMs) {
-            if (!transport.send(jsonText)) {
+            if (!sendGatewayCommand(
+                    jsonText,
+                    bypassPacing = type == "emergency_stop" || type == "stop" ||
+                        type == "cancel_navigation" || type == "cancel_docking"
+                )) {
                 commandRegistry.completeError(
                     cmdId,
                     RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send WebSocket message", true)
@@ -949,8 +1048,131 @@ internal class RobotClientImpl(
         }
     }
 
+    // Starts one subscription cycle after authentication or when an active stream needs resync.
+    private fun requestMapSubscription(reason: String, resync: Boolean = false) {
+        synchronized(mapSubscriptionLock) {
+            if (_connectionState.value !is ConnectionState.Connected ||
+                mapSubscriptionState == MapSubscriptionState.REQUESTING ||
+                mapSubscriptionState == MapSubscriptionState.AWAITING_SNAPSHOT ||
+                mapSubscriptionState == MapSubscriptionState.FAILED ||
+                (mapSubscriptionState == MapSubscriptionState.ACTIVE && !resync) ||
+                mapSubscriptionJob?.isActive == true
+            ) return
+
+            mapSubscriptionState = MapSubscriptionState.REQUESTING
+            val generation = connectionGeneration.get()
+            val job = scope.launch(start = CoroutineStart.LAZY) {
+                runMapSubscription(generation, reason)
+            }
+            mapSubscriptionJob = job
+            job.start()
+        }
+    }
+
+    // Correlates each attempt with its gateway response and retries only rejected recoverable requests.
+    private suspend fun runMapSubscription(generation: Long, reason: String) {
+        for (attempt in 0..mapSubscriptionRetryDelaysMs.size) {
+            val requestId = commandRegistry.generateCommandId()
+            // Claim the request only while its authenticated connection is still current.
+            val canSend = synchronized(mapSubscriptionLock) {
+                if (generation != connectionGeneration.get() ||
+                    _connectionState.value !is ConnectionState.Connected
+                ) false else {
+                    mapSubscriptionState = MapSubscriptionState.REQUESTING
+                    mapSubscriptionRequestId = requestId
+                    rejectedMapSubscriptionRequestId = null
+                    true
+                }
+            }
+            if (!canSend) return
+            val envelope = ProtocolCodec.createSubscribeMapEnvelope(requestId)
+            val jsonText = ProtocolCodec.encodeEnvelope(envelope)
+            val result = commandRegistry.registerAndAwait(requestId, config.commandTimeoutMs) {
+                if (sendGatewayCommand(jsonText, expectedGeneration = generation)) {
+                    android.util.Log.i("RobotSDK", "SEND type=subscribe_map id=$requestId attempt=${attempt + 1} reason=$reason")
+                    config.logger.log(RobotLogEvent(RobotLogLevel.INFO, "CLIENT", "subscribe_map sent id=$requestId attempt=${attempt + 1} reason=$reason"))
+                } else {
+                    commandRegistry.completeError(
+                        requestId,
+                        RobotError("SEND_FAILED", "transport", ErrorSeverity.ERROR, "Failed to send subscribe_map", true)
+                    )
+                }
+            }
+
+            val rejectedByGateway = synchronized(mapSubscriptionLock) {
+                val rejected = rejectedMapSubscriptionRequestId == requestId
+                if (mapSubscriptionRequestId == requestId) mapSubscriptionRequestId = null
+                rejectedMapSubscriptionRequestId = null
+                rejected
+            }
+            if (generation != connectionGeneration.get()) return
+
+            if (result is RobotResult.Success) {
+                synchronized(mapSubscriptionLock) {
+                    if (generation == connectionGeneration.get() &&
+                        _connectionState.value is ConnectionState.Connected &&
+                        mapSubscriptionState != MapSubscriptionState.ACTIVE
+                    ) {
+                        mapSubscriptionState = MapSubscriptionState.AWAITING_SNAPSHOT
+                    }
+                }
+                return
+            }
+
+            val error = (result as RobotResult.Failure).error
+            if (mapSubscriptionState == MapSubscriptionState.ACTIVE) return
+            if (rejectedByGateway && error.recoverable && attempt < mapSubscriptionRetryDelaysMs.size) {
+                val retryDelayMs = mapSubscriptionRetryDelaysMs[attempt]
+                android.util.Log.w("RobotSDK", "RETRY type=subscribe_map after=${retryDelayMs}ms code=${error.code}")
+                config.logger.log(RobotLogEvent(RobotLogLevel.WARN, "CLIENT", "subscribe_map retry in ${retryDelayMs}ms after ${error.code}"))
+                delay(retryDelayMs)
+                continue
+            }
+
+            synchronized(mapSubscriptionLock) {
+                if (generation == connectionGeneration.get() &&
+                    _connectionState.value is ConnectionState.Connected
+                ) mapSubscriptionState = MapSubscriptionState.FAILED
+            }
+            android.util.Log.e("RobotSDK", "FAILED type=subscribe_map id=$requestId code=${error.code} attempts=${attempt + 1}")
+            config.logger.log(RobotLogEvent(RobotLogLevel.ERROR, "CLIENT", "subscribe_map failed id=$requestId code=${error.code} attempts=${attempt + 1}"))
+            return
+        }
+    }
+
+    // Records a matching acknowledgement while leaving snapshot delivery to activate the stream.
+    private fun acknowledgeMapSubscription(requestId: String?) {
+        val matchedId = synchronized(mapSubscriptionLock) {
+            val pendingId = mapSubscriptionRequestId
+            if (pendingId == null || (requestId != null && requestId != pendingId)) null else {
+                if (mapSubscriptionState != MapSubscriptionState.ACTIVE) {
+                    mapSubscriptionState = MapSubscriptionState.AWAITING_SNAPSHOT
+                }
+                pendingId
+            }
+        } ?: return
+        android.util.Log.i("RobotSDK", "RECEIVE subscribe_map acknowledgement id=$matchedId")
+        config.logger.log(RobotLogEvent(RobotLogLevel.INFO, "CLIENT", "subscribe_map acknowledged id=$matchedId"))
+        commandRegistry.completeSuccess(matchedId)
+    }
+
+    // Cancels session-owned setup work and forgets pending subscription state on connection loss.
+    private fun resetMapSubscription() {
+        postAuthenticationJob?.cancel()
+        postAuthenticationJob = null
+        mapSubscriptionJob?.cancel()
+        mapSubscriptionJob = null
+        synchronized(mapSubscriptionLock) {
+            mapSubscriptionState = MapSubscriptionState.IDLE
+            mapSubscriptionRequestId = null
+            rejectedMapSubscriptionRequestId = null
+        }
+    }
+
     // ---- TransportListener Callbacks ----
+    // Starts a new transport generation before sending the unpaced authentication handshake.
     override fun onOpen() {
+        connectionGeneration.incrementAndGet()
         _connectionState.value = ConnectionState.Authenticating
         val token = when (val auth = config.authentication) {
             is RobotAuthentication.Token -> auth.token
@@ -961,6 +1183,7 @@ internal class RobotClientImpl(
         transport.send(ProtocolCodec.encodeEnvelope(envelope))
     }
 
+    // Routes gateway responses to pending commands and applies authenticated map-stream events.
     override fun onMessage(text: String) {
         val now = System.currentTimeMillis()
         lastMessageTimeMillis = now
@@ -988,9 +1211,17 @@ internal class RobotClientImpl(
 
                     startBackgroundJobs()
 
-                    val snapshotReqId = commandRegistry.generateCommandId()
-                    val snapshotEnv = ProtocolCodec.createRequestStateSnapshotEnvelope(snapshotReqId)
-                    transport.send(ProtocolCodec.encodeEnvelope(snapshotEnv))
+                    // Submit initial ordinary requests in order after the gateway accepts authentication.
+                    val generation = connectionGeneration.get()
+                    postAuthenticationJob?.cancel()
+                    postAuthenticationJob = scope.launch {
+                        val snapshotReqId = commandRegistry.generateCommandId()
+                        val snapshotEnv = ProtocolCodec.createRequestStateSnapshotEnvelope(snapshotReqId)
+                        if (!sendGatewayCommand(ProtocolCodec.encodeEnvelope(snapshotEnv), expectedGeneration = generation)) {
+                            config.logger.log(RobotLogEvent(RobotLogLevel.WARN, "CLIENT", "request_state_snapshot send failed"))
+                        }
+                        if (generation == connectionGeneration.get()) requestMapSubscription("authentication")
+                    }
                 }
                 "pong" -> {
                     val latency = if (pingSentTimeMillis > 0) now - pingSentTimeMillis else null
@@ -1074,6 +1305,7 @@ internal class RobotClientImpl(
                 "command_ack" -> {
                     config.logger.log(RobotLogEvent(RobotLogLevel.INFO, "RobotSDK", "RECEIVE type=command_ack id=${envelope.id}"))
                     android.util.Log.d("RobotSDK", "RECEIVE type=command_ack id=${envelope.id}")
+                    envelope.id?.let { acknowledgeMapSubscription(it) }
                     envelope.id?.let { commandRegistry.completeSuccess(it) }
                 }
                 "command_error" -> {
@@ -1083,9 +1315,18 @@ internal class RobotClientImpl(
                     config.logger.log(RobotLogEvent(RobotLogLevel.WARN, "RobotSDK", "RECEIVE type=command_error id=${envelope.id} code=${err.code} msg=${err.message}"))
                     android.util.Log.w("RobotSDK", "RECEIVE type=command_error id=${envelope.id} code=${err.code} msg='${err.message}'")
 
+                    // Identify subscription rejections before generic authentication errors alter session state.
+                    synchronized(mapSubscriptionLock) {
+                        if (envelope.id != null && envelope.id == mapSubscriptionRequestId) {
+                            rejectedMapSubscriptionRequestId = envelope.id
+                            android.util.Log.w("RobotSDK", "RECEIVE subscribe_map command_error id=${envelope.id} code=${err.code} message=${err.message}")
+                        }
+                    }
                     if (err.code == "INVALID_AUTHENTICATION" || err.code == "PROTOCOL_VERSION_MISMATCH") {
                         _connectionState.value = ConnectionState.Failed(err)
                         connectHandshakeDeferred?.complete(RobotResult.Failure(err))
+                        connectionGeneration.incrementAndGet()
+                        resetMapSubscription()
                         return
                     }
 
@@ -1104,15 +1345,39 @@ internal class RobotClientImpl(
                 "map_state" -> {
                     ProtocolCodec.decodeMapState(envelope)?.let { applyMapState(it) }
                 }
+                "subscribe_map_ack" -> {
+                    acknowledgeMapSubscription(envelope.id)
+                }
                 "map_snapshot" -> {
+                    val seq = envelope.payload?.get("sequence")?.toString()?.toLongOrNull() ?: -1L
                     ProtocolCodec.decodeMapSnapshot(envelope.payload)?.let {
                         _occupancyGrid.value = it
+                        mapStreamSequence = seq
+                        synchronized(mapSubscriptionLock) { mapSubscriptionState = MapSubscriptionState.ACTIVE }
+                        android.util.Log.i("RobotSDK", "RECEIVE map_snapshot seq=$seq size=${it.widthCells}x${it.heightCells} cells=${it.data.size}")
+                        config.logger.log(RobotLogEvent(RobotLogLevel.INFO, "CLIENT", "map_snapshot received (seq=$seq, size=${it.widthCells}x${it.heightCells}, cells=${it.data.size})"))
+                    } ?: run {
+                        android.util.Log.e("RobotSDK", "RECEIVE map_snapshot decode failure seq=$seq")
+                        config.logger.log(RobotLogEvent(RobotLogLevel.ERROR, "CLIENT", "map_snapshot decode failure"))
                     }
                 }
                 "map_update" -> {
-                    val updated = ProtocolCodec.decodeMapUpdate(envelope.payload, _occupancyGrid.value)
-                    if (updated != null) {
-                        _occupancyGrid.value = updated
+                    val seq = envelope.payload?.get("sequence")?.toString()?.toLongOrNull() ?: -1L
+                    val baseSeq = envelope.payload?.get("baseSequence")?.toString()?.toLongOrNull() ?: -1L
+
+                    if (baseSeq != mapStreamSequence) {
+                        config.logger.log(RobotLogEvent(RobotLogLevel.WARN, "CLIENT", "map_update sequence mismatch: expected $mapStreamSequence but got base $baseSeq. Resyncing."))
+                        requestMapSubscription("sequence_mismatch", resync = true)
+                    } else {
+                        val updated = ProtocolCodec.decodeMapUpdate(envelope.payload, _occupancyGrid.value)
+                        if (updated != null) {
+                            _occupancyGrid.value = updated
+                            mapStreamSequence = seq
+                            config.logger.log(RobotLogEvent(RobotLogLevel.DEBUG, "CLIENT", "map_update applied (seq=$seq)"))
+                        } else {
+                            config.logger.log(RobotLogEvent(RobotLogLevel.ERROR, "CLIENT", "map_update decode failure"))
+                            requestMapSubscription("update_decode_failure", resync = true)
+                        }
                     }
                 }
                 "telemetry" -> {
@@ -1177,7 +1442,11 @@ internal class RobotClientImpl(
 
         val previous = _mapOperationState.value
         _mapOperationState.value = when (mapState.state.uppercase()) {
+            "CONNECTED" -> MapOperationState.Connected
+            "WAITING_FOR_MAP" -> MapOperationState.WaitingForMap(activeId)
+            "INITIALIZING_MAPPING" -> MapOperationState.InitializingMapping(activeId)
             "MAPPING" -> MapOperationState.Mapping(activeId)
+            "MAP_UPDATING" -> MapOperationState.MapUpdating(activeId)
             "SAVING" -> MapOperationState.Saving(activeId ?: (previous as? MapOperationState.Saving)?.mapName ?: "")
             "SWITCHING", "LOADING" ->
                 MapOperationState.Switching((previous as? MapOperationState.Switching)?.mapId ?: activeId ?: "")
@@ -1319,7 +1588,10 @@ internal class RobotClientImpl(
         }
     }
 
+    // Invalidates queued sends and clears session-owned state before a future connection starts.
     private fun clearStatesAndPending(reason: String) {
+        connectionGeneration.incrementAndGet()
+        resetMapSubscription()
         val err = RobotError("CONNECTION_LOST", "transport", ErrorSeverity.WARN, reason, true)
         commandRegistry.clearAll(err)
         _telemetry.value = null
@@ -1328,6 +1600,8 @@ internal class RobotClientImpl(
         _dockingState.value = null
         _health.value = null
         _activeMap.value = null
+        _occupancyGrid.value = null
+        mapStreamSequence = -1L
         _mapOperationState.value = MapOperationState.Idle
         hasMapState = false
     }

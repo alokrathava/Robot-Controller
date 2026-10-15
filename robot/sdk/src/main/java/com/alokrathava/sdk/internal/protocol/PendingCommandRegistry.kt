@@ -4,10 +4,12 @@ import com.alokrathava.sdk.error.ErrorSeverity
 import com.alokrathava.sdk.error.RobotError
 import com.alokrathava.sdk.error.RobotResult
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
+// Correlates outstanding gateway commands with responses and removes them on timeout or cancellation.
 internal class PendingCommandRegistry {
 
     private val idCounter = AtomicLong(1000)
@@ -17,11 +19,12 @@ internal class PendingCommandRegistry {
         return "cmd-${idCounter.incrementAndGet()}"
     }
 
+    // Registers before the suspending send so a fast acknowledgement cannot outrun its request.
     @Suppress("UNCHECKED_CAST")
     suspend fun <T : Any> registerAndAwaitTyped(
         commandId: String,
         timeoutMs: Long,
-        onSend: () -> Unit
+        onSend: suspend () -> Unit
     ): RobotResult<T> {
         val deferred = CompletableDeferred<RobotResult<Any>>()
         pendingMap[commandId] = deferred
@@ -47,6 +50,9 @@ internal class PendingCommandRegistry {
                     recoverable = true
                 )
             )
+        } catch (e: CancellationException) {
+            pendingMap.remove(commandId)
+            throw e
         } catch (e: Exception) {
             pendingMap.remove(commandId)
             return RobotResult.Failure(
@@ -61,10 +67,11 @@ internal class PendingCommandRegistry {
         }
     }
 
+    // Waits for a generic acknowledgement using the same registration lifecycle as typed commands.
     suspend fun registerAndAwait(
         commandId: String,
         timeoutMs: Long,
-        onSend: () -> Unit
+        onSend: suspend () -> Unit
     ): RobotResult<Unit> {
         return registerAndAwaitTyped<Unit>(commandId, timeoutMs, onSend)
     }

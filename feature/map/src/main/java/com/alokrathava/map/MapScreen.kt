@@ -25,6 +25,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.alokrathava.home.AdaptiveNavigationLayout
 import com.alokrathava.home.SidebarNavItem
+import com.alokrathava.sdk.model.MapOperationState
 import com.alokrathava.theme.*
 
 @Composable
@@ -145,12 +146,14 @@ fun MapScreenContent(
                                     onClick = onStopMapping,
                                     text = "Stop Mapping",
                                     icon = Icons.Default.Stop,
+                                    enabled = uiState.isConnected,
                                     variant = MonochromeButtonVariant.Secondary
                                 )
                                 MonochromeButton(
                                     onClick = onAddMapClick,
                                     text = "Save",
                                     icon = Icons.Default.Save,
+                                    enabled = uiState.isConnected,
                                     variant = MonochromeButtonVariant.Primary
                                 )
                             } else {
@@ -158,6 +161,7 @@ fun MapScreenContent(
                                     onClick = onStartMapping,
                                     text = "Start Mapping",
                                     icon = Icons.Default.PlayArrow,
+                                    enabled = uiState.isConnected && !uiState.isStartMappingLoading && uiState.mapOperationState == MapOperationState.Idle,
                                     variant = MonochromeButtonVariant.Primary
                                 )
                             }
@@ -195,6 +199,16 @@ fun MapScreenContent(
 
                     // Mapping Status Banner
                     if (uiState.isMappingActive) {
+                        val statusText = when (val state = uiState.mapOperationState) {
+                            is MapOperationState.WaitingForMap -> "Waiting for Map"
+                            is MapOperationState.InitializingMapping -> "Initializing Mapping"
+                            is MapOperationState.Mapping -> "Mapping in Progress"
+                            is MapOperationState.MapUpdating -> "Map Updating"
+                            is MapOperationState.Saving -> "Saving Map"
+                            is MapOperationState.Failed -> "Mapping Failed: ${state.error}"
+                            else -> "Mapping in Progress"
+                        }
+                        
                         Surface(
                             shape = shapes.buttons,
                             color = colors.interactiveSurface,
@@ -207,7 +221,7 @@ fun MapScreenContent(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = "SLAM Mapping Active — Drive robot to map environment",
+                                    text = statusText,
                                     style = typography.caption,
                                     color = colors.primaryText,
                                     fontWeight = FontWeight.Bold
@@ -279,11 +293,14 @@ fun MapScreenContent(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val isSelectedActive = selectedMap?.isActive == true
+                    val canSetActive = selectedMap != null && !isSelectedActive && !uiState.isMappingActive && uiState.isConnected && uiState.mapOperationState == MapOperationState.Idle
+                    val canEdit = selectedMap != null && uiState.isConnected && uiState.mapOperationState == MapOperationState.Idle
+                    val canDelete = selectedMap != null && !isSelectedActive && !uiState.isMappingActive && uiState.isConnected && uiState.mapOperationState == MapOperationState.Idle
 
                     MonochromeButton(
                         onClick = { selectedMap?.let { onSetActiveMap(it.id) } },
                         text = if (isSelectedActive) "Active" else "Set Active",
-                        enabled = selectedMap != null && !isSelectedActive,
+                        enabled = canSetActive,
                         variant = if (isSelectedActive) MonochromeButtonVariant.Ghost else MonochromeButtonVariant.Primary,
                         modifier = Modifier.weight(1.2f)
                     )
@@ -291,7 +308,7 @@ fun MapScreenContent(
                     MonochromeButton(
                         onClick = { selectedMap?.let { onEditMapClick(it.id) } },
                         text = "Edit",
-                        enabled = selectedMap != null,
+                        enabled = canEdit,
                         variant = MonochromeButtonVariant.Secondary,
                         modifier = Modifier.weight(0.9f)
                     )
@@ -299,7 +316,7 @@ fun MapScreenContent(
                     MonochromeButton(
                         onClick = { selectedMap?.let { onDeleteMapClick(it.id) } },
                         text = "Delete",
-                        enabled = selectedMap != null,
+                        enabled = canDelete,
                         variant = MonochromeButtonVariant.Secondary,
                         modifier = Modifier.weight(0.9f)
                     )
@@ -339,6 +356,7 @@ fun MapScreenContent(
                                 onClick = onStopMapping,
                                 text = "Stop Mapping",
                                 icon = Icons.Default.Stop,
+                                enabled = uiState.isConnected,
                                 variant = MonochromeButtonVariant.Secondary,
                                 size = MonochromeButtonSize.Large
                             )
@@ -346,6 +364,7 @@ fun MapScreenContent(
                                 onClick = onAddMapClick,
                                 text = "Save Map",
                                 icon = Icons.Default.Save,
+                                enabled = uiState.isConnected,
                                 variant = MonochromeButtonVariant.Primary,
                                 size = MonochromeButtonSize.Large
                             )
@@ -354,6 +373,7 @@ fun MapScreenContent(
                                 onClick = onStartMapping,
                                 text = "Start SLAM Mapping",
                                 icon = Icons.Default.PlayArrow,
+                                enabled = uiState.isConnected && !uiState.isStartMappingLoading && uiState.mapOperationState == MapOperationState.Idle,
                                 variant = MonochromeButtonVariant.Primary,
                                 size = MonochromeButtonSize.Large
                             )
@@ -361,6 +381,7 @@ fun MapScreenContent(
                                 onClick = onAddMapClick,
                                 text = "Add Map",
                                 icon = Icons.Default.Add,
+                                enabled = uiState.isConnected && uiState.mapOperationState == MapOperationState.Idle,
                                 variant = MonochromeButtonVariant.Secondary,
                                 size = MonochromeButtonSize.Large
                             )
@@ -503,6 +524,7 @@ fun MapScreenContent(
                                             if (!mapItem.isActive) {
                                                 DropdownMenuItem(
                                                     text = { Text("Set as Active", style = typography.bodySmall) },
+                                                    enabled = !uiState.isMappingActive && uiState.isConnected && uiState.mapOperationState == MapOperationState.Idle,
                                                     onClick = {
                                                         onSetActiveMap(mapItem.id)
                                                         menuExpanded = false
@@ -511,18 +533,22 @@ fun MapScreenContent(
                                             }
                                             DropdownMenuItem(
                                                 text = { Text("Edit Name", style = typography.bodySmall) },
+                                                enabled = uiState.isConnected && uiState.mapOperationState == MapOperationState.Idle,
                                                 onClick = {
                                                     onEditMapClick(mapItem.id)
                                                     menuExpanded = false
                                                 }
                                             )
-                                            DropdownMenuItem(
-                                                text = { Text("Delete Map", style = typography.bodySmall) },
-                                                onClick = {
-                                                    onDeleteMapClick(mapItem.id)
-                                                    menuExpanded = false
-                                                }
-                                            )
+                                            if (!mapItem.isActive) {
+                                                DropdownMenuItem(
+                                                    text = { Text("Delete Map", style = typography.bodySmall) },
+                                                    enabled = !uiState.isMappingActive && uiState.isConnected && uiState.mapOperationState == MapOperationState.Idle,
+                                                    onClick = {
+                                                        onDeleteMapClick(mapItem.id)
+                                                        menuExpanded = false
+                                                    }
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -559,11 +585,14 @@ fun MapScreenContent(
                             horizontalArrangement = Arrangement.spacedBy(spacing.space3)
                         ) {
                             val isSelectedActive = selectedMap?.isActive == true
+                            val canSetActive = selectedMap != null && !isSelectedActive && !uiState.isMappingActive && uiState.isConnected && uiState.mapOperationState == MapOperationState.Idle
+                            val canEdit = selectedMap != null && uiState.isConnected && uiState.mapOperationState == MapOperationState.Idle
+                            val canDelete = selectedMap != null && !isSelectedActive && !uiState.isMappingActive && uiState.isConnected && uiState.mapOperationState == MapOperationState.Idle
 
                             MonochromeButton(
                                 onClick = { selectedMap?.let { onSetActiveMap(it.id) } },
                                 text = if (isSelectedActive) "Active Map" else "Set as Active",
-                                enabled = selectedMap != null && !isSelectedActive,
+                                enabled = canSetActive,
                                 variant = if (isSelectedActive) MonochromeButtonVariant.Ghost else MonochromeButtonVariant.Primary,
                                 size = MonochromeButtonSize.Large,
                                 modifier = Modifier.weight(1.2f)
@@ -572,7 +601,7 @@ fun MapScreenContent(
                             MonochromeButton(
                                 onClick = { selectedMap?.let { onEditMapClick(it.id) } },
                                 text = "Edit",
-                                enabled = selectedMap != null,
+                                enabled = canEdit,
                                 variant = MonochromeButtonVariant.Secondary,
                                 size = MonochromeButtonSize.Large,
                                 modifier = Modifier.weight(0.9f)
@@ -581,7 +610,7 @@ fun MapScreenContent(
                             MonochromeButton(
                                 onClick = { selectedMap?.let { onDeleteMapClick(it.id) } },
                                 text = "Delete",
-                                enabled = selectedMap != null,
+                                enabled = canDelete,
                                 variant = MonochromeButtonVariant.Secondary,
                                 size = MonochromeButtonSize.Large,
                                 modifier = Modifier.weight(0.9f)

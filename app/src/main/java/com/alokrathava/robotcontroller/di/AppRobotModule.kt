@@ -1,6 +1,5 @@
 package com.alokrathava.robotcontroller.di
 
-import com.alokrathava.sdk.RobotAuthentication
 import com.alokrathava.sdk.RobotClient
 import com.alokrathava.sdk.RobotEndpoint
 import com.alokrathava.sdk.RobotRepository
@@ -102,6 +101,7 @@ internal class RobotClientRepositoryImpl(
     private var gridJob: Job? = null
     private var metricsJob: Job? = null
     private var mapOpJob: Job? = null
+    private var velocityJob: Job? = null
 
     private val _mapOperationState = MutableStateFlow<com.alokrathava.sdk.model.MapOperationState>(com.alokrathava.sdk.model.MapOperationState.Idle)
     override val mapOperationState: StateFlow<com.alokrathava.sdk.model.MapOperationState> = _mapOperationState.asStateFlow()
@@ -251,7 +251,8 @@ internal class RobotClientRepositoryImpl(
     }
 
     override fun setManualVelocity(linearMps: Double, angularRadPerSec: Double) {
-        scope.launch {
+        velocityJob?.cancel()
+        velocityJob = scope.launch {
             activeClient.setManualVelocity(linearMps, angularRadPerSec)
         }
     }

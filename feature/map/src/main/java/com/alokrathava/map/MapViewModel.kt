@@ -6,7 +6,6 @@ import com.alokrathava.sdk.RobotRepository
 import com.alokrathava.sdk.error.RobotResult
 import com.alokrathava.sdk.model.ConnectionStatus
 import com.alokrathava.sdk.model.MapOperationState
-import com.alokrathava.sdk.model.RobotMap
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,6 +35,7 @@ class MapViewModel @Inject constructor(
     /** Observes robot repository flows for connection, telemetry, occupancy grid, position, and map operation states. */
     private fun observeRepository() {
         viewModelScope.launch {
+            var previousStatus: ConnectionStatus? = null
             combine(
                 robotRepository.connectionStatus,
                 robotRepository.connectionConfig,
@@ -44,9 +44,14 @@ class MapViewModel @Inject constructor(
                 robotRepository.telemetry
             ) { connStatus, connConfig, pos, grid, telem ->
                 val address = if (connConfig.ipAddress.isNotEmpty()) "${connConfig.ipAddress}:${connConfig.port}" else "192.168.1.108:8080"
+                val isConn = (connStatus == ConnectionStatus.CONNECTED)
+                if (isConn && previousStatus != ConnectionStatus.CONNECTED) {
+                    refreshMapsFromRobot()
+                }
+                previousStatus = connStatus
                 _uiState.update { currentState ->
                     currentState.copy(
-                        isConnected = (connStatus == ConnectionStatus.CONNECTED),
+                        isConnected = isConn,
                         connectionAddress = address,
                         robotPosition = pos,
                         occupancyGrid = grid,
@@ -59,9 +64,17 @@ class MapViewModel @Inject constructor(
         viewModelScope.launch {
             robotRepository.mapOperationState.collect { opState ->
                 _uiState.update { currentState ->
+                    val mappingActive = when (opState) {
+                        is MapOperationState.InitializingMapping,
+                        is MapOperationState.WaitingForMap,
+                        is MapOperationState.Mapping,
+                        is MapOperationState.MapUpdating,
+                        is MapOperationState.Saving -> true
+                        else -> false
+                    }
                     currentState.copy(
                         mapOperationState = opState,
-                        isMappingActive = (opState is MapOperationState.Mapping)
+                        isMappingActive = mappingActive
                     )
                 }
             }
@@ -101,6 +114,10 @@ class MapViewModel @Inject constructor(
 
     /** Switches active map on the robot gateway without triggering unsaved map save. */
     fun setMapActive(mapId: String) {
+        if (_uiState.value.isMappingActive || _uiState.value.mapOperationState is MapOperationState.Mapping) {
+            _uiState.update { it.copy(errorMessage = "Cannot switch map while SLAM mapping is active.") }
+            return
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(mapOperationState = MapOperationState.Switching(mapId)) }
             when (val result = robotRepository.switchMap(mapId)) {
@@ -229,9 +246,7 @@ class MapViewModel @Inject constructor(
                 is RobotResult.Success -> {
                     _uiState.update {
                         it.copy(
-                            isMappingActive = false,
-                            isStopMappingConfirmDialogOpen = false,
-                            mapOperationState = MapOperationState.Idle
+                            isStopMappingConfirmDialogOpen = false
                         )
                     }
                     refreshMapsFromRobot()
@@ -289,9 +304,7 @@ class MapViewModel @Inject constructor(
                         it.copy(
                             isAddMapDialogOpen = false,
                             newMapNameInput = "",
-                            selectedMapId = result.value.id,
-                            isMappingActive = false,
-                            mapOperationState = MapOperationState.Idle
+                            selectedMapId = result.value.id
                         )
                     }
                 }
@@ -364,6 +377,11 @@ class MapViewModel @Inject constructor(
 
     /** Opens delete map confirmation dialog. */
     fun openDeleteConfirmDialog(mapId: String) {
+        val map = _uiState.value.maps.find { it.id == mapId }
+        if (map == null || map.isActive || _uiState.value.isMappingActive || !_uiState.value.isConnected) {
+            _uiState.update { it.copy(errorMessage = "Cannot delete active map or while mapping is active.") }
+            return
+        }
         _uiState.update {
             it.copy(
                 isDeleteConfirmDialogOpen = true,
@@ -385,6 +403,17 @@ class MapViewModel @Inject constructor(
     /** Deletes specified map from the robot. */
     fun deleteMap() {
         val mapIdToDelete = _uiState.value.editingMapId ?: return
+        val map = _uiState.value.maps.find { it.id == mapIdToDelete }
+        if (map == null || map.isActive || _uiState.value.isMappingActive || !_uiState.value.isConnected) {
+            _uiState.update {
+                it.copy(
+                    isDeleteConfirmDialogOpen = false,
+                    editingMapId = null,
+                    errorMessage = "Cannot delete active map or while mapping is active."
+                )
+            }
+            return
+        }
         viewModelScope.launch {
             when (val result = robotRepository.deleteMap(mapIdToDelete)) {
                 is RobotResult.Success -> {
