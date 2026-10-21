@@ -282,7 +282,7 @@ fun MapScreenContent(
                     MapFloorPlanCanvas(
                         occupancyGrid = uiState.occupancyGrid,
                         isThumbnail = false,
-                        robotPosition = uiState.robotPosition,
+                        livePosition = uiState.livePosition,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -573,7 +573,7 @@ fun MapScreenContent(
                             MapFloorPlanCanvas(
                                 occupancyGrid = uiState.occupancyGrid,
                                 isThumbnail = false,
-                                robotPosition = uiState.robotPosition,
+                                livePosition = uiState.livePosition,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }

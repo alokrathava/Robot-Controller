@@ -3,6 +3,7 @@ package com.alokrathava.robotcontroller.di
 import com.alokrathava.sdk.RobotClient
 import com.alokrathava.sdk.RobotEndpoint
 import com.alokrathava.sdk.RobotRepository
+import com.alokrathava.sdk.RobotPositionSource
 import com.alokrathava.sdk.RobotSdk
 import com.alokrathava.sdk.RobotSdkConfig
 import com.alokrathava.sdk.error.RobotResult
@@ -15,13 +16,16 @@ import com.alokrathava.sdk.model.DirectionCommand
 import com.alokrathava.sdk.model.DockStation
 import com.alokrathava.sdk.model.DockingStatus
 import com.alokrathava.sdk.model.MapData
+import com.alokrathava.sdk.model.LiveRobotPosition
 import com.alokrathava.sdk.model.MotionLimits
 import com.alokrathava.sdk.model.NavigationStatus
 import com.alokrathava.sdk.model.Pose2D
+import com.alokrathava.sdk.model.PositionAvailability
 import com.alokrathava.sdk.model.RobotMap
 import com.alokrathava.sdk.model.RobotPosition
 import com.alokrathava.sdk.model.RobotSimulationConfig
 import com.alokrathava.sdk.model.RobotTelemetry
+import com.alokrathava.sdk.model.TelemetryFreshness
 import com.alokrathava.sdk.model.SavedLocation
 import com.alokrathava.sdk.model.WifiNetwork
 import dagger.Module
@@ -41,6 +45,7 @@ import com.alokrathava.sdk.RobotConnectionProfile
 import com.alokrathava.sdk.discovery.RobotDiscoveryManager
 import com.alokrathava.sdk.discovery.RobotDiscoveryManagerImpl
 import javax.inject.Singleton
+import kotlin.math.hypot
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -79,9 +84,10 @@ object AppRobotModule {
 }
 
 @Singleton
+/** Bridges the active SDK client into shared application flows, including validated position. */
 internal class RobotClientRepositoryImpl(
     private val connectionManager: RobotConnectionManager
-) : RobotRepository {
+) : RobotRepository, RobotPositionSource {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var activeClient: RobotClient = connectionManager.getActiveClient() ?: RobotSdk.create(
@@ -100,6 +106,7 @@ internal class RobotClientRepositoryImpl(
     private var mapJob: Job? = null
     private var gridJob: Job? = null
     private var metricsJob: Job? = null
+    private var freshnessJob: Job? = null
     private var mapOpJob: Job? = null
     private var velocityJob: Job? = null
 
@@ -117,6 +124,15 @@ internal class RobotClientRepositoryImpl(
 
     private val _position = MutableStateFlow(RobotPosition(x = 0.0, y = 0.0))
     override val position: StateFlow<RobotPosition> = _position.asStateFlow()
+
+    private val positionLock = Any()
+    private val _livePosition = MutableStateFlow(LiveRobotPosition())
+    override val livePosition: StateFlow<LiveRobotPosition> = _livePosition.asStateFlow()
+    private var lastValidSampleMillis = 0L
+    private var lastGridMapId = ""
+    private var positionConnectionWasActive = false
+    private var positionReconnectPending = false
+    private var trailBreakPending = false
 
     private val _navigationStatus = MutableStateFlow(NavigationStatus.IDLE)
     override val navigationStatus: StateFlow<NavigationStatus> = _navigationStatus.asStateFlow()
@@ -156,6 +172,7 @@ internal class RobotClientRepositoryImpl(
         }
     }
 
+    /** Rebinds all SDK collectors and resets session-owned position and grid state. */
     private fun bindClient(client: RobotClient) {
         connJob?.cancel()
         telemJob?.cancel()
@@ -164,8 +181,19 @@ internal class RobotClientRepositoryImpl(
         mapJob?.cancel()
         gridJob?.cancel()
         metricsJob?.cancel()
+        freshnessJob?.cancel()
         mapOpJob?.cancel()
 
+        // A replacement client begins a separate position history and cannot inherit an old pose.
+        synchronized(positionLock) {
+            _livePosition.value = LiveRobotPosition(motionEpoch = _livePosition.value.motionEpoch + 1)
+            lastValidSampleMillis = 0L
+            lastGridMapId = ""
+            positionConnectionWasActive = false
+            positionReconnectPending = false
+            trailBreakPending = false
+        }
+        _occupancyGrid.value = null
         activeClient = client
 
         mapOpJob = scope.launch {
@@ -176,12 +204,31 @@ internal class RobotClientRepositoryImpl(
 
         gridJob = scope.launch {
             client.occupancyGrid.collect { grid ->
-                _occupancyGrid.value = grid
+                if (client !== activeClient) return@collect
+                // Keep the last grid visible with a stale pose until a new session begins.
+                if (grid != null || client.connectionState.value is ConnectionState.Connected) {
+                    _occupancyGrid.value = grid
+                }
+                // A different grid map invalidates the previous map's path immediately.
+                synchronized(positionLock) {
+                    val mapId = grid?.mapId.orEmpty()
+                    if (mapId.isNotBlank() && lastGridMapId.isNotBlank() && mapId != lastGridMapId) {
+                        _livePosition.value = _livePosition.value.copy(
+                            availability = PositionAvailability.UNAVAILABLE,
+                            trailSegments = emptyList(),
+                            motionEpoch = _livePosition.value.motionEpoch + 1
+                        )
+                        lastValidSampleMillis = 0L
+                        trailBreakPending = true
+                    }
+                    if (mapId.isNotBlank()) lastGridMapId = mapId
+                }
             }
         }
 
         connJob = scope.launch {
             client.connectionState.collect { state ->
+                if (client !== activeClient) return@collect
                 _connectionStatus.value = when (state) {
                     is ConnectionState.Connected -> ConnectionStatus.CONNECTED
                     is ConnectionState.Connecting -> ConnectionStatus.CONNECTING
@@ -189,6 +236,52 @@ internal class RobotClientRepositoryImpl(
                     is ConnectionState.Reconnecting -> ConnectionStatus.CONNECTING
                     is ConnectionState.Failed -> ConnectionStatus.FAILED
                     is ConnectionState.Disconnected -> ConnectionStatus.DISCONNECTED
+                }
+                // Connection loss freezes the last pose; a new session starts with no assumed pose.
+                synchronized(positionLock) {
+                    val current = _livePosition.value
+                    val isActive = state is ConnectionState.Connected
+                    if (isActive && positionReconnectPending) {
+                        _livePosition.value = LiveRobotPosition(motionEpoch = current.motionEpoch + 1)
+                        lastValidSampleMillis = 0L
+                        trailBreakPending = false
+                        positionReconnectPending = false
+                        _occupancyGrid.value = null
+                        lastGridMapId = ""
+                    } else if (!isActive) {
+                        if (positionConnectionWasActive) positionReconnectPending = true
+                        if (current.availability == PositionAvailability.FRESH) {
+                            _livePosition.value = current.copy(availability = PositionAvailability.STALE, motionEpoch = current.motionEpoch + 1)
+                            trailBreakPending = true
+                        }
+                    }
+                    positionConnectionWasActive = isActive
+                }
+            }
+        }
+
+        freshnessJob = scope.launch {
+            client.telemetryFreshness.collect { freshness ->
+                if (client !== activeClient) return@collect
+                // The SDK owns the timeout and timestamps even identical stationary packets.
+                synchronized(positionLock) {
+                    val current = _livePosition.value
+                    if (current.pose != null && freshness.receivedAtMillis > 0L) {
+                        if (freshness.isStale && current.availability == PositionAvailability.FRESH) {
+                            _livePosition.value = current.copy(availability = PositionAvailability.STALE, motionEpoch = current.motionEpoch + 1)
+                            trailBreakPending = true
+                        } else if (!freshness.isStale && freshness.receivedAtMillis > current.receivedAtMillis) {
+                            // Refresh age without adding a duplicate point; a long pause starts a new trail segment.
+                            if (lastValidSampleMillis > 0L && freshness.receivedAtMillis - lastValidSampleMillis > 3_000L) {
+                                trailBreakPending = true
+                            }
+                            lastValidSampleMillis = freshness.receivedAtMillis
+                            _livePosition.value = current.copy(
+                                receivedAtMillis = freshness.receivedAtMillis,
+                                availability = if (client.connectionState.value is ConnectionState.Connected) PositionAvailability.FRESH else current.availability
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -201,8 +294,13 @@ internal class RobotClientRepositoryImpl(
 
         telemJob = scope.launch {
             client.telemetry.collect { telem ->
+                if (client !== activeClient) return@collect
                 if (telem != null) {
-                    _position.value = RobotPosition(telem.xMeters, telem.yMeters, Math.toDegrees(telem.yawRadians))
+                    // Only valid finite map poses enter the position and trail flows.
+                    acceptPositionTelemetry(telem, client.telemetryFreshness.value)
+                    if (isValidMapPose(telem)) {
+                        _position.value = RobotPosition(telem.xMeters, telem.yMeters, Math.toDegrees(telem.yawRadians))
+                    }
                     _navigationStatus.value = when (telem.navigationState.uppercase()) {
                         "NAVIGATING" -> NavigationStatus.NAVIGATING
                         "CHARGING" -> NavigationStatus.CHARGING
@@ -210,6 +308,15 @@ internal class RobotClientRepositoryImpl(
                         else -> NavigationStatus.IDLE
                     }
                     _telemetry.value = telem
+                } else {
+                    // The SDK clears telemetry on connection loss; retain only a stale last-known pose.
+                    synchronized(positionLock) {
+                        val current = _livePosition.value
+                        if (current.pose != null && current.availability == PositionAvailability.FRESH) {
+                            _livePosition.value = current.copy(availability = PositionAvailability.STALE, motionEpoch = current.motionEpoch + 1)
+                            trailBreakPending = true
+                        }
+                    }
                 }
             }
         }
@@ -250,6 +357,71 @@ internal class RobotClientRepositoryImpl(
         }
     }
 
+    /** Accepts one real SDK telemetry sample and updates the shared pose and bounded trail. */
+    private fun acceptPositionTelemetry(telem: RobotTelemetry, freshness: TelemetryFreshness) {
+        synchronized(positionLock) {
+            val current = _livePosition.value
+            val mapChanged = current.activeMap.isNotBlank() && telem.activeMap.isNotBlank() &&
+                current.activeMap != telem.activeMap
+            val base = if (mapChanged) {
+                lastValidSampleMillis = 0L
+                trailBreakPending = false
+                LiveRobotPosition(motionEpoch = current.motionEpoch + 1)
+            } else current
+            val connected = activeClient.connectionState.value is ConnectionState.Connected
+            val valid = isValidMapPose(telem) && connected && !freshness.isStale && freshness.receivedAtMillis > 0L
+
+            if (!valid) {
+                // Invalid coordinates remove the marker; disconnected samples cannot start a trail.
+                lastValidSampleMillis = 0L
+                trailBreakPending = true
+                _livePosition.value = base.copy(
+                    pose = null,
+                    availability = PositionAvailability.UNAVAILABLE,
+                    activeMap = telem.activeMap,
+                    localizationState = telem.localizationState,
+                    linearVelocityMps = null,
+                    motionEpoch = base.motionEpoch + 1
+                )
+                return
+            }
+
+            val pose = Pose2D(telem.xMeters, telem.yMeters, telem.yawRadians)
+            val lastPoint = base.trailSegments.lastOrNull()?.lastOrNull()
+            val distance = lastPoint?.let { hypot(pose.xMeters - it.xMeters, pose.yMeters - it.yMeters) }
+            val gap = lastValidSampleMillis > 0L && freshness.receivedAtMillis - lastValidSampleMillis > 3_000L
+            val breakTrail = lastPoint == null || trailBreakPending || gap || (distance != null && distance > 2.0)
+            val nextTrail = when {
+                breakTrail -> base.trailSegments + listOf(listOf(pose))
+                distance != null && distance < 0.05 -> base.trailSegments
+                else -> base.trailSegments.dropLast(1) + listOf(base.trailSegments.last() + pose)
+            }
+            // Keep at most 300 received points, dropping oldest history first.
+            var boundedTrail = nextTrail
+            while (boundedTrail.sumOf { it.size } > 300) {
+                boundedTrail = if (boundedTrail.first().size == 1) boundedTrail.drop(1)
+                else listOf(boundedTrail.first().drop(1)) + boundedTrail.drop(1)
+            }
+            lastValidSampleMillis = freshness.receivedAtMillis
+            trailBreakPending = false
+            _livePosition.value = base.copy(
+                pose = pose,
+                availability = PositionAvailability.FRESH,
+                localizationState = telem.localizationState,
+                activeMap = telem.activeMap,
+                linearVelocityMps = telem.linearVelocityMps.takeIf { it.isFinite() },
+                receivedAtMillis = freshness.receivedAtMillis,
+                trailSegments = boundedTrail,
+                motionEpoch = base.motionEpoch + if (breakTrail && lastPoint != null) 1 else 0
+            )
+        }
+    }
+
+    /** Rejects invalid, non-map-frame, and non-finite pose samples before UI use. */
+    private fun isValidMapPose(telem: RobotTelemetry): Boolean =
+        telem.poseValid && telem.frame.trim().equals("map", ignoreCase = true) &&
+            telem.xMeters.isFinite() && telem.yMeters.isFinite() && telem.yawRadians.isFinite()
+
     override fun setManualVelocity(linearMps: Double, angularRadPerSec: Double) {
         velocityJob?.cancel()
         velocityJob = scope.launch {
@@ -281,7 +453,8 @@ internal class RobotClientRepositoryImpl(
 
     override fun refreshPosition() {
         val telem = activeClient.telemetry.value
-        if (telem != null) {
+        // Legacy callers may refresh the cached pose, but invalid telemetry never replaces it.
+        if (telem != null && isValidMapPose(telem)) {
             _position.value = RobotPosition(telem.xMeters, telem.yMeters, Math.toDegrees(telem.yawRadians))
         }
     }

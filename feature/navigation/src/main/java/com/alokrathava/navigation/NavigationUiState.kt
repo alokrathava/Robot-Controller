@@ -1,13 +1,13 @@
 package com.alokrathava.navigation
 
 import com.alokrathava.sdk.model.BatteryStatus
+import com.alokrathava.sdk.model.LiveRobotPosition
 import com.alokrathava.sdk.model.ConnectionStatus
 import com.alokrathava.sdk.model.DockingStatus
 import com.alokrathava.sdk.model.NavigationState
 import com.alokrathava.sdk.model.Pose2D
 import com.alokrathava.sdk.model.RobotMap
 import com.alokrathava.sdk.model.RobotOccupancyGrid
-import com.alokrathava.sdk.model.RobotPosition
 import com.alokrathava.sdk.model.RobotTelemetry
 import com.alokrathava.sdk.model.SafetyState
 
@@ -67,6 +67,7 @@ sealed interface MapUiState {
     data class Error(val message: String) : MapUiState
 }
 
+/** Holds navigation controls and the nullable live robot pose for the map panel. */
 data class NavigationUiState(
     val selectedTab: NavigationTab = NavigationTab.SavedLocations,
     val savedLocations: List<SavedLocationUi> = emptyList(),
@@ -89,7 +90,7 @@ data class NavigationUiState(
     val newLocationYInput: String = "",
     val batteryStatus: BatteryStatus = BatteryStatus(),
     val connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED,
-    val robotPosition: RobotPosition = RobotPosition(),
+    val livePosition: LiveRobotPosition = LiveRobotPosition(),
     val telemetry: RobotTelemetry = RobotTelemetry(),
     val dockingStatus: DockingStatus = DockingStatus.UNDOCKED
 )

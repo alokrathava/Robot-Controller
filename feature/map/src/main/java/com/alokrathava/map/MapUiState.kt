@@ -1,10 +1,10 @@
 package com.alokrathava.map
 
 import com.alokrathava.sdk.model.MapOperationState
+import com.alokrathava.sdk.model.LiveRobotPosition
 import com.alokrathava.sdk.model.NavigationStatus
 import com.alokrathava.sdk.model.RobotMap
 import com.alokrathava.sdk.model.RobotOccupancyGrid
-import com.alokrathava.sdk.model.RobotPosition
 import com.alokrathava.sdk.model.RobotTelemetry
 
 /**
@@ -31,7 +31,7 @@ data class MapUiState(
     val newMapNameInput: String = "",
     val editMapNameInput: String = "",
     val errorMessage: String? = null,
-    val robotPosition: RobotPosition = RobotPosition(),
+    val livePosition: LiveRobotPosition = LiveRobotPosition(),
     val navigationStatus: NavigationStatus = NavigationStatus.IDLE,
     val telemetry: RobotTelemetry = RobotTelemetry()
 ) {

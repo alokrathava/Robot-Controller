@@ -3,13 +3,14 @@ package com.alokrathava.navigation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.alokrathava.sdk.RobotRepository
+import com.alokrathava.sdk.RobotPositionSource
 import com.alokrathava.sdk.error.RobotResult
 import com.alokrathava.sdk.model.BatteryStatus
 import com.alokrathava.sdk.model.ConnectionStatus
 import com.alokrathava.sdk.model.DockingStatus
+import com.alokrathava.sdk.model.LiveRobotPosition
 import com.alokrathava.sdk.model.NavigationStatus
 import com.alokrathava.sdk.model.Pose2D
-import com.alokrathava.sdk.model.RobotPosition
 import com.alokrathava.sdk.model.RobotTelemetry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,16 +46,18 @@ private data class LocalNavigationState(
     val execution: NavigationExecutionStatus
 )
 
+/** Groups repository samples so navigation UI uses the shared validated pose. */
 private data class RobotStateGroup(
     val battery: BatteryStatus,
     val connection: ConnectionStatus,
-    val position: RobotPosition,
+    val position: LiveRobotPosition,
     val telemetry: RobotTelemetry,
     val dockingStatus: DockingStatus,
     val occupancyGrid: com.alokrathava.sdk.model.RobotOccupancyGrid?
 )
 
 @HiltViewModel
+/** Coordinates destination controls with the shared robot position and map state. */
 class NavigationViewModel @Inject constructor(
     private val robotRepository: RobotRepository
 ) : ViewModel() {
@@ -62,6 +65,9 @@ class NavigationViewModel @Inject constructor(
     private val _formState = MutableStateFlow(FormInputState())
     private val _locationsState = MutableStateFlow(SavedLocationsState())
     private val _executionStatus = MutableStateFlow<NavigationExecutionStatus>(NavigationExecutionStatus.Idle)
+    // Production repositories expose one tracker; existing test fakes have no live pose.
+    private val livePosition = (robotRepository as? RobotPositionSource)?.livePosition
+        ?: MutableStateFlow(LiveRobotPosition())
 
     init {
         loadSavedLocationsFromRobot()
@@ -98,7 +104,7 @@ class NavigationViewModel @Inject constructor(
     private val _robotStateGroup = combine(
         robotRepository.batteryStatus,
         robotRepository.connectionStatus,
-        robotRepository.position,
+        livePosition,
         robotRepository.telemetry,
         combine(
             robotRepository.dockingStatus,
@@ -146,7 +152,7 @@ class NavigationViewModel @Inject constructor(
             newLocationYInput = local.locations.yInput,
             batteryStatus = robot.battery,
             connectionStatus = robot.connection,
-            robotPosition = robot.position,
+            livePosition = robot.position,
             telemetry = robot.telemetry,
             dockingStatus = robot.dockingStatus
         )

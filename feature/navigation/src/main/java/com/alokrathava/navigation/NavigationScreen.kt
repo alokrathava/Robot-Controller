@@ -421,6 +421,7 @@ fun NavigationHeader(
     }
 }
 
+/** Displays the shared occupancy renderer and passes map taps to destination selection. */
 @Composable
 fun NavigationMapPanel(
     uiState: NavigationUiState,
@@ -438,7 +439,7 @@ fun NavigationMapPanel(
     ) {
         MapFloorPlanCanvas(
             occupancyGrid = uiState.occupancyGrid,
-            robotPosition = uiState.robotPosition,
+            livePosition = uiState.livePosition,
             targetPose = uiState.targetPose,
             onMapTap = onMapTap,
             modifier = Modifier.fillMaxSize()

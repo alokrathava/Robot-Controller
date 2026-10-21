@@ -3,8 +3,10 @@ package com.alokrathava.map
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.alokrathava.sdk.RobotRepository
+import com.alokrathava.sdk.RobotPositionSource
 import com.alokrathava.sdk.error.RobotResult
 import com.alokrathava.sdk.model.ConnectionStatus
+import com.alokrathava.sdk.model.LiveRobotPosition
 import com.alokrathava.sdk.model.MapOperationState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,20 +28,23 @@ class MapViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(MapUiState())
     val uiState: StateFlow<MapUiState> = _uiState.asStateFlow()
+    // Production repositories expose one shared tracker; lightweight fakes remain unavailable.
+    private val livePosition = (robotRepository as? RobotPositionSource)?.livePosition
+        ?: MutableStateFlow(LiveRobotPosition())
 
     init {
         observeRepository()
         refreshMapsFromRobot()
     }
 
-    /** Observes robot repository flows for connection, telemetry, occupancy grid, position, and map operation states. */
+    /** Observes shared validated position, connection, occupancy grid, telemetry, and map operations. */
     private fun observeRepository() {
         viewModelScope.launch {
             var previousStatus: ConnectionStatus? = null
             combine(
                 robotRepository.connectionStatus,
                 robotRepository.connectionConfig,
-                robotRepository.position,
+                livePosition,
                 robotRepository.occupancyGrid,
                 robotRepository.telemetry
             ) { connStatus, connConfig, pos, grid, telem ->
@@ -53,7 +58,7 @@ class MapViewModel @Inject constructor(
                     currentState.copy(
                         isConnected = isConn,
                         connectionAddress = address,
-                        robotPosition = pos,
+                        livePosition = pos,
                         occupancyGrid = grid,
                         telemetry = telem
                     )
