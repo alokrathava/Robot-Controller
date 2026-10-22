@@ -21,6 +21,292 @@
 
 ---
 
+## Case Study — Building a Tablet Operator Console for ROS 2 Robots
+
+> **Scope (October 2026):** This is an engineering case study of the implemented Android app and reusable Kotlin SDK, not a claim of production certification. Robot-side behavior belongs to [RobotNavigation](https://github.com/alokrathava/RobotNavigation). Present motion control is **planar: x, y, yaw**, not six-degree-of-freedom flight or underwater navigation. The app is designed for tablets and adapts to mobile layouts.
+
+### 01 / The problem
+
+A ROS 2 mobile robot can already plan, localize, and execute actions, but a non-ROS operator still needs a comprehensible way to connect, see what the robot knows, select a destination, take manual control, manage maps, and react to failures. Directly exposing ROS topics and actions inside an Android UI would couple the operator experience to robot implementation details, complicate reconnects, and scatter error handling across screens.
+
+**Design question:** How can one tablet turn a robot-side ROS 2 stack into observable, explicit operator workflows without pretending that sending a command means the robot completed it?
+
+### 02 / The solution and responsibility boundary
+
+The solution has two independently maintained sides:
+
+| Layer | Owns | Does **not** own |
+|---|---|---|
+| Compose Android application | Operator screens, input, status presentation, interaction states | Motion planning or robot localization |
+| Kotlin `:robot:sdk` | Typed commands, WebSocket lifecycle, correlated responses, observable telemetry, reconnection | ROS-specific execution logic |
+| RobotNavigation gateway | Authentication/ownership, protocol handling, translation to ROS actions/services/topics | Android presentation |
+| ROS 2 / Nav2 / mapping / robot | Map, localization, motion execution, safety arbitration, feedback | UI navigation |
+
+The current development integration is a **Protocol v1 JSON WebSocket** connection. Client calls return acknowledgement or structured errors; asynchronous telemetry and navigation status independently describe the actual robot state. The app still routes several features through a **deprecated `RobotRepository` adapter** over the newer `RobotClient`, so SDK coverage must not be mistaken for complete UI parity.
+
+### 03 / Application walkthrough — tablet screens
+
+**Real screenshot status:** No captured tablet screenshots are presently committed to this repository. The gallery below is a capture checklist, **not** an image gallery or simulated product shots. Insert actual, redacted captures into `docs/screenshots/tablet/` and replace each entry with an image link only after a physical tablet or emulator has been captured. Aim for a consistent tablet orientation, resolution, connection state, and map across the series.
+
+| Order | Tablet capture | What it should demonstrate | Implementation |
+|---:|---|---|---|
+| 01 | Connection / discovery | Discovery, address, port, token/TLS options and connection result | `:feature:home` |
+| 02 | Home / dashboard | Robot state, battery, current pose and quick actions | `:feature:home` |
+| 03 | Navigation | Active map, destination input/selection, progress or cancel state | `:feature:navigation` |
+| 04 | Manual control | Movement/rotation, joystick, speed and safety state | `:feature:manualcontrol` |
+| 05 | Maps / mapping | Map list, active map, SLAM start/stop/save, operation feedback | `:feature:map` |
+| 06 | Robot status | Connection, pose, battery, movement, temperature | `:feature:robotstatus` |
+| 07 | Settings | Endpoint and reconnection controls | `:feature:settings` |
+
+Capture recommendations: 16:10 or the actual tablet aspect ratio; include the whole application surface (do not stretch or composite phone layouts); hide access tokens, IPs if private, and unrelated device data. A genuine emulator capture is acceptable if labeled **Emulator**, not **Physical Robot**. For navigation and mapping, annotate whether shown state came from Gazebo or a physical robot. Never substitute Compose previews, splash illustrations or invented telemetry for measured runtime evidence.
+
+### 04 / Product mind map
+
+```mermaid
+mindmap
+  root((Robot Controller))
+    Operator experience
+      Connect and discover
+      Home and telemetry
+      Navigate to map pose
+      Manual joystick
+      Map lifecycle
+      Robot status
+      Settings
+    Reusable RobotSDK
+      Transport and authentication
+      Typed commands
+      Capability checks
+      StateFlow and SharedFlow
+      Reconnect and freshness
+      Error classification
+    RobotNavigation boundary
+      WebSocket gateway
+      Control ownership
+      ROS 2 and Nav2
+      SLAM and localization
+      Safety and docking
+    Operational constraints
+      Planar x y yaw
+      Map-frame pose
+      Network loss
+      Physical E-stop separate
+      Real screenshots and evidence
+```
+
+### 05 / End-to-end system and DFDs
+
+**DFD Level 0 — context:** arrows represent operator intents and robot-originated information, not direct UI access to ROS topics.
+
+```mermaid
+flowchart LR
+    O[Operator] -->|Connect, move, navigate, manage map| C((Android Controller))
+    C -->|Protocol v1 commands| G((Robot gateway))
+    G -->|Accepted, rejected, state broadcasts| C
+    C -->|Status and outcomes| O
+    G <-->|ROS topics, actions, services| R[(RobotNavigation / ROS 2)]
+    R <-->|Sensors, simulated or physical motion| H[Robot / Gazebo]
+```
+
+**DFD Level 1 — Android app and SDK data movement:**
+
+```mermaid
+flowchart TD
+    U[Tablet operator] --> UI[Compose feature screen]
+    UI --> VM[Feature ViewModel]
+    VM <--> A[Legacy RobotRepository adapter]
+    A <--> CL[RobotClient SDK]
+    CL --> P[Protocol codec + pending command registry]
+    P <-->|WebSocket frames| G[Robot gateway]
+    G -->|telemetry, maps, progress, errors| CL
+    CL -->|StateFlow / SharedFlow| A
+    A -->|UiState| VM
+    VM --> UI
+    G <-->|ROS integration| N[Nav2 / SLAM / robot-side runtime]
+    DB[(Local Room robot logs)] -.->|Application persistence boundary| VM
+```
+
+The Room module is an application-side storage boundary; it is **not** the authoritative map or robot pose database.
+
+### 06 / Operator user flows
+
+```mermaid
+flowchart TD
+    Start([Open application]) --> Splash[Splash]
+    Splash --> Connect[Discover or enter robot address]
+    Connect --> Auth[Configure token / TLS and connect]
+    Auth --> Success{Connected?}
+    Success -->|No| Retry[Error, edit configuration, retry]
+    Retry --> Connect
+    Success -->|Yes| Home[Dashboard: current state]
+    Home --> Choice{Operator intent}
+    Choice --> Nav[Navigate: select reachable map pose]
+    Nav --> Submit[Submit x, y, yaw]
+    Submit --> Result{Gateway accepts?}
+    Result -->|No| Fail[Surface reason and preserve control]
+    Result -->|Yes| Track[Observe navigation state / telemetry]
+    Track --> Finish{Arrived / failed / cancelled?}
+    Finish --> Home
+    Choice --> Manual[Manual: movement / rotation]
+    Manual --> Gate{Connected and safety permits?}
+    Gate -->|No| Fail
+    Gate -->|Yes| Drive[Send bounded velocity commands]
+    Drive --> Stop[Release input / stop] --> Home
+    Choice --> Maps[Maps: list / start SLAM / save / activate]
+    Maps --> State[Observe map operation state] --> Home
+    Choice --> Status[Robot status / diagnostics] --> Home
+    Choice --> Settings[Connection settings] --> Home
+```
+
+**What the paths mean in practice:** connection precedes meaningful commands; a selected map defines the spatial context; navigation acceptance starts an operation rather than guaranteeing arrival; the manual-control screen gates input on connection and emergency-stop state; map creation/switching and localization must not be represented as a single instantaneous action.
+
+### 07 / Sequence diagrams — actual communication responsibilities
+
+**A. Connect and restore observed state**
+
+```mermaid
+sequenceDiagram
+    actor Operator
+    participant UI as Connection screen
+    participant VM as HomeViewModel
+    participant SDK as RobotClient
+    participant GW as robot_gateway
+    Operator->>UI: Discover / enter host, port, token
+    UI->>VM: Connect
+    VM->>SDK: connect()
+    SDK->>GW: WebSocket + hello (Protocol v1)
+    alt Authorized / compatible
+        GW-->>SDK: hello_ack + capabilities + session
+        SDK-->>VM: Connected state
+        GW-->>SDK: Telemetry / state broadcasts
+        SDK-->>VM: StateFlow updates
+        VM-->>UI: Robot dashboard state
+    else Failed handshake / offline
+        GW-->>SDK: Error or transport close
+        SDK-->>VM: Failure / reconnect state
+        VM-->>UI: Actionable connection error
+    end
+```
+
+**B. Navigate to a two-dimensional pose**
+
+```mermaid
+sequenceDiagram
+    actor Operator
+    participant UI as Navigation screen
+    participant VM as NavigationViewModel
+    participant SDK as SDK / adapter
+    participant GW as robot_gateway
+    participant NAV as RobotNavigation / Nav2
+    Operator->>UI: Select reachable goal x, y, yaw
+    UI->>VM: Navigate
+    VM->>SDK: navigateTo(Pose2D)
+    SDK->>GW: navigate_to + command ID
+    GW->>NAV: Validate / submit navigation goal
+    alt Goal rejected
+        GW-->>SDK: command_error (reason)
+        SDK-->>UI: Typed failure via ViewModel
+    else Goal accepted
+        GW-->>SDK: Correlated acknowledgement
+        SDK-->>UI: Command accepted
+        loop Until terminal navigation state
+            NAV-->>GW: Action feedback and robot pose
+            GW-->>SDK: Navigation status / telemetry
+            SDK-->>UI: Observable progress through ViewModel
+        end
+        NAV-->>GW: Succeeded / failed / cancelled
+        GW-->>SDK: Final state broadcast
+        SDK-->>UI: Display actual outcome
+    end
+```
+
+**C. Manual control and stop**
+
+```mermaid
+sequenceDiagram
+    actor Operator
+    participant UI as Manual control
+    participant SDK as SDK / ViewModel adapter
+    participant GW as robot_gateway
+    participant R as Robot-side safety / velocity chain
+    Operator->>UI: Press joystick / direction
+    UI->>UI: Check connected and E-stop state
+    loop While valid movement input
+        UI->>SDK: setManualVelocity(linear, angular)
+        SDK->>GW: Velocity command
+        GW->>R: Apply ownership / safety checks
+        R-->>GW: Robot-side state
+        GW-->>SDK: Telemetry / errors
+    end
+    Operator->>UI: Release movement input
+    UI->>SDK: Stop motion
+    SDK->>GW: Stop / zero velocity
+    GW->>R: Request stop
+    Note over GW,R: Hardware emergency stopping remains independent
+```
+
+**D. Map lifecycle**
+
+```mermaid
+sequenceDiagram
+    actor Operator
+    participant UI as Maps screen
+    participant VM as MapViewModel
+    participant SDK as Robot SDK / adapter
+    participant GW as Gateway
+    participant ROS as SLAM / map manager
+    Operator->>UI: Start mapping
+    UI->>VM: startMapping()
+    VM->>SDK: Mapping command
+    SDK->>GW: Request mapping start
+    GW->>ROS: Start SLAM mode
+    ROS-->>GW: Mapping state / updated map
+    GW-->>SDK: Operation state + map updates
+    SDK-->>VM: Updated state
+    VM-->>UI: Mapping in progress
+    Operator->>UI: Save map / stop mapping
+    UI->>VM: Save or stop
+    VM->>SDK: Map lifecycle request
+    SDK->>GW: Request
+    GW->>ROS: Persist / stop and transition
+    ROS-->>GW: Result / failure
+    GW-->>SDK: Outcome + active map state
+    SDK-->>UI: Updated map list / error via ViewModel
+```
+
+**Boundary caveat:** the diagrams describe the intended intercomponent direction reflected by the app, SDK, and robot-side contract. Some UI actions still pass through a legacy adapter, and certain legacy adapter methods are no-ops; they must be inspected before calling each case end-to-end verified.
+
+### 08 / Engineering decisions, limitations, and evidence
+
+| Decision | Rationale | Trade-off / current status |
+|---|---|---|
+| Split Compose app from `RobotClient` | Reuse client in other Android experiences | Compatibility adapter remains during migration |
+| Use typed, ID-correlated JSON commands | Distinguish acceptance/errors from telemetry | Depends on gateway protocol parity |
+| Treat robot state as authoritative | Avoid displaying a sent goal as an achieved result | Must handle stale and disconnected states |
+| Design primarily for tablet, adapt to mobile | Map and telemetry need simultaneous space | Actual tablet capture still needed |
+| Keep map management robot-side | Preserve a single source for occupancy grid / localization | Map mode transitions require confirmation |
+| Use planar `Pose2D` | Match current ground robot navigation | No x/y/z + roll/pitch/yaw control yet |
+| Software E-stop request | Expose safety intent to an operator | **Not a substitute for physical E-stop** |
+
+**Observed integration evidence:** Android-to-ROS motion from a phone has been reported in manual verification. This is useful exploratory evidence, **not** proof that every feature, failure path, map transition, or physical-tablet layout has passed an end-to-end demo. Before publishing a marketing claim, capture the app on a real tablet, pair it with the running RobotNavigation instance, and record the gateway acceptance and actual robot state for each flow.
+
+**Known hardening items:** inspect remaining legacy adapter no-ops; verify mapping start/stop/save and active-map transitions against the current gateway; reconcile gateway beacon publication with SDK UDP discovery; validate reconnect/ownership/timeout behavior in the actual setup; configure TLS for deployments outside a trusted local demo network. See [Controller App Guide](docs/controller-app.md) and [Compatibility Matrix](docs/compatibility.md).
+
+### 09 / Reproduce and review
+
+1. Start the matching [RobotNavigation](https://github.com/alokrathava/RobotNavigation) runtime and gateway in its documented mapping or navigation mode; use a reachable robot-side IP rather than assuming the current development default is valid.
+2. Configure the tablet's gateway host, port, authentication token, and TLS choice in the app.
+3. Build the debug APK: `./gradlew :app:assembleDebug`; install on a supported Android tablet.
+4. Connect and confirm fresh telemetry, pose validity, safety state, and the active map.
+5. For navigation, choose a reachable goal from the **active map**, send `x, y, yaw`, and observe Nav2 feedback through completion or cancellation.
+6. For manual control, verify enable/disable gating, velocity control, stop on release, and the independent physical E-stop mechanism where applicable.
+7. Capture genuine tablet screenshots and an annotated demo recording; explicitly identify **Gazebo vs hardware**.
+8. Document any UI/SDK/gateway discrepancy instead of attributing SDK-only functionality to the app.
+
+**Source-of-truth links:** [App guide](docs/controller-app.md) · [SDK guide](docs/sdk-api.md) · [Architecture](docs/architecture.md) · [Protocol](docs/protocol.md) · [RobotNavigation](https://github.com/alokrathava/RobotNavigation).
+
+---
+
 ## Partner Repositories — One Robot Platform
 
 Robot Controller is the client-side partner to **[RobotNavigation](https://github.com/alokrathava/RobotNavigation)**.
