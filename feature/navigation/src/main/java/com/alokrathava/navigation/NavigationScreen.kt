@@ -45,6 +45,7 @@ import com.alokrathava.map.MapFloorPlanCanvas
 import com.alokrathava.sdk.model.ConnectionStatus
 import com.alokrathava.theme.*
 
+/** Wires current-pose saving, saved-ID navigation, and dock operations to the feature model. */
 @Composable
 fun NavigationScreen(
     modifier: Modifier = Modifier,
@@ -65,7 +66,9 @@ fun NavigationScreen(
             onStartNavigationClick = viewModel::startNavigation,
             onCancelNavigationClick = viewModel::cancelNavigation,
             onOpenAddLocationDialog = viewModel::openAddLocationDialog,
-            onSaveNewLocation = viewModel::saveNewLocation,
+            onSaveNewLocation = viewModel::saveCurrentLocation,
+            onRefreshLocations = viewModel::loadSavedLocationsFromRobot,
+            onUndock = viewModel::undock,
             onDeleteSavedLocation = viewModel::deleteSavedLocation,
             onSidebarItemSelected = onSidebarItemSelected,
             modifier = modifier
@@ -78,6 +81,7 @@ fun NavigationScreen(
     }
 }
 
+/** Displays robot-derived operation state and a name-only current-position save dialog. */
 @Composable
 fun NavigationScreenContent(
     uiState: NavigationUiState = NavigationUiState(),
@@ -90,7 +94,9 @@ fun NavigationScreenContent(
     onStartNavigationClick: () -> Unit = {},
     onCancelNavigationClick: () -> Unit = {},
     onOpenAddLocationDialog: (Boolean) -> Unit = {},
-    onSaveNewLocation: (String, Double, Double) -> Unit = { _, _, _ -> },
+    onSaveNewLocation: (String) -> Unit = {},
+    onRefreshLocations: () -> Unit = {},
+    onUndock: () -> Unit = {},
     onDeleteSavedLocation: (String) -> Unit = {},
     onSidebarItemSelected: (SidebarNavItem) -> Unit = {},
     modifier: Modifier = Modifier
@@ -119,6 +125,7 @@ fun NavigationScreenContent(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     NavigationHeader()
+                RobotOperationControls(uiState, { onOpenAddLocationDialog(true) }, onRefreshLocations, onUndock)
 
                     if (uiState.connectionStatus != ConnectionStatus.CONNECTED) {
                         MonochromeBanner(
@@ -155,6 +162,7 @@ fun NavigationScreenContent(
                             NavigationMapPanel(
                                 uiState = uiState,
                                 onMapTap = onMapTap,
+                                onLocationSelected = onDestinationSelected,
                                 modifier = Modifier.fillMaxSize()
                             )
 
@@ -232,6 +240,7 @@ fun NavigationScreenContent(
                     )
             ) {
                 NavigationHeader()
+                RobotOperationControls(uiState, { onOpenAddLocationDialog(true) }, onRefreshLocations, onUndock)
 
                 Spacer(modifier = Modifier.height(spacing.space4))
 
@@ -262,6 +271,7 @@ fun NavigationScreenContent(
                     NavigationMapPanel(
                         uiState = uiState,
                         onMapTap = onMapTap,
+                        onLocationSelected = onDestinationSelected,
                         modifier = Modifier
                             .weight(1.4f)
                             .fillMaxHeight()
@@ -288,12 +298,10 @@ fun NavigationScreenContent(
 
     if (uiState.isAddLocationDialogOpen) {
         var nameInput by remember { mutableStateOf("") }
-        var xInput by remember { mutableStateOf(uiState.xInput) }
-        var yInput by remember { mutableStateOf(uiState.yInput) }
 
         MonochromeDialog(
             onDismissRequest = { onOpenAddLocationDialog(false) },
-            title = "Add Saved Waypoint",
+            title = "Save Current Location",
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     MonochromeTextField(
@@ -301,31 +309,19 @@ fun NavigationScreenContent(
                         onValueChange = { nameInput = it },
                         placeholder = "Waypoint Name (e.g. Charging Dock)"
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MonochromeTextField(
-                            value = xInput,
-                            onValueChange = { xInput = it },
-                            placeholder = "X meters",
-                            modifier = Modifier.weight(1f)
-                        )
-                        MonochromeTextField(
-                            value = yInput,
-                            onValueChange = { yInput = it },
-                            placeholder = "Y meters",
-                            modifier = Modifier.weight(1f)
-                        )
+                    Text("Saves the robot's current localized map position and orientation.", style = MonochromeTheme.typography.bodySmall)
+                    (uiState.operationError ?: uiState.saveBlockReason)?.let {
+                        Text(it, color = colors.primaryText, style = MonochromeTheme.typography.caption)
                     }
                 }
             },
             confirmButton = {
                 MonochromeButton(
-                    text = "Save Waypoint",
+                    text = if (uiState.isSavingLocation) "Saving…" else "Save Location",
                     variant = MonochromeButtonVariant.Primary,
-                    enabled = nameInput.isNotBlank() && xInput.toDoubleOrNull() != null && yInput.toDoubleOrNull() != null,
+                    enabled = nameInput.isNotBlank() && uiState.saveBlockReason == null && !uiState.isSavingLocation,
                     onClick = {
-                        val x = xInput.toDoubleOrNull() ?: 0.0
-                        val y = yInput.toDoubleOrNull() ?: 0.0
-                        onSaveNewLocation(nameInput, x, y)
+                        onSaveNewLocation(nameInput)
                     }
                 )
             },
@@ -421,12 +417,13 @@ fun NavigationHeader(
     }
 }
 
-/** Displays the shared occupancy renderer and passes map taps to destination selection. */
+/** Displays saved map destinations using the shared occupancy transform and saved IDs. */
 @Composable
 fun NavigationMapPanel(
     uiState: NavigationUiState,
     onMapTap: (Double, Double) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onLocationSelected: (NavigationDestinationUi) -> Unit = {}
 ) {
     val colors = MonochromeTheme.colors
     val shapes = MonochromeTheme.shapes
@@ -441,6 +438,10 @@ fun NavigationMapPanel(
             occupancyGrid = uiState.occupancyGrid,
             livePosition = uiState.livePosition,
             targetPose = uiState.targetPose,
+            savedLocations = uiState.savedLocations.map {
+                com.alokrathava.sdk.model.SavedLocation(it.id, it.name, it.mapId, com.alokrathava.sdk.model.Pose2D(it.x, it.y, it.yaw), it.frame)
+            },
+            onLocationSelected = { onLocationSelected(NavigationDestinationUi.SavedLocation(it.id, it.name, it.pose.xMeters, it.pose.yMeters)) },
             onMapTap = onMapTap,
             modifier = Modifier.fillMaxSize()
         )
@@ -808,6 +809,31 @@ fun ChargingDockCard(
                 contentDescription = null,
                 tint = colors.secondaryText
             )
+        }
+    }
+}
+
+/** Reuses existing controls for pose capture, refresh, and the supported undock command. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun RobotOperationControls(uiState: NavigationUiState, onSave: () -> Unit, onRefresh: () -> Unit, onUndock: () -> Unit) {
+    val spacing = MonochromeTheme.spacing
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.space2)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(spacing.space2), verticalArrangement = Arrangement.spacedBy(spacing.space2)) {
+            MonochromeButton(text = "Save Location", onClick = onSave, size = MonochromeButtonSize.Large,
+                enabled = uiState.connectionStatus == ConnectionStatus.CONNECTED && !uiState.isSavingLocation)
+            MonochromeButton(text = "Refresh", onClick = onRefresh, variant = MonochromeButtonVariant.Secondary,
+                size = MonochromeButtonSize.Large, enabled = uiState.connectionStatus == ConnectionStatus.CONNECTED)
+            MonochromeButton(text = "Undock", onClick = onUndock, variant = MonochromeButtonVariant.Secondary,
+                size = MonochromeButtonSize.Large,
+                enabled = uiState.connectionStatus == ConnectionStatus.CONNECTED && uiState.dockingDetails?.isDocked == true)
+        }
+        uiState.dockingDetails?.let { dock ->
+            Text("Dock: "+dock.state.name+" — "+dock.detail+if (dock.errorCode != 0) " ("+dock.errorName+": "+dock.errorMsg+")" else "",
+                style = MonochromeTheme.typography.caption, color = MonochromeTheme.colors.secondaryText)
+        }
+        uiState.operationError?.let { error ->
+            MonochromeBanner(title = "ROBOT REQUEST", description = error, variant = BannerVariant.Warning)
         }
     }
 }

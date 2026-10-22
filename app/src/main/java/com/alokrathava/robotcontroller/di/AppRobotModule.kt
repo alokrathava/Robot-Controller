@@ -342,7 +342,12 @@ internal class RobotClientRepositoryImpl(
                         com.alokrathava.sdk.model.DockingState.NAVIGATING_TO_DOCK -> DockingStatus.NAVIGATING_TO_DOCK
                         com.alokrathava.sdk.model.DockingState.ALIGNING -> DockingStatus.ALIGNING_WITH_DOCK
                         com.alokrathava.sdk.model.DockingState.DOCKED -> DockingStatus.DOCKED
-                        else -> DockingStatus.DOCKING_FAILED
+                        // Intermediate operations remain in progress rather than appearing failed.
+                        com.alokrathava.sdk.model.DockingState.PRESTAGING -> DockingStatus.PRESTAGING
+                        com.alokrathava.sdk.model.DockingState.DOCKING -> DockingStatus.DOCKING
+                        com.alokrathava.sdk.model.DockingState.UNDOCKING -> DockingStatus.UNDOCKING
+                        com.alokrathava.sdk.model.DockingState.CANCELLED -> DockingStatus.CANCELLED
+                        com.alokrathava.sdk.model.DockingState.FAILED -> DockingStatus.DOCKING_FAILED
                     }
                 }
             }

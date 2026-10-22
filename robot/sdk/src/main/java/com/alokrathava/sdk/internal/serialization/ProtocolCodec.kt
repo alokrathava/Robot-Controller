@@ -363,12 +363,14 @@ internal object ProtocolCodec {
         }
     }
 
+    /** Preserves the stored coordinate frame and full orientation in application models. */
     internal fun mapSavedLocationDtoToModel(dto: SavedLocationDto): SavedLocation {
         return SavedLocation(
             id = dto.id,
             name = dto.name,
             mapId = dto.mapId,
-            pose = Pose2D(xMeters = dto.xMeters, yMeters = dto.yMeters, yawRadians = dto.yawRadians)
+            pose = Pose2D(xMeters = dto.xMeters, yMeters = dto.yMeters, yawRadians = dto.yawRadians),
+            frame = dto.frame
         )
     }
 
@@ -747,6 +749,18 @@ internal object ProtocolCodec {
     fun mapSafetyStatePayload(dto: SafetyStatePayloadDto): SafetyState {
         return mapSafetyState(dto.state)
     }
+
+    /** Retains robot-side charging confirmation and docking failure details. */
+    fun mapDockingDetails(dto: DockingStatePayloadDto) = com.alokrathava.sdk.model.DockingStateDetails(
+        state = mapDockingState(dto.state), dockId = dto.dockId,
+        isDocked = dto.isDocked, isCharging = dto.isCharging,
+        dockingTimeSeconds = dto.dockingTimeSeconds, numRetries = dto.numRetries,
+        errorCode = dto.errorCode, errorName = dto.errorName, errorMsg = dto.errorMsg, detail = dto.detail
+    )
+
+    /** Decodes docking details without changing the existing enum API. */
+    fun decodeDockingDetails(envelope: ProtocolEnvelope): com.alokrathava.sdk.model.DockingStateDetails? =
+        envelope.payload?.let { runCatching { mapDockingDetails(json.decodeFromJsonElement<DockingStatePayloadDto>(it)) }.getOrNull() }
 
     fun mapDockingStatePayload(dto: DockingStatePayloadDto): DockingState {
         return mapDockingState(dto.state)

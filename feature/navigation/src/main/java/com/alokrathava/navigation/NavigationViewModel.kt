@@ -19,6 +19,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.collectLatest
+import com.alokrathava.sdk.model.ConnectionState
+import com.alokrathava.sdk.model.NavigationState
+import com.alokrathava.sdk.model.DockingStateDetails
+import com.alokrathava.sdk.model.MapOperationState
 import javax.inject.Inject
 
 private data class FormInputState(
@@ -56,6 +63,14 @@ private data class RobotStateGroup(
     val occupancyGrid: com.alokrathava.sdk.model.RobotOccupancyGrid?
 )
 
+/** Combines SDK operation outcomes with local request errors and save activity. */
+private data class RuntimeUi(
+    val navigation: NavigationState,
+    val docking: DockingStateDetails?,
+    val error: String?,
+    val saving: Boolean
+)
+
 @HiltViewModel
 /** Coordinates destination controls with the shared robot position and map state. */
 class NavigationViewModel @Inject constructor(
@@ -69,28 +84,81 @@ class NavigationViewModel @Inject constructor(
     private val livePosition = (robotRepository as? RobotPositionSource)?.livePosition
         ?: MutableStateFlow(LiveRobotPosition())
 
-    init {
-        loadSavedLocationsFromRobot()
+    private val navigationState = MutableStateFlow(NavigationState())
+    private val dockingDetails = MutableStateFlow<DockingStateDetails?>(null)
+    private val operationError = MutableStateFlow<String?>(null)
+    private val savingLocation = MutableStateFlow(false)
+    private var locationsJob: Job? = null
+    private var locationsMapId: String? = null
+    private val runtimeUi = combine(navigationState, dockingDetails, operationError, savingLocation) { nav, dock, error, saving ->
+        RuntimeUi(nav, dock, error, saving)
     }
 
-    /** Loads saved map destinations from the connected robot. */
-    fun loadSavedLocationsFromRobot() {
+    init {
+        // Rebind to the authenticated client; collectors are cancelled on disconnect or replacement.
         viewModelScope.launch {
-            when (val result = robotRepository.listSavedLocations()) {
-                is RobotResult.Success -> {
-                    val mapped = result.value.map { loc ->
-                        SavedLocationUi(
-                            id = loc.id,
-                            name = loc.name,
-                            x = loc.pose.xMeters,
-                            y = loc.pose.yMeters
-                        )
-                    }
-                    _locationsState.value = _locationsState.value.copy(locations = mapped)
+            robotRepository.connectionStatus.collectLatest { status ->
+                val client = robotRepository.getActiveRobotClient()
+                if (status != ConnectionStatus.CONNECTED || client == null) {
+                    locationsJob?.cancel()
+                    locationsMapId = null
+                    _locationsState.value = _locationsState.value.copy(locations = emptyList())
+                    navigationState.value = NavigationState()
+                    dockingDetails.value = null
+                    _executionStatus.value = NavigationExecutionStatus.Idle
+                } else coroutineScope {
+                    launch { client.navigation.collect { navigationState.value = it } }
+                    launch { client.dockingDetails.collect { dockingDetails.value = it } }
+                    combine(client.activeMap, client.mapOperationState) { map, operation -> map to operation }
+                        .collect { (map, operation) ->
+                            val mapId = map?.id
+                            if (mapId != locationsMapId || operation !is MapOperationState.Idle) {
+                                locationsJob?.cancel()
+                                _locationsState.value = _locationsState.value.copy(locations = emptyList())
+                                _formState.value = _formState.value.copy(selectedDestination = NavigationDestinationUi.None, targetPose = null)
+                                locationsMapId = null
+                            }
+                            if (!mapId.isNullOrBlank() && operation is MapOperationState.Idle) loadSavedLocationsFromRobot()
+                        }
                 }
-                is RobotResult.Failure -> { }
             }
         }
+    }
+
+    /** Loads only the active map and discards responses from an old connection or map. */
+    fun loadSavedLocationsFromRobot() {
+        val client = robotRepository.getActiveRobotClient() ?: return
+        val mapId = client.activeMap.value?.id?.takeIf { it.isNotBlank() } ?: return
+        locationsJob?.cancel()
+        locationsJob = viewModelScope.launch {
+            when (val result = client.listSavedLocations(mapId)) {
+                is RobotResult.Success -> if (client === robotRepository.getActiveRobotClient() && client.activeMap.value?.id == mapId) {
+                    locationsMapId = mapId
+                    _locationsState.value = _locationsState.value.copy(locations = result.value.map { loc ->
+                        SavedLocationUi(loc.id, loc.name, loc.pose.xMeters, loc.pose.yMeters, loc.pose.yawRadians, loc.mapId, loc.frame)
+                    })
+                    operationError.value = null
+                }
+                is RobotResult.Failure -> operationError.value = result.error.code + ": " + result.error.message
+            }
+        }
+    }
+
+    /** Rejects unavailable, stale, moving, unlocalized, or cross-map pose samples. */
+    private fun currentPoseError(): String? {
+        val client = robotRepository.getActiveRobotClient() ?: return "Connect to the robot first."
+        if (client.connectionState.value !is ConnectionState.Connected) return "Robot is disconnected."
+        val telemetry = client.telemetry.value ?: return "Waiting for robot telemetry."
+        val freshness = client.telemetryFreshness.value
+        if (freshness.isStale || freshness.receivedAtMillis <= 0L) return "Robot telemetry is stale."
+        if (!telemetry.poseValid || telemetry.frame != "map" ||
+            !listOf(telemetry.xMeters, telemetry.yMeters, telemetry.yawRadians).all { it.isFinite() }) return "A valid map pose is required."
+        if (telemetry.localizationState != "LOCALIZED") return "Wait for localization."
+        if (telemetry.isMoving) return "Stop the robot before saving."
+        if (client.mapOperationState.value !is MapOperationState.Idle) return "Wait for the map operation to finish."
+        val mapId = client.activeMap.value?.id?.takeIf { it.isNotBlank() } ?: return "No active map."
+        if (telemetry.activeMap != mapId || client.occupancyGrid.value?.mapId != mapId) return "Waiting for matching active-map telemetry and map."
+        return null
     }
 
     private val _localNavigationFlow = combine(
@@ -116,14 +184,17 @@ class NavigationViewModel @Inject constructor(
 
     val uiState: StateFlow<NavigationUiState> = combine(
         _localNavigationFlow,
-        _robotStateGroup
-    ) { local, robot ->
+        _robotStateGroup,
+        runtimeUi
+    ) { local, robot, runtime ->
+        val pending = local.execution as? NavigationExecutionStatus.Navigating
+        val result = runtime.navigation.takeIf { pending?.requestId != null && it.requestId == pending.requestId }
         val mappedExecution = when {
-            robot.telemetry.isMoving && robot.telemetry.navigationState.equals("NAVIGATING", ignoreCase = true) -> {
-                if (local.execution is NavigationExecutionStatus.Navigating) local.execution
-                else NavigationExecutionStatus.Navigating(destination = local.form.selectedDestination)
-            }
-            robot.telemetry.navigationState.equals("CANCELLED", ignoreCase = true) -> NavigationExecutionStatus.Cancelled
+            result?.resultStatus == "SUCCEEDED" && (result.errorCode == null || result.errorCode == 0) -> NavigationExecutionStatus.Arrived(
+                (pending?.destination as? NavigationDestinationUi.SavedLocation)?.name ?: "destination")
+            result?.resultStatus == "CANCELED" || result?.resultStatus == "CANCELLED" -> NavigationExecutionStatus.Cancelled
+            result?.resultStatus != null -> NavigationExecutionStatus.Failed(result.errorMsg.ifBlank { result.resultStatus ?: "Navigation failed" })
+            pending != null -> pending.copy(distanceMeters = result?.distanceRemainingMeters?.toDouble())
             else -> local.execution
         }
 
@@ -154,7 +225,12 @@ class NavigationViewModel @Inject constructor(
             connectionStatus = robot.connection,
             livePosition = robot.position,
             telemetry = robot.telemetry,
-            dockingStatus = robot.dockingStatus
+            dockingStatus = robot.dockingStatus,
+            dockingDetails = runtime.docking,
+            navigationState = runtime.navigation,
+            operationError = runtime.error,
+            isSavingLocation = runtime.saving,
+            saveBlockReason = currentPoseError()
         )
     }.stateIn(
         scope = viewModelScope,
@@ -211,62 +287,103 @@ class NavigationViewModel @Inject constructor(
         _formState.value = _formState.value.copy(yawInput = yaw)
     }
 
-    /** Dispatches autonomous navigation task to the robot. */
+    /** Sends one Android request and waits for its correlated robot-side terminal result. */
     fun startNavigation() {
+        // Prevent a second goal from silently replacing an unfinished Android request.
+        if ((_executionStatus.value is NavigationExecutionStatus.CalculatingPath ||
+                _executionStatus.value is NavigationExecutionStatus.Navigating) && navigationState.value.resultStatus == null) {
+            operationError.value = "Wait for the current operation to finish, or cancel it."
+            return
+        }
         val dest = _formState.value.selectedDestination
-        when (dest) {
-            is NavigationDestinationUi.SavedLocation -> {
-                _executionStatus.value = NavigationExecutionStatus.Navigating(destination = dest)
-                viewModelScope.launch {
-                    val result = robotRepository.navigateToLocation(dest.id)
-                    if (result is RobotResult.Failure) {
-                        robotRepository.moveToPosition(dest.x, dest.y)
+        val client = robotRepository.getActiveRobotClient() ?: return
+        operationError.value = null
+        _executionStatus.value = NavigationExecutionStatus.CalculatingPath(dest)
+        viewModelScope.launch {
+            if (dest == NavigationDestinationUi.ChargingDock) {
+                when (val result = client.dock()) {
+                    is RobotResult.Success -> _executionStatus.value = NavigationExecutionStatus.Idle
+                    is RobotResult.Failure -> _executionStatus.value = NavigationExecutionStatus.Failed(result.error.code + ": " + result.error.message)
+                }
+                return@launch
+            }
+            val result = when (dest) {
+                is NavigationDestinationUi.SavedLocation -> {
+                    val location = _locationsState.value.locations.firstOrNull { it.id == dest.id }
+                    if (location == null || location.mapId != client.activeMap.value?.id || location.frame != "map") {
+                        _executionStatus.value = NavigationExecutionStatus.Failed("Select a location on the active map.")
+                        return@launch
                     }
+                    client.navigateToLocation(dest.id)
+                }
+                is NavigationDestinationUi.Coordinates -> {
+                    val values = listOf(dest.x, dest.y, dest.yaw).map { it.toDoubleOrNull() }
+                    if (values.any { it == null || !it.isFinite() }) {
+                        _executionStatus.value = NavigationExecutionStatus.Failed("Enter finite destination coordinates.")
+                        return@launch
+                    }
+                    client.navigateTo(Pose2D(values[0]!!, values[1]!!, values[2]!!))
+                }
+                else -> {
+                    _executionStatus.value = NavigationExecutionStatus.Failed("No destination selected")
+                    return@launch
                 }
             }
-
-            is NavigationDestinationUi.Coordinates -> {
-                val x = dest.x.toDoubleOrNull() ?: 0.0
-                val y = dest.y.toDoubleOrNull() ?: 0.0
-                _executionStatus.value = NavigationExecutionStatus.Navigating(destination = dest)
-                robotRepository.moveToPosition(x, y)
-            }
-
-            NavigationDestinationUi.ChargingDock -> {
-                _executionStatus.value = NavigationExecutionStatus.Navigating(destination = dest)
-                robotRepository.goToCharge()
-            }
-
-            NavigationDestinationUi.None -> {
-                _executionStatus.value = NavigationExecutionStatus.Failed("No destination selected")
+            _executionStatus.value = when (result) {
+                is RobotResult.Success -> NavigationExecutionStatus.Navigating(dest, requestId = result.value.value)
+                is RobotResult.Failure -> NavigationExecutionStatus.Failed(result.error.code + ": " + result.error.message)
             }
         }
     }
 
-    /** Cancels current navigation task. */
-    fun cancelNavigation() {
-        robotRepository.cancelNavigation()
-        _executionStatus.value = NavigationExecutionStatus.Cancelled
+    /** Uses the existing undock action and keeps rejection visible. */
+    fun undock() {
+        viewModelScope.launch {
+            val client = robotRepository.getActiveRobotClient() ?: return@launch
+            when (val result = client.undock()) {
+                is RobotResult.Success -> operationError.value = null
+                is RobotResult.Failure -> operationError.value = result.error.code + ": " + result.error.message
+            }
+        }
     }
 
+    /** Requests cancellation; the correlated Nav2 result confirms that motion has ended. */
+    fun cancelNavigation() {
+        viewModelScope.launch {
+            val client = robotRepository.getActiveRobotClient() ?: return@launch
+            when (val result = client.cancelNavigation()) {
+                is RobotResult.Success -> operationError.value = null
+                is RobotResult.Failure -> operationError.value = result.error.code + ": " + result.error.message
+            }
+        }
+    }
+
+    /** Opens the current-pose dialog with a clean request error. */
     fun openAddLocationDialog(isOpen: Boolean) {
+        operationError.value = null
         _locationsState.value = _locationsState.value.copy(isAddDialogOpen = isOpen)
     }
 
-    /** Saves a new location on the active map on the robot. */
-    fun saveNewLocation(name: String, x: Double, y: Double) {
-        if (name.isBlank()) return
+    /** Saves the current validated localized pose when the user confirms the name. */
+    fun saveCurrentLocation(name: String) {
+        if (savingLocation.value) return
+        val error = if (name.isBlank()) "Enter a location name." else currentPoseError()
+        if (error != null) { operationError.value = error; return }
+        val client = robotRepository.getActiveRobotClient() ?: return
+        val telemetry = client.telemetry.value ?: return
+        val mapId = client.activeMap.value?.id ?: return
+        savingLocation.value = true
+        operationError.value = null
         viewModelScope.launch {
-            val result = robotRepository.saveLocation(name, Pose2D(xMeters = x, yMeters = y, yawRadians = 0.0))
-            if (result is RobotResult.Success) {
-                loadSavedLocationsFromRobot()
-            }
-            _locationsState.value = _locationsState.value.copy(
-                isAddDialogOpen = false,
-                nameInput = "",
-                xInput = "",
-                yInput = ""
-            )
+            try {
+                when (val result = client.saveLocation(name.trim(), Pose2D(telemetry.xMeters, telemetry.yMeters, telemetry.yawRadians), mapId)) {
+                    is RobotResult.Success -> {
+                        _locationsState.value = _locationsState.value.copy(isAddDialogOpen = false)
+                        loadSavedLocationsFromRobot()
+                    }
+                    is RobotResult.Failure -> operationError.value = result.error.code + ": " + result.error.message
+                }
+            } finally { savingLocation.value = false }
         }
     }
 

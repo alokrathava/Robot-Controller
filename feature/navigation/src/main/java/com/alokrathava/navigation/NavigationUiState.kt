@@ -36,11 +36,15 @@ enum class NavigationTab {
     MapPicker
 }
 
+/** Keeps saved map identity, frame, and orientation available for rendering and selection. */
 data class SavedLocationUi(
     val id: String,
     val name: String,
     val x: Double,
-    val y: Double
+    val y: Double,
+    val yaw: Double = 0.0,
+    val mapId: String = "",
+    val frame: String = "map"
 ) {
     val coordinatesFormatted: String
         get() = "(${ "%.2f".format(x) }, ${ "%.2f".format(y) })"
@@ -52,7 +56,8 @@ sealed interface NavigationExecutionStatus {
     data class Navigating(
         val destination: NavigationDestinationUi,
         val etaSeconds: Int? = null,
-        val distanceMeters: Double? = null
+        val distanceMeters: Double? = null,
+        val requestId: String? = null
     ) : NavigationExecutionStatus
     data class ObstacleDetected(val message: String = "Obstacle blocking path") : NavigationExecutionStatus
     data class Arrived(val destinationName: String) : NavigationExecutionStatus
@@ -92,5 +97,9 @@ data class NavigationUiState(
     val connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED,
     val livePosition: LiveRobotPosition = LiveRobotPosition(),
     val telemetry: RobotTelemetry = RobotTelemetry(),
-    val dockingStatus: DockingStatus = DockingStatus.UNDOCKED
+    val dockingStatus: DockingStatus = DockingStatus.UNDOCKED,
+    val dockingDetails: com.alokrathava.sdk.model.DockingStateDetails? = null,
+    val operationError: String? = null,
+    val isSavingLocation: Boolean = false,
+    val saveBlockReason: String? = null
 )

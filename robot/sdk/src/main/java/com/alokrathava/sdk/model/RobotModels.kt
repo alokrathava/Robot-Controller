@@ -54,12 +54,17 @@ enum class NavigationStatus {
     EMERGENCY_STOP
 }
 
+/** Mirrors docking lifecycle phases without labelling intermediate motion as a failure. */
 enum class DockingStatus {
     UNDOCKED,
     NAVIGATING_TO_DOCK,
     ALIGNING_WITH_DOCK,
     DOCKED,
-    DOCKING_FAILED
+    DOCKING_FAILED,
+    PRESTAGING,
+    DOCKING,
+    UNDOCKING,
+    CANCELLED
 }
 
 data class DockStation(

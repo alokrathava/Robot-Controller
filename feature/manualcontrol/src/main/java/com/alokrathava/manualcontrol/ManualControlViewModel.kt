@@ -216,7 +216,9 @@ class ManualControlViewModel @Inject constructor(
         startVelocityStreaming(linear, angular)
     }
 
+    /** Ends manual input and clears the joystick so lifecycle resume cannot restart motion. */
     fun stopDirectionHold() {
+        _joystickState.value = JoystickState()
         _lastCommand.value = null
         stopVelocityStreaming()
     }

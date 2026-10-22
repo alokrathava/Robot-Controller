@@ -54,6 +54,7 @@ enum class ManualDirection {
     RIGHT
 }
 
+/** Stops joystick streaming when its screen loses the foreground or leaves composition. */
 @Composable
 fun ManualControlScreen(
     modifier: Modifier = Modifier,
@@ -62,6 +63,17 @@ fun ManualControlScreen(
 ) {
     if (viewModel != null) {
         val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+        val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+        androidx.compose.runtime.DisposableEffect(viewModel, lifecycleOwner) {
+            val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) viewModel.stopDirectionHold()
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+                viewModel.stopDirectionHold()
+            }
+        }
 
         ManualControlContent(
             uiState = uiState,

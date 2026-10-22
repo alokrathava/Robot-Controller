@@ -27,6 +27,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.drawText
+import com.alokrathava.sdk.model.SavedLocation
+import kotlin.math.hypot
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -51,7 +55,7 @@ import kotlin.math.min
 import kotlin.math.sin
 import kotlinx.coroutines.launch
 
-/** Renders received robot positions and occupancy cells through one map transform. */
+/** Renders live poses and named saved destinations through the same map transform. */
 @Composable
 fun MapFloorPlanCanvas(
     occupancyGrid: RobotOccupancyGrid?,
@@ -59,9 +63,13 @@ fun MapFloorPlanCanvas(
     isThumbnail: Boolean = false,
     livePosition: LiveRobotPosition = LiveRobotPosition(),
     targetPose: Pose2D? = null,
-    onMapTap: ((worldX: Double, worldY: Double) -> Unit)? = null
+    onMapTap: ((worldX: Double, worldY: Double) -> Unit)? = null,
+    savedLocations: List<SavedLocation> = emptyList(),
+    onLocationSelected: ((SavedLocation) -> Unit)? = null
 ) {
     val colors = MonochromeTheme.colors
+    val textMeasurer = rememberTextMeasurer()
+    val labelStyle = MonochromeTheme.typography.caption.copy(color = colors.primaryText)
     val spacing = MonochromeTheme.spacing
     val shapes = MonochromeTheme.shapes
     val grid = occupancyGrid?.takeIf(::isRenderableGrid)
@@ -98,6 +106,8 @@ fun MapFloorPlanCanvas(
     val latestViewPanX by rememberUpdatedState(viewPanX)
     val latestViewPanY by rememberUpdatedState(viewPanY)
     val latestTap by rememberUpdatedState(onMapTap)
+    val latestLocations by rememberUpdatedState(savedLocations)
+    val latestSelection by rememberUpdatedState(onLocationSelected)
 
     // A stale or unavailable pose suspends following at the last visible viewport.
     LaunchedEffect(canFollow) {
@@ -157,8 +167,16 @@ fun MapFloorPlanCanvas(
                             val col = (tap.x - left) / cellScale
                             val row = (bottom - tap.y) / cellScale
                             if (col in 0f..grid.widthCells.toFloat() && row in 0f..grid.heightCells.toFloat()) {
-                                val world = gridToWorld(grid, col.toDouble(), row.toDouble())
-                                latestTap?.invoke(world.first, world.second)
+                                // Select nearby persisted markers before treating a tap as a coordinate goal.
+                                val selected = latestLocations.filter { it.mapId == grid.mapId && it.frame == "map" }
+                                    .mapNotNull { location -> worldToGrid(grid, location.pose.xMeters, location.pose.yMeters)?.let { location to it } }
+                                    .minByOrNull { (_, p) -> hypot((p.x - col) * cellScale, (p.y - row) * cellScale) }
+                                    ?.takeIf { (_, p) -> hypot((p.x - col) * cellScale, (p.y - row) * cellScale) <= spacing.space6.toPx() }
+                                if (selected != null && latestSelection != null) latestSelection?.invoke(selected.first)
+                                else {
+                                    val world = gridToWorld(grid, col.toDouble(), row.toDouble())
+                                    latestTap?.invoke(world.first, world.second)
+                                }
                             }
                         }
                     }
@@ -193,6 +211,17 @@ fun MapFloorPlanCanvas(
                         points.drop(1).forEach { lineTo(left + it.x * cellScale, bottom - it.y * cellScale) }
                     }
                     drawPath(path, colors.secondaryText.copy(alpha = 0.55f), style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
+                }
+            }
+
+            // Persistent markers share occupancy origin, resolution, pan, and zoom.
+            if (!isThumbnail) savedLocations.filter { it.mapId == grid.mapId && it.frame == "map" }.forEach { location ->
+                worldToGrid(grid, location.pose.xMeters, location.pose.yMeters)?.let { p ->
+                    if (p.x in 0f..grid.widthCells.toFloat() && p.y in 0f..grid.heightCells.toFloat()) {
+                        val center = Offset(left + p.x * cellScale, bottom - p.y * cellScale)
+                        drawCircle(colors.primaryActionBg, spacing.space2.toPx(), center)
+                        drawText(textMeasurer, location.name, center + Offset(spacing.space3.toPx(), 0f), style = labelStyle)
+                    }
                 }
             }
 

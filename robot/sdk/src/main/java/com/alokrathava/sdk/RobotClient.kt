@@ -46,6 +46,10 @@ interface RobotClient : AutoCloseable {
 
     val safetyState: StateFlow<SafetyState?>
 
+    /** Detailed docking result; existing client implementations retain a compatible default. */
+    val dockingDetails: StateFlow<com.alokrathava.sdk.model.DockingStateDetails?>
+        get() = kotlinx.coroutines.flow.MutableStateFlow(null)
+
     val dockingState: StateFlow<DockingState?>
 
     val health: StateFlow<RobotHealth?>

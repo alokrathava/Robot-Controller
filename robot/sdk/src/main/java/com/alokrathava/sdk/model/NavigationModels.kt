@@ -8,6 +8,7 @@ data class NavigationRoute(
     val stopOnFailure: Boolean = true
 )
 
+/** Live progress plus the correlated terminal Nav2 result, retained until the next request. */
 @Serializable
 data class NavigationState(
     val state: String = "IDLE",
@@ -16,5 +17,9 @@ data class NavigationState(
     val elapsedTimeSeconds: Float = 0f,
     val currentWaypointIndex: Int = 0,
     val totalWaypoints: Int = 0,
-    val errorMsg: String = ""
+    val errorMsg: String = "",
+    val requestId: String? = null,
+    val goalId: String? = null,
+    val resultStatus: String? = null,
+    val errorCode: Int? = null
 )

@@ -146,6 +146,10 @@ internal class RobotClientImpl(
     private val _mapOperationState = MutableStateFlow<MapOperationState>(MapOperationState.Idle)
     override val mapOperationState: StateFlow<MapOperationState> = _mapOperationState.asStateFlow()
 
+    // Keep detailed docking outcomes available alongside the existing enum flow.
+    private val _dockingDetails = MutableStateFlow<com.alokrathava.sdk.model.DockingStateDetails?>(null)
+    override val dockingDetails = _dockingDetails.asStateFlow()
+
     private val _navigation = MutableStateFlow(NavigationState())
     override val navigation: StateFlow<NavigationState> = _navigation.asStateFlow()
 
@@ -251,6 +255,8 @@ internal class RobotClientImpl(
         checkCapability(RobotCapability.NAVIGATION)?.let { return RobotResult.Failure((it as RobotResult.Failure).error) }
 
         val cmdId = commandRegistry.generateCommandId()
+        // Reset terminal state before sending so even an immediate result remains correlated.
+        _navigation.value = NavigationState(state = "PLANNING", requestId = cmdId, targetPose = pose)
         val envelope = ProtocolCodec.createNavigateToEnvelope(cmdId, pose)
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
@@ -282,6 +288,8 @@ internal class RobotClientImpl(
         }
 
         val cmdId = commandRegistry.generateCommandId()
+        // Reset terminal state before sending so even an immediate result remains correlated.
+        _navigation.value = NavigationState(state = "PLANNING", requestId = cmdId)
         val envelope = ProtocolCodec.createNavigateThroughEnvelope(cmdId, poses, stopOnFailure)
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
@@ -831,6 +839,8 @@ internal class RobotClientImpl(
         }
 
         val cmdId = commandRegistry.generateCommandId()
+        // Reset terminal state before sending so even an immediate result remains correlated.
+        _navigation.value = NavigationState(state = "PLANNING", requestId = cmdId)
         val envelope = ProtocolCodec.createNavigateToLocationEnvelope(cmdId, id)
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
 
@@ -1268,8 +1278,12 @@ internal class RobotClientImpl(
                     }
                 }
                 "list_saved_locations_ack" -> {
-                    val locations = ProtocolCodec.decodeListSavedLocationsAck(envelope) ?: emptyList()
-                    envelope.id?.let { commandRegistry.completeSuccessPayload(it, locations) }
+                    // Malformed storage responses must remain errors rather than empty location lists.
+                    val locations = ProtocolCodec.decodeListSavedLocationsAck(envelope)
+                    envelope.id?.let { id ->
+                        if (locations != null) commandRegistry.completeSuccessPayload(id, locations)
+                        else commandRegistry.completeError(id, RobotError("DECODE_ERROR", "sdk", ErrorSeverity.ERROR, "Invalid saved-location response", true))
+                    }
                 }
                 "save_location_ack" -> {
                     val loc = ProtocolCodec.decodeSaveLocationAck(envelope)
@@ -1337,7 +1351,10 @@ internal class RobotClientImpl(
                         snapshot.telemetry?.let { applyTelemetry(ProtocolCodec.mapTelemetryPayload(it), now) }
                         snapshot.battery?.let { _batteryState.value = ProtocolCodec.mapBatteryStatePayload(it) }
                         snapshot.safety?.let { _safetyState.value = ProtocolCodec.mapSafetyStatePayload(it) }
-                        snapshot.docking?.let { _dockingState.value = ProtocolCodec.mapDockingStatePayload(it) }
+                        snapshot.docking?.let {
+                            _dockingState.value = ProtocolCodec.mapDockingStatePayload(it)
+                            _dockingDetails.value = ProtocolCodec.mapDockingDetails(it)
+                        }
                         snapshot.health?.let { _health.value = ProtocolCodec.mapHealthPayload(it) }
                         snapshot.mapState?.let { applyMapState(it) }
                     }
@@ -1389,7 +1406,23 @@ internal class RobotClientImpl(
                 "safety_state" -> {
                     ProtocolCodec.decodeSafetyState(envelope)?.let { _safetyState.value = it }
                 }
+                // Only the result for this client request may complete its navigation state.
+                "navigation_result" -> {
+                    val payload = envelope.payload ?: return
+                    val request = (payload["requestId"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                    val current = _navigation.value
+                    if (request != null && request == current.requestId) {
+                        val status = (payload["status"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "FAILED"
+                        _navigation.value = current.copy(
+                            state = status, resultStatus = status,
+                            goalId = (payload["goalId"] as? kotlinx.serialization.json.JsonPrimitive)?.content,
+                            errorCode = payload["errorCode"]?.toString()?.toIntOrNull(),
+                            errorMsg = (payload["errorMessage"] as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+                        )
+                    }
+                }
                 "docking_state" -> {
+                    _dockingDetails.value = ProtocolCodec.decodeDockingDetails(envelope)
                     ProtocolCodec.decodeDockingState(envelope)?.let { _dockingState.value = it }
                 }
                 "robot_health" -> {
@@ -1410,12 +1443,14 @@ internal class RobotClientImpl(
         if (!hasMapState && _activeMap.value == null && telem.activeMap.isNotBlank()) {
             _activeMap.value = RobotMap(id = telem.activeMap, name = telem.activeMap, isActive = true)
         }
-        _navigation.value = NavigationState(
-            state = telem.navigationState,
-            targetPose = if (telem.hasGoal) Pose2D(telem.xMeters, telem.yMeters, telem.yawRadians) else null,
+        // Progress packets must not erase an action result or its request identity.
+        val previous = _navigation.value
+        _navigation.value = previous.copy(
+            state = previous.resultStatus ?: telem.navigationState,
+            targetPose = previous.targetPose,
             distanceRemainingMeters = telem.distanceRemainingMeters,
             elapsedTimeSeconds = telem.navigationElapsedSeconds,
-            errorMsg = telem.navigationErrorMessage
+            errorMsg = if (previous.resultStatus != null) previous.errorMsg else telem.navigationErrorMessage
         )
     }
 
@@ -1598,6 +1633,8 @@ internal class RobotClientImpl(
         _batteryState.value = null
         _safetyState.value = null
         _dockingState.value = null
+        _dockingDetails.value = null
+        _navigation.value = NavigationState()
         _health.value = null
         _activeMap.value = null
         _occupancyGrid.value = null

@@ -258,7 +258,9 @@ internal data class ClearVirtualWallsPayloadDto(
 )
 
 @Serializable
+// Legacy saved destinations use map coordinates when frame metadata is absent.
 internal data class SavedLocationDto(
+    val frame: String = "map",
     val id: String = "",
     val name: String,
     val mapId: String,
@@ -279,7 +281,9 @@ internal data class ListSavedLocationsAckPayloadDto(
 )
 
 @Serializable
+// Save commands explicitly identify map coordinates while retaining v1 defaults.
 internal data class SaveLocationPayloadDto(
+    val frame: String = "map",
     val name: String,
     val pose: NavigateToPayloadDto,
     val mapId: String? = null
