@@ -15,6 +15,7 @@
             <option value="$PROJECT_DIR$/core/networking" />
             <option value="$PROJECT_DIR$/core/theme" />
             <option value="$PROJECT_DIR$/feature" />
+            <option value="$PROJECT_DIR$/feature/geonavigation" />
             <option value="$PROJECT_DIR$/feature/home" />
             <option value="$PROJECT_DIR$/feature/manualcontrol" />
             <option value="$PROJECT_DIR$/feature/map" />
@@ -22,6 +23,7 @@
             <option value="$PROJECT_DIR$/feature/robotstatus" />
             <option value="$PROJECT_DIR$/feature/settings" />
             <option value="$PROJECT_DIR$/robot" />
+            <option value="$PROJECT_DIR$/robot/geospatial" />
             <option value="$PROJECT_DIR$/robot/sdk" />
           </set>
         </option>

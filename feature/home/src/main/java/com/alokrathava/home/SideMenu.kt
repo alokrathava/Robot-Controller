@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
@@ -29,6 +30,7 @@ import com.alokrathava.theme.DeviceMode
 import com.alokrathava.theme.LocalDeviceMode
 import com.alokrathava.theme.MonochromeTheme
 
+/** Navigation items for the application sidebar. */
 enum class SidebarNavItem(
     val title: String,
     val icon: ImageVector
@@ -38,6 +40,7 @@ enum class SidebarNavItem(
     MANUAL_CONTROL("Manual Control", Icons.AutoMirrored.Filled.AltRoute),
     ROBOT_STATUS("Robot Status", Icons.Default.SmartToy),
     MAPS("Maps", Icons.Default.Map),
+    GEOSPATIAL("Geospatial", Icons.Default.Map),
     SETTINGS("Settings", Icons.Default.Settings)
 }
 

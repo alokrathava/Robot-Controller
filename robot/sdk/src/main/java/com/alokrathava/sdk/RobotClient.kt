@@ -29,10 +29,21 @@ import com.alokrathava.sdk.model.RobotInfo
 import com.alokrathava.sdk.model.RobotDiagnostics
 import com.alokrathava.sdk.model.RobotDiagnosticReport
 import com.alokrathava.sdk.model.RobotLogEntry
+import com.alokrathava.geospatial.model.GeoTelemetry
+import com.alokrathava.geospatial.model.GeoWaypoint
+import com.alokrathava.geospatial.model.VehicleCategory
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 interface RobotClient : AutoCloseable {
+
+    /** Emits real-time geographic telemetry and localization status. */
+    val geoTelemetry: StateFlow<GeoTelemetry?>
+        get() = kotlinx.coroutines.flow.MutableStateFlow(null)
+
+    /** Emits the active vehicle category (UGV, UAV, UUV, Space Vehicle, etc.). */
+    val vehicleCategory: StateFlow<VehicleCategory?>
+        get() = kotlinx.coroutines.flow.MutableStateFlow(VehicleCategory.UGV)
 
     val connectionState: StateFlow<ConnectionState>
 
@@ -152,6 +163,18 @@ interface RobotClient : AutoCloseable {
     suspend fun collectDiagnosticReport(): RobotResult<RobotDiagnosticReport>
 
     suspend fun getRecentRobotLogs(limit: Int = 100): RobotResult<List<RobotLogEntry>>
+
+    /** Navigates the robot to a specified geospatial waypoint. */
+    suspend fun navigateToGeo(waypoint: GeoWaypoint): RobotResult<CommandId> =
+        RobotResult.Failure(com.alokrathava.sdk.error.RobotError("UNSUPPORTED", "sdk", com.alokrathava.sdk.error.ErrorSeverity.ERROR, "Geospatial navigation not supported", false))
+
+    /** Navigates the robot through a sequence of geospatial waypoints. */
+    suspend fun navigateThroughGeo(waypoints: List<GeoWaypoint>): RobotResult<CommandId> =
+        RobotResult.Failure(com.alokrathava.sdk.error.RobotError("UNSUPPORTED", "sdk", com.alokrathava.sdk.error.ErrorSeverity.ERROR, "Geospatial navigation not supported", false))
+
+    /** Cancels active geospatial navigation. */
+    suspend fun cancelGeoNavigation(): RobotResult<Unit> =
+        RobotResult.Success(Unit)
 
     override fun close()
 }

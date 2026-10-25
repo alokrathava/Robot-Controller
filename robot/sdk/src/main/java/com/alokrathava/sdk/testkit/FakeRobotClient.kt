@@ -32,6 +32,9 @@ import com.alokrathava.sdk.model.SavedLocation
 import com.alokrathava.sdk.model.TelemetryFreshness
 import com.alokrathava.sdk.model.VirtualWall
 import com.alokrathava.sdk.model.VirtualWallDraft
+import com.alokrathava.geospatial.model.GeoTelemetry
+import com.alokrathava.geospatial.model.GeoWaypoint
+import com.alokrathava.geospatial.model.VehicleCategory
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -116,6 +119,27 @@ class FakeRobotClient : RobotClient {
     }
 
     override suspend fun cancelNavigation(): RobotResult<Unit> {
+        return RobotResult.Success(Unit)
+    }
+
+    val mutableGeoTelemetry = MutableStateFlow<GeoTelemetry?>(null)
+    override val geoTelemetry: StateFlow<GeoTelemetry?> = mutableGeoTelemetry.asStateFlow()
+
+    val mutableVehicleCategory = MutableStateFlow<VehicleCategory?>(VehicleCategory.UGV)
+    override val vehicleCategory: StateFlow<VehicleCategory?> = mutableVehicleCategory.asStateFlow()
+
+    /** Navigates the fake robot to a geospatial waypoint. */
+    override suspend fun navigateToGeo(waypoint: GeoWaypoint): RobotResult<CommandId> {
+        return if (shouldSucceed) RobotResult.Success(CommandId("cmd-fake-geo-nav")) else RobotResult.Failure(RobotError("FAKE_ERROR", "fake", ErrorSeverity.ERROR, "Fake failure", false))
+    }
+
+    /** Navigates the fake robot through geospatial waypoints. */
+    override suspend fun navigateThroughGeo(waypoints: List<GeoWaypoint>): RobotResult<CommandId> {
+        return if (shouldSucceed) RobotResult.Success(CommandId("cmd-fake-geo-through")) else RobotResult.Failure(RobotError("FAKE_ERROR", "fake", ErrorSeverity.ERROR, "Fake failure", false))
+    }
+
+    /** Cancels fake geospatial navigation. */
+    override suspend fun cancelGeoNavigation(): RobotResult<Unit> {
         return RobotResult.Success(Unit)
     }
 

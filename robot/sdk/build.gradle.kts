@@ -75,6 +75,7 @@ afterEvaluate {
 }
 
 dependencies {
+    implementation(project(":robot:geospatial"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
