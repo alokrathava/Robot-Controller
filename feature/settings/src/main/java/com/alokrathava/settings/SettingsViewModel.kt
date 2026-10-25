@@ -55,8 +55,9 @@ class SettingsViewModel @Inject constructor(
 
     val uiState: StateFlow<SettingsUiState> = combine(
         _userSettingsState,
-        _repoStateFlow
-    ) { localState, (connStatus, connConfig, metrics, simConfig, telem) ->
+        _repoStateFlow,
+        com.alokrathava.theme.ThemeManager.currentTheme
+    ) { localState, (connStatus, connConfig, metrics, simConfig, telem), currentTheme ->
         val ip = connConfig.ipAddress.ifEmpty { localState.robotIpAddress }
         val portStr = if (connConfig.port > 0) connConfig.port.toString() else localState.port
         val address = "$ip:$portStr"
@@ -78,13 +79,19 @@ class SettingsViewModel @Inject constructor(
             lastMessageAgeMs = metrics.lastMessageAgeMs,
             lastConnected = lastConnText,
             simulationConfig = simConfig,
-            telemetry = telem
+            telemetry = telem,
+            selectedTheme = currentTheme
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = _userSettingsState.value
     )
+
+    // Updates the active application theme via ThemeManager.
+    fun selectTheme(theme: com.alokrathava.theme.AppColorTheme) {
+        com.alokrathava.theme.ThemeManager.setTheme(theme)
+    }
 
     fun selectTab(tab: SettingsTab) {
         _userSettingsState.update { it.copy(selectedTab = tab) }

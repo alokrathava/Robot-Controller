@@ -5,12 +5,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 
+// Resolves the active monochrome colors based on the dark theme flag and selected app color theme.
 @Composable
 fun MonochromeTheme(
     darkTheme: Boolean = false,
+    colorTheme: AppColorTheme = AppColorTheme.CALM_TEAL,
     content: @Composable () -> Unit
 ) {
-    val monochromeColors = if (darkTheme) DarkMonochromeColors else LightMonochromeColors
+    val monochromeColors = if (darkTheme) {
+        DarkMonochromeColors
+    } else {
+        when (colorTheme) {
+            AppColorTheme.INDUSTRIAL_BLUE -> IndustrialBlueColors
+            AppColorTheme.CALM_TEAL -> CalmTealColors
+            AppColorTheme.GRAPHITE_BLUE -> GraphiteBlueColors
+            AppColorTheme.SAGE_GREEN -> SageGreenColors
+            AppColorTheme.MUTED_INDIGO -> MutedIndigoColors
+            AppColorTheme.DEEP_OCEAN -> DeepOceanColors
+        }
+    }
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
     CompositionLocalProvider(

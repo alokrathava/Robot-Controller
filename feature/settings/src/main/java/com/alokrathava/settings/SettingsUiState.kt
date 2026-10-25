@@ -3,7 +3,9 @@ package com.alokrathava.settings
 import com.alokrathava.sdk.model.ConnectionStatus
 import com.alokrathava.sdk.model.RobotSimulationConfig
 import com.alokrathava.sdk.model.RobotTelemetry
+import com.alokrathava.theme.AppColorTheme
 
+// Holds settings screen UI state including connection configuration and theme selection.
 data class SettingsUiState(
     val selectedTab: SettingsTab = SettingsTab.CONNECTION,
     val robotIpAddress: String = "192.168.1.100",
@@ -20,6 +22,8 @@ data class SettingsUiState(
     val lastConnected: String = "Not connected",
     val availableReconnectionAttempts: List<Int> = listOf(1, 2, 3, 5, 10),
     val availableTimeoutSeconds: List<Int> = listOf(5, 10, 15, 30, 60),
+    val selectedTheme: AppColorTheme = AppColorTheme.CALM_TEAL,
+    val availableThemes: List<AppColorTheme> = AppColorTheme.entries,
     val simulationConfig: RobotSimulationConfig = RobotSimulationConfig(),
     val telemetry: RobotTelemetry = RobotTelemetry()
 ) {

@@ -48,6 +48,7 @@ fun SettingsScreen(
         onReconnectionAttemptsChanged = viewModel::onReconnectionAttemptsChanged,
         onConnectionTimeoutChanged = viewModel::onConnectionTimeoutChanged,
         onToggleConnection = viewModel::toggleConnection,
+        onThemeSelected = viewModel::selectTheme,
         modifier = modifier
     )
 }
@@ -65,7 +66,8 @@ fun SettingsScreenContent(
     onAutoConnectToggled: (Boolean) -> Unit = {},
     onReconnectionAttemptsChanged: (Int) -> Unit = {},
     onConnectionTimeoutChanged: (Int) -> Unit = {},
-    onToggleConnection: () -> Unit = {}
+    onToggleConnection: () -> Unit = {},
+    onThemeSelected: (AppColorTheme) -> Unit = {}
 ) {
     val colors = MonochromeTheme.colors
     val typography = MonochromeTheme.typography
@@ -163,6 +165,10 @@ fun SettingsScreenContent(
                     SettingsTab.NAVIGATION -> PlaceholderTabContent(title = "Navigation Settings")
                     SettingsTab.ROBOT -> PlaceholderTabContent(title = "Robot Preferences")
                     SettingsTab.ADVANCED -> PlaceholderTabContent(title = "Advanced Configurations")
+                    SettingsTab.APPEARANCE -> AppearanceTabContent(
+                        uiState = uiState,
+                        onThemeSelected = onThemeSelected
+                    )
                 }
             }
         } else {
@@ -225,6 +231,10 @@ fun SettingsScreenContent(
                             SettingsTab.NAVIGATION -> PlaceholderTabContent(title = "Navigation Settings")
                             SettingsTab.ROBOT -> PlaceholderTabContent(title = "Robot Preferences")
                             SettingsTab.ADVANCED -> PlaceholderTabContent(title = "Advanced Configurations")
+                            SettingsTab.APPEARANCE -> AppearanceTabContent(
+                                uiState = uiState,
+                                onThemeSelected = onThemeSelected
+                            )
                         }
                     }
 
@@ -553,6 +563,77 @@ private fun PlaceholderTabContent(
             style = typography.bodySmall,
             color = colors.secondaryText
         )
+    }
+}
+
+// Renders the appearance tab content allowing users to select from 6 distinct robot color themes.
+@Composable
+private fun AppearanceTabContent(
+    uiState: SettingsUiState,
+    onThemeSelected: (AppColorTheme) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = MonochromeTheme.colors
+    val typography = MonochromeTheme.typography
+    val spacing = MonochromeTheme.spacing
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(spacing.space4)
+    ) {
+        Text(
+            text = "Application Color Theme",
+            style = typography.label,
+            color = colors.primaryText,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = "Choose a professional color theme for robot control interfaces. Safety status colors remain consistent across all themes.",
+            style = typography.caption,
+            color = colors.secondaryText
+        )
+
+        Spacer(modifier = Modifier.height(spacing.space2))
+
+        uiState.availableThemes.forEach { theme ->
+            val isSelected = uiState.selectedTheme == theme
+            MonochromeCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onThemeSelected(theme) },
+                backgroundColor = if (isSelected) colors.hoverSurface else colors.surface,
+                borderColor = if (isSelected) colors.primaryActionBg else colors.defaultBorder,
+                padding = spacing.cardPadding
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = theme.title,
+                            style = typography.h4,
+                            color = colors.primaryText,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                        Spacer(modifier = Modifier.height(spacing.space1))
+                        Text(
+                            text = theme.description,
+                            style = typography.bodySmall,
+                            color = colors.secondaryText
+                        )
+                    }
+
+                    if (isSelected) {
+                        MonochromeStatusPill(
+                            text = "Active",
+                            level = StatusLevel.Active
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

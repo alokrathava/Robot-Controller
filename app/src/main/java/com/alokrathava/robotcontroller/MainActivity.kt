@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.alokrathava.home.AdaptiveNavigationLayout
 import com.alokrathava.home.HomeScreen
@@ -37,7 +38,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            RobotControllerTheme(darkTheme = false) {
+            val currentTheme by com.alokrathava.theme.ThemeManager.currentTheme.collectAsStateWithLifecycle()
+            RobotControllerTheme(darkTheme = false, colorTheme = currentTheme) {
                 MainAppScreen()
             }
         }
