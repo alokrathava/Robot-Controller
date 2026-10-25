@@ -20,21 +20,31 @@ class ProtocolCodecTest {
     fun decodeMapSnapshot_parsesGridDataCorrectly() {
         val payload = buildJsonObject {
             put("mapId", "map_office")
-            put("widthCells", 10)
-            put("heightCells", 10)
-            put("resolutionMetersPerCell", 0.05)
-            put("originX", -2.5)
-            put("originY", -2.5)
-            put("originYaw", 0.0)
-            put("dataBase64", "AQID")
+            put("width", 3)
+            put("height", 1)
+            put("resolution", 0.05)
+            put("origin", buildJsonObject {
+                put("position", buildJsonObject {
+                    put("x", -2.5)
+                    put("y", -2.5)
+                    put("z", 0.0)
+                })
+                put("orientation", buildJsonObject {
+                    put("x", 0.0)
+                    put("y", 0.0)
+                    put("z", 0.0)
+                    put("w", 1.0)
+                })
+            })
+            put("data", "AQID")
         }
 
         val grid = ProtocolCodec.decodeMapSnapshot(payload)
 
         assertNotNull(grid)
         assertEquals("map_office", grid!!.mapId)
-        assertEquals(10, grid.widthCells)
-        assertEquals(10, grid.heightCells)
+        assertEquals(3, grid.widthCells)
+        assertEquals(1, grid.heightCells)
         assertEquals(0.05, grid.resolutionMetersPerCell, 0.001)
         assertEquals(-2.5, grid.originX, 0.001)
         assertTrue(grid.isValid)

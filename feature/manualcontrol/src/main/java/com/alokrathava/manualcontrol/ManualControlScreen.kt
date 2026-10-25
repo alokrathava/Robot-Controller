@@ -196,7 +196,9 @@ fun ManualControlContent(
                     when (uiState.selectedTab) {
                         ManualControlTab.MOVEMENT -> {
                             Column(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .verticalScroll(rememberScrollState()),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
@@ -218,7 +220,9 @@ fun ManualControlContent(
 
                         ManualControlTab.ROTATION -> {
                             Column(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .verticalScroll(rememberScrollState()),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 SpeedControlCard(
@@ -237,7 +241,9 @@ fun ManualControlContent(
 
                         ManualControlTab.TELEMETRY -> {
                             Column(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .verticalScroll(rememberScrollState()),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 MonochromeCard(
@@ -258,7 +264,9 @@ fun ManualControlContent(
 
                         ManualControlTab.DIAGNOSTICS -> {
                             Column(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .verticalScroll(rememberScrollState()),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 MonochromeCard(

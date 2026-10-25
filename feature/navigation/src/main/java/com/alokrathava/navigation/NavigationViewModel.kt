@@ -112,13 +112,16 @@ class NavigationViewModel @Inject constructor(
                     combine(client.activeMap, client.mapOperationState) { map, operation -> map to operation }
                         .collect { (map, operation) ->
                             val mapId = map?.id
-                            if (mapId != locationsMapId || operation !is MapOperationState.Idle) {
+                            if ((locationsMapId != null && mapId != locationsMapId) || operation !is MapOperationState.Idle) {
                                 locationsJob?.cancel()
                                 _locationsState.value = _locationsState.value.copy(locations = emptyList())
                                 _formState.value = _formState.value.copy(selectedDestination = NavigationDestinationUi.None, targetPose = null)
                                 locationsMapId = null
                             }
-                            if (!mapId.isNullOrBlank() && operation is MapOperationState.Idle) loadSavedLocationsFromRobot()
+                            if (!mapId.isNullOrBlank() && operation is MapOperationState.Idle) {
+                                if (locationsMapId == null) locationsMapId = mapId
+                                loadSavedLocationsFromRobot()
+                            }
                         }
                 }
             }
