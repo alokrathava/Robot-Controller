@@ -102,6 +102,13 @@ fun MainAppScreen() {
                             )
                         }
 
+                        SidebarNavItem.GEOSPATIAL -> {
+                            // Renders the geospatial navigation and mission control screen.
+                            com.alokrathava.geonavigation.presentation.GeoNavigationScreen(
+                                viewModel = hiltViewModel()
+                            )
+                        }
+
                         SidebarNavItem.SETTINGS -> {
                             SettingsScreen(
                                 viewModel = hiltViewModel(),
