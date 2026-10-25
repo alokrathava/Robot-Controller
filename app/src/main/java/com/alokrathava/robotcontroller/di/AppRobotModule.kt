@@ -1,5 +1,6 @@
 package com.alokrathava.robotcontroller.di
 
+import android.annotation.SuppressLint
 import com.alokrathava.sdk.RobotClient
 import com.alokrathava.sdk.RobotEndpoint
 import com.alokrathava.sdk.RobotRepository
@@ -71,15 +72,19 @@ object AppRobotModule {
 
     @Provides
     @Singleton
-    fun provideRobotRepository(connectionManager: RobotConnectionManager): RobotRepository {
-        return RobotClientRepositoryImpl(connectionManager)
+    fun provideRobotRepository(
+        connectionManager: RobotConnectionManager,
+        @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context
+    ): RobotRepository {
+        return RobotClientRepositoryImpl(connectionManager, context)
     }
 }
 
 @Singleton
 /** Bridges the active SDK client into shared application flows, including validated position. */
 internal class RobotClientRepositoryImpl(
-    private val connectionManager: RobotConnectionManager
+    private val connectionManager: RobotConnectionManager,
+    private val context: android.content.Context
 ) : RobotRepository, RobotPositionSource {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -518,7 +523,50 @@ internal class RobotClientRepositoryImpl(
         }
     }
 
+    // Scans nearby Wi-Fi networks using WifiManager when location and Wi-Fi state permissions are granted.
+    // Falls back gracefully to labeled demonstration network entries if permissions or scan results are unavailable.
+    @SuppressLint("MissingPermission")
     override fun refreshAvailableNetworks() {
+        try {
+            val wifiManager = context.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+            val hasFineLocation = androidx.core.content.ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            val hasWifiState = androidx.core.content.ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.ACCESS_WIFI_STATE
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+            if (wifiManager != null && hasWifiState) {
+                val scanResults = if (hasFineLocation) {
+                    try { wifiManager.scanResults } catch (_: Exception) { emptyList() }
+                } else {
+                    emptyList()
+                }
+
+                val networks = if (scanResults.isNotEmpty()) {
+                    scanResults.map { result ->
+                        val ssid = result.SSID.ifBlank { "Unknown Network" }
+                        val rssi = result.level
+                        val signalPercent = android.net.wifi.WifiManager.calculateSignalLevel(rssi, 100).coerceIn(0, 100)
+                        val isSecured = result.capabilities.contains("WPA") || result.capabilities.contains("WEP") || result.capabilities.contains("RSN")
+                        WifiNetwork(ssid = ssid, signalPercent = signalPercent, isSecured = isSecured)
+                    }
+                } else {
+                    listOf(
+                        WifiNetwork(ssid = "ROBOT_HOTSPOT_5G (Demo)", signalPercent = 95, isSecured = true),
+                        WifiNetwork(ssid = "ROBOT_OFFICE_WIFI (Demo)", signalPercent = 80, isSecured = true),
+                        WifiNetwork(ssid = "ROBOT_LAB_2G (Demo)", signalPercent = 65, isSecured = false)
+                    )
+                }
+                _availableNetworks.value = networks
+                return
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("RobotRepository", "Failed to scan Wi-Fi networks: ${e.message}")
+        }
+
         _availableNetworks.value = listOf(
             WifiNetwork(ssid = "ROBOT_HOTSPOT_5G (Demo)", signalPercent = 95, isSecured = true),
             WifiNetwork(ssid = "ROBOT_OFFICE_WIFI (Demo)", signalPercent = 80, isSecured = true),
