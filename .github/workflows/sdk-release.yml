@@ -4,12 +4,14 @@ on:
   push:
     branches:
       - master
+      - e2e
     tags:
       - 'v*'
       - 'sdk-v*'
   pull_request:
     branches:
       - master
+      - e2e
   workflow_dispatch:
 
 jobs:

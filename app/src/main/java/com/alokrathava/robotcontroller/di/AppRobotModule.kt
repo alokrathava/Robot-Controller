@@ -66,14 +66,7 @@ object AppRobotModule {
     @Provides
     @Singleton
     fun provideRobotClient(connectionManager: RobotConnectionManager): RobotClient {
-        return connectionManager.getActiveClient() ?: RobotSdk.create(
-            RobotSdkConfig(
-                endpoint = RobotEndpoint(
-                    host = "192.168.1.100",
-                    port = 8080
-                )
-            )
-        )
+        return com.alokrathava.sdk.DelegatingRobotClient(connectionManager)
     }
 
     @Provides
@@ -527,9 +520,9 @@ internal class RobotClientRepositoryImpl(
 
     override fun refreshAvailableNetworks() {
         _availableNetworks.value = listOf(
-            WifiNetwork(ssid = "ROBOT_HOTSPOT_5G", signalPercent = 95, isSecured = true),
-            WifiNetwork(ssid = "ROBOT_OFFICE_WIFI", signalPercent = 80, isSecured = true),
-            WifiNetwork(ssid = "ROBOT_LAB_2G", signalPercent = 65, isSecured = false)
+            WifiNetwork(ssid = "ROBOT_HOTSPOT_5G (Demo)", signalPercent = 95, isSecured = true),
+            WifiNetwork(ssid = "ROBOT_OFFICE_WIFI (Demo)", signalPercent = 80, isSecured = true),
+            WifiNetwork(ssid = "ROBOT_LAB_2G (Demo)", signalPercent = 65, isSecured = false)
         )
     }
 

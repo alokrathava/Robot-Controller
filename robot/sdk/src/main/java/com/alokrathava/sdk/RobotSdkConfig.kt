@@ -7,7 +7,7 @@ import javax.net.ssl.X509TrustManager
 data class RobotEndpoint(
     val host: String,
     val port: Int,
-    val useTls: Boolean = false
+    val useTls: Boolean = true
 )
 
 sealed interface RobotAuthentication {

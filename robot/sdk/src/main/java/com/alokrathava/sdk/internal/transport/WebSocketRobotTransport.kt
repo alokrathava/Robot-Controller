@@ -35,6 +35,7 @@ internal class WebSocketRobotTransport(
 ) : RobotTransport {
     private var client: OkHttpClient? = null
     private var webSocket: WebSocket? = null
+    private val socketGeneration = java.util.concurrent.atomic.AtomicLong(0L)
     @Volatile private var _isConnected = false
 
     val isConnected: Boolean
@@ -44,6 +45,7 @@ internal class WebSocketRobotTransport(
         if (_isConnected) return
 
         disconnectInternal(silent = true)
+        val currentGen = socketGeneration.incrementAndGet()
 
         val builder = OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
@@ -67,16 +69,19 @@ internal class WebSocketRobotTransport(
 
         webSocket = client?.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(ws: WebSocket, response: Response) {
+                if (socketGeneration.get() != currentGen) return
                 _isConnected = true
                 logger.log(RobotLogEvent(RobotLogLevel.INFO, "TRANSPORT", "WebSocket connected successfully"))
                 listener.onOpen()
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
+                if (socketGeneration.get() != currentGen) return
                 listener.onMessage(text)
             }
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                if (socketGeneration.get() != currentGen) return
                 _isConnected = false
                 val responseInfo = response?.let { " [HTTP ${it.code} ${it.message}]" } ?: ""
                 val causeInfo = t.cause?.message?.let { " (Cause: $it)" } ?: ""
@@ -86,10 +91,12 @@ internal class WebSocketRobotTransport(
             }
 
             override fun onClosing(ws: WebSocket, code: Int, reason: String) {
+                if (socketGeneration.get() != currentGen) return
                 ws.close(code, reason)
             }
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
+                if (socketGeneration.get() != currentGen) return
                 _isConnected = false
                 logger.log(RobotLogEvent(RobotLogLevel.INFO, "TRANSPORT", "WebSocket closed: $code $reason"))
                 listener.onClose(code, reason)

@@ -95,6 +95,7 @@ internal class RobotClientImpl(
     private val commandRegistry = PendingCommandRegistry()
     private val ordinaryCommandMutex = Mutex()
     private val connectionGeneration = AtomicLong(0L)
+    private val motionCommandGeneration = AtomicLong(0L)
     private var lastOrdinarySendGeneration = -1L
     private var lastOrdinarySendNanos = 0L
     private val mapSubscriptionRetryDelaysMs = longArrayOf(250L, 500L, 1_000L)
@@ -103,6 +104,7 @@ internal class RobotClientImpl(
     @Volatile private var mapSubscriptionState = MapSubscriptionState.IDLE
     @Volatile private var mapSubscriptionRequestId: String? = null
     private var rejectedMapSubscriptionRequestId: String? = null
+    private var snapshotDeadlineJob: Job? = null
     private val transport: RobotTransport = transportFactory?.invoke(this) ?: WebSocketRobotTransport(
         endpoint = config.endpoint,
         logger = config.logger,
@@ -216,6 +218,8 @@ internal class RobotClientImpl(
         return if (result != null) {
             result
         } else {
+            transport.disconnect()
+            connectHandshakeDeferred = null
             val err = RobotError(
                 code = "CONNECT_TIMEOUT",
                 subsystem = "transport",
@@ -320,6 +324,10 @@ internal class RobotClientImpl(
 
     override suspend fun setManualVelocity(linearMps: Double, angularRadPerSec: Double): RobotResult<Unit> {
         checkCapability(RobotCapability.MANUAL_CONTROL)?.let { return it }
+
+        if (linearMps == 0.0 && angularRadPerSec == 0.0) {
+            motionCommandGeneration.incrementAndGet()
+        }
 
         val cmdId = commandRegistry.generateCommandId()
         val envelope = ProtocolCodec.createManualVelocityEnvelope(cmdId, linearMps, angularRadPerSec)
@@ -1009,13 +1017,16 @@ internal class RobotClientImpl(
         bypassPacing: Boolean = false,
         expectedGeneration: Long = connectionGeneration.get()
     ): Boolean {
+        val motionGen = motionCommandGeneration.get()
         if (bypassPacing) {
             return expectedGeneration == connectionGeneration.get() &&
+                motionGen == motionCommandGeneration.get() &&
                 _connectionState.value is ConnectionState.Connected && transport.send(jsonText)
         }
 
         return ordinaryCommandMutex.withLock {
             if (expectedGeneration != connectionGeneration.get() ||
+                motionGen != motionCommandGeneration.get() ||
                 _connectionState.value !is ConnectionState.Connected
             ) return@withLock false
 
@@ -1026,6 +1037,7 @@ internal class RobotClientImpl(
             }
 
             if (expectedGeneration != connectionGeneration.get() ||
+                motionGen != motionCommandGeneration.get() ||
                 _connectionState.value !is ConnectionState.Connected
             ) return@withLock false
 
@@ -1040,6 +1052,9 @@ internal class RobotClientImpl(
 
     // Registers simple commands while allowing motion-stopping requests to bypass ordinary pacing.
     private suspend fun sendSimpleCommand(type: String): RobotResult<Unit> {
+        if (type == "stop" || type == "emergency_stop" || type == "cancel_navigation" || type == "cancel_docking") {
+            motionCommandGeneration.incrementAndGet()
+        }
         val cmdId = commandRegistry.generateCommandId()
         val envelope = ProtocolCodec.createSimpleCommandEnvelope(type, cmdId)
         val jsonText = ProtocolCodec.encodeEnvelope(envelope)
@@ -1164,6 +1179,19 @@ internal class RobotClientImpl(
         android.util.Log.i("RobotSDK", "RECEIVE subscribe_map acknowledgement id=$matchedId")
         config.logger.log(RobotLogEvent(RobotLogLevel.INFO, "CLIENT", "subscribe_map acknowledged id=$matchedId"))
         commandRegistry.completeSuccess(matchedId)
+
+        snapshotDeadlineJob?.cancel()
+        val generation = connectionGeneration.get()
+        snapshotDeadlineJob = scope.launch {
+            delay(config.commandTimeoutMs)
+            synchronized(mapSubscriptionLock) {
+                if (generation == connectionGeneration.get() && mapSubscriptionState == MapSubscriptionState.AWAITING_SNAPSHOT) {
+                    config.logger.log(RobotLogEvent(RobotLogLevel.WARN, "CLIENT", "Map snapshot delivery timed out after acknowledgement. Resetting subscription."))
+                    mapSubscriptionState = MapSubscriptionState.IDLE
+                    mapSubscriptionRequestId = null
+                }
+            }
+        }
     }
 
     // Cancels session-owned setup work and forgets pending subscription state on connection loss.
@@ -1172,6 +1200,8 @@ internal class RobotClientImpl(
         postAuthenticationJob = null
         mapSubscriptionJob?.cancel()
         mapSubscriptionJob = null
+        snapshotDeadlineJob?.cancel()
+        snapshotDeadlineJob = null
         synchronized(mapSubscriptionLock) {
             mapSubscriptionState = MapSubscriptionState.IDLE
             mapSubscriptionRequestId = null

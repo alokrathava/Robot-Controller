@@ -141,19 +141,22 @@ class ManualControlViewModel @Inject constructor(
         _speedPreset.value = matchingPreset
 
         val speedFactor = (speed / 100f).coerceIn(0f, 1f)
-        val maxLinear = speedFactor * MAX_LINEAR_VELOCITY_MPS
-        val maxAngular = speedFactor * MAX_ANGULAR_VELOCITY_RAD_PER_SEC
+        val maxLinear = maxOf(speedFactor * MAX_LINEAR_VELOCITY_MPS, 0.01f)
+        val maxAngular = maxOf(speedFactor * MAX_ANGULAR_VELOCITY_RAD_PER_SEC, 0.01f)
 
         robotRepository.updateSimulationConfig(
             RobotSimulationConfig(movementSpeedMps = maxLinear.toDouble())
         )
         viewModelScope.launch {
-            robotRepository.updateMotionLimits(
+            val result = robotRepository.updateMotionLimits(
                 MotionLimits(
                     maxLinearVelocityMps = maxLinear.toDouble(),
                     maxAngularVelocityRadPerSec = maxAngular.toDouble()
                 )
             )
+            if (result is com.alokrathava.sdk.error.RobotResult.Failure) {
+                android.util.Log.w("ManualControlVM", "Failed to update motion limits: ${result.error.message}")
+            }
         }
 
         val js = _joystickState.value
