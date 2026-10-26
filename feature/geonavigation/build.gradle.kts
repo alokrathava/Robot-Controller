@@ -41,6 +41,7 @@ dependencies {
     implementation(project(":core:theme"))
     implementation(project(":robot:geospatial"))
     implementation(project(":robot:sdk"))
+    implementation(libs.maplibre.android.sdk)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
