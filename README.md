@@ -341,7 +341,7 @@ flowchart LR
 | Layer | Current contract |
 |---|---|
 | RobotSDK | **0.2.0** |
-| robot_gateway | **0.2.0** |
+| robot_gateway | **0.2.0 documented baseline; newer RobotNavigation fixture advertises 0.3.0 (not yet verified with this SDK)** |
 | Protocol | **v1** |
 | Command transport | WebSocket JSON |
 | Authentication | Token handshake when configured |
@@ -349,7 +349,7 @@ flowchart LR
 | Command model | SDK command ID → gateway ack/error → ROS topic/service/action |
 | Compatibility rule | Protocol major version must match |
 
-The two repositories already share the same command/state model for navigation, manual control, docking, safety, map management, virtual walls, saved locations, missions, diagnostics, and telemetry.
+The repositories share overlapping Protocol v1 commands and state messages, but current capabilities and canonical fixture sets differ. End-to-end compatibility is not established for every feature or gateway release.
 
 ### Integration roadmap
 
@@ -361,11 +361,11 @@ The next stage is to harden the repository boundary rather than combine the proj
 
 2. **Complete capability parity**
    - Align RobotSDK capabilities with the gateway's advertised capability set.
-   - Add first-class SDK mapping-mode APIs for RobotNavigation's start/stop mapping operations.
+   - `startMapping()` and `stopMapping()` already exist; verify their responses, transitions and recovery behavior end to end.
 
 3. **End-to-end robot discovery**
    - The SDK already implements UDP beacon discovery on port 8088.
-   - RobotNavigation still needs the corresponding robot-side beacon publisher.
+   - Verify a compatible beacon publisher is running in the target deployment; fixture files alone do not establish live discoverability.
 
 4. **Transport security**
    - The SDK supports WSS/TLS hooks.
@@ -403,7 +403,7 @@ For the ROS 2 / robot-runtime side, see **[RobotNavigation](https://github.com/a
 | **Control scope** | Navigation, manual velocity, docking, safety, maps, virtual walls, saved locations, missions |
 | **Multi-robot** | `RobotManager` manages independent clients by robot ID |
 | **Discovery** | UDP discovery beacon flow |
-| **Testability** | Fake client, protocol simulator, cross-language JSON fixtures, 18 SDK unit-test classes |
+| **Testability** | Fake client, protocol simulator, JSON fixtures; **1 SDK JUnit class with 4 tests** tracked on inspected `master` |
 | **Controller UI** | Multi-module Jetpack Compose application using Hilt |
 | **Release** | AAR + Maven publication metadata + GitHub Actions release workflow |
 | **Android baseline** | minSdk 24, compileSdk / targetSdk 35, Java 17 |
@@ -714,27 +714,12 @@ See [Protocol Specification](docs/protocol.md).
 
 ## Testing Strategy
 
-The SDK includes 18 unit-test classes covering:
-- command correlation and timeout handling
-- protocol serialization/deserialization
-- fixture compatibility
-- reconnection behavior
-- state resynchronization
-- navigation
-- maps
-- virtual walls
-- saved locations
-- missions
-- diagnostics
-- discovery
-- security/transport configuration
-- multi-client management
-- testkit behavior
+The inspected `master` commit (`269888a`) contains one SDK JUnit class, `ProtocolCodecTest`, with four test methods. Its October 22, 2026 CI run failed one map-snapshot decoding test and skipped AAR assembly. Earlier claims of 18 SDK test classes were not supported by the current file tree. See [Testing & Release](docs/testing-and-release.md) for details.
 
 The reusable testkit includes:
 - `FakeRobotClient` for application tests
 - `ProtocolSimulator` for deterministic protocol frames
-- JSON fixtures shared with the robot-side implementation
+- Local JSON fixture examples, plus a larger canonical fixture set in RobotNavigation that requires cross-repository verification
 
 ```bash
 ./gradlew :robot:sdk:testDebugUnitTest

@@ -12,7 +12,7 @@ Current Maven metadata:
 com.alokrathava:robot-sdk:0.2.0
 ```
 
-The primary public interface is `RobotClient`.
+The primary public interface is `RobotClient`. These are source-level APIs, not proof that every operation is validated against a running gateway. The Maven coordinates currently support local publication; public Maven Central availability is not established.
 
 ---
 
@@ -38,7 +38,8 @@ val client = RobotSdk.create(
 |---|---|---|
 | `endpoint` | Robot gateway host/port/TLS | required |
 | `authentication` | Handshake authentication | null |
-| `commandTimeoutMs` | Command/handshake timeout | 15,000 ms |
+| `commandTimeoutMs` | Default command/handshake timeout | 15,000 ms |
+| `commandTimeouts` | Specific map query/switch/save/delete/mapping budgets | 15/60/120/30/60 seconds |
 | `reconnectPolicy` | Automatic reconnect behavior | enabled policy |
 | `heartbeatIntervalMs` | Protocol ping cadence | 5,000 ms |
 | `telemetryStaleTimeoutMs` | When telemetry is considered stale | 3,000 ms |
@@ -59,8 +60,10 @@ val client = RobotSdk.create(
 | `batteryState` | StateFlow<RobotBatteryState?> | Battery/charging data |
 | `safetyState` | StateFlow<SafetyState?> | Current safety state |
 | `dockingState` | StateFlow<DockingState?> | Docking state machine |
+| `dockingDetails` | StateFlow<DockingStateDetails?> | Detailed docking state |
 | `health` | StateFlow<RobotHealth?> | Overall/subsystem health |
 | `activeMap` | StateFlow<RobotMap?> | Active map |
+| `occupancyGrid` | StateFlow<RobotOccupancyGrid?> | Latest map snapshot / applied updates, if available |
 | `mapOperationState` | StateFlow<MapOperationState> | Map operation progress |
 | `navigation` | StateFlow<NavigationState> | Active navigation summary |
 | `missionProgress` | StateFlow<MissionProgress?> | Mission execution |
@@ -86,7 +89,9 @@ Connection performs:
 4. protocol-version exchange
 5. capability negotiation
 6. session establishment
-7. initial state snapshot request
+7. asynchronous initial state snapshot and map subscription request
+
+**Current limitations:** `hello_ack` is not strictly checked against the request ID or expected protocol version in `RobotClientImpl`. An empty advertised capability set currently bypasses the local unsupported-capability check. These require hardening; do not rely on the handshake as a complete security gate.
 
 ### Disconnect
 
@@ -124,7 +129,7 @@ client.navigateTo(
 )
 ```
 
-Returns `RobotResult<CommandId>`.
+Returns `RobotResult<CommandId>` after admission. **Success means accepted, not physically completed.** Observe the correlated terminal `navigation_result` via `client.navigation`, plus fresh `client.telemetry`.
 
 Required capability: `NAVIGATION`.
 
@@ -236,7 +241,20 @@ when (val result = client.listMaps()) {
 }
 ```
 
-Map-management commands are capability-gated and identifiers are validated.
+Map-management commands use local capability/input checks, but the gateway is authoritative for execution. A command acknowledgement need not mean a map transition has finished. Observe `activeMap` and `mapOperationState`.
+
+### Mapping lifecycle
+
+```kotlin
+val start = client.startMapping(resumeUnsaved = false, discardUnsaved = false)
+val stop = client.stopMapping(discardUnsaved = false)
+```
+
+The recovery options are mutually exclusive. `RECOVERABLE_SESSION_EXISTS` requires an operator decision; after a timeout, inspect authoritative map state before retrying.
+
+### Occupancy-grid streaming
+
+The client subscribes following authentication and exposes `occupancyGrid: StateFlow<RobotOccupancyGrid?>`. It decodes `map_snapshot` and `map_update` with nested `origin`, signed int8 occupancy cells (-1 unknown, 0–100 known) and zlib/base64 `data`, and resubscribes when sequences diverge. The old flattened `originX` / `dataBase64` fixture used by one tracked test is not the current gateway contract. The newer gateway's localization-recovery and navigation-path subscriptions are not yet first-class `RobotClient` APIs.
 
 ---
 
@@ -542,4 +560,4 @@ val telemetry = simulator.generateTelemetryEnvelope(
 @Deprecated("Use RobotClient instead for direct SDK interactions")
 ```
 
-New integrations should use `RobotClient`.
+New integrations should use `RobotClient`. Deprecated `RobotRepository` has placeholder default-success implementations that must not be interpreted as evidence of actual robot execution.

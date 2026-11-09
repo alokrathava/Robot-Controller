@@ -1,260 +1,60 @@
-# Testing & Release
+# Testing and SDK Release — Actual Inventory
 
-## 1. SDK Test Strategy
+## Tracked test inventory
 
-The SDK currently contains 18 unit-test classes under:
+As inspected on `Robot-Controller/master` at commit `269888a` (October 22, 2026):
 
-```text
-robot/sdk/src/test/java/com/alokrathava/sdk/
-```
+| Scope | File | Status |
+|---|---|---|
+| SDK | `robot/sdk/src/test/java/com/alokrathava/sdk/internal/serialization/ProtocolCodecTest.kt` | **1 class, 4 test methods** |
+| Navigation UI feature | `feature/navigation/src/test/java/com/alokrathava/navigation/NavigationViewModelTest.kt` | Separate feature test file |
+| Map UI feature | `feature/map/src/test/java/com/alokrathava/map/MapViewModelTest.kt` | Separate feature test file |
 
-Coverage is organized around behavior boundaries rather than UI implementation details.
+Earlier documentation claimed 18 SDK unit-test classes covering command registry, reconnection, navigation, discovery and more. Those classes are **not in the inspected master tree**. `FakeRobotClient` and `ProtocolSimulator` are shipped in the main SDK source set; their existence does not establish comprehensive test coverage.
 
-| Test area | Representative tests |
-|---|---|
-| Client lifecycle | RobotClientTest, RobotClientReconnectionTest |
-| Command correlation | PendingCommandRegistryTest |
-| Protocol codec | ProtocolCodecTest |
-| Cross-language compatibility | ProtocolFixtureTest |
-| State recovery | StateResynchronizationTest |
-| Navigation | NavigationTest |
-| Maps | MapLifecycleTest |
-| Virtual walls | VirtualWallTest |
-| Saved locations | SavedLocationTest |
-| Missions | MissionTest |
-| Configuration | RobotConfigurationTest |
-| Diagnostics | DiagnosticsTest |
-| Discovery | DiscoveryTest |
-| Security/transport | SecurityAndTransportTest |
-| Multi-client | RobotManagerTest |
-| Test tooling | TestkitTest |
+## Inspected GitHub Actions evidence
 
-The repository also includes a basic Android consumer sample to validate standalone SDK consumption.
+The [last master run for commit 269888a](https://github.com/alokrathava/Robot-Controller/actions/runs/39702386478) on **October 22, 2026** reported:
 
----
+- `:robot:sdk:testDebugUnitTest` — failed (**4 tests, 1 failure**).
+- Failing method — `ProtocolCodecTest.decodeMapSnapshot_parsesGridDataCorrectly`.
+- `:robot:sdk:assembleRelease` and artifact upload — skipped.
 
-## 2. Testkit
+The failing test's old flattened `widthCells`, `originX` and `dataBase64` fields differ from the current decoder and [RobotNavigation canonical map snapshot](https://github.com/alokrathava/RobotNavigation/blob/main/protocol-fixtures/map_snapshot.json), which use `width`, `height`, nested `origin` and compressed `data`.
 
-### FakeRobotClient
+A later **October 26, 2026** run on an `e2e` branch passed the unit-test step but failed `:robot:sdk:verifyReleaseResources` due to missing theme attributes. It does not establish that the same issue applies to master.
 
-`FakeRobotClient` implements the same public interface as the real SDK client.
+**No tests or builds were run as part of this documentation update.**
 
-Use it to:
-- test ViewModels without a gateway
-- inject telemetry/battery/map state
-- simulate connected/disconnected state
-- force command success/failure
-- validate UI reactions deterministically
+## Protocol fixtures and release tooling
 
-### ProtocolSimulator
+The controller repo tracks **9** JSON fixtures (hello, hello_ack, telemetry, navigate_to, command_error, save_map, create_virtual_wall, save_location and submit_mission). RobotNavigation maintains a larger canonical set, including `map_snapshot`, `map_update`, `map_state` and mapping recovery. These are not presently identical.
 
-`ProtocolSimulator` creates deterministic JSON frames for:
-- hello acknowledgement
-- telemetry
+Configured local commands (run only when intentionally authorized):
 
-This supports protocol-facing tests without a network socket.
-
----
-
-## 3. Protocol Fixtures
-
-Directory:
-
-```text
-protocol-fixtures/
-```
-
-Fixtures include:
-- hello
-- hello_ack
-- telemetry
-- navigate_to
-- command_error
-- save_map
-- create_virtual_wall
-- save_location
-- submit_mission
-
-The intent is to validate the same protocol examples from both Kotlin and robot-side tests.
-
-This guards against a common distributed-system failure: both sides compile while disagreeing about JSON shape.
-
----
-
-## 4. Local Verification Commands
-
-SDK unit tests:
-
-```bash
+~~~bash
 ./gradlew :robot:sdk:testDebugUnitTest
-```
-
-SDK release AAR:
-
-```bash
 ./gradlew :robot:sdk:assembleRelease
-```
-
-Publish to Maven Local:
-
-```bash
 ./gradlew :robot:sdk:publishToMavenLocal
-```
-
-Controller debug build:
-
-```bash
 ./gradlew :app:assembleDebug
-```
+~~~
 
-Controller release build:
+The Maven coordinate is `com.alokrathava:robot-sdk:0.2.0`. AAR outputs should be found in `robot/sdk/build/outputs/aar/`. `samples/basic-android` is present and configured to consume a Maven artifact with release R8 shrinking; its independent build success is **not verified**.
 
-```bash
-./gradlew :app:assembleRelease
-```
+The [SDK release workflow](../.github/workflows/sdk-release.yml) runs tests before AAR assembly, uploads the resulting artifact, and creates GitHub Releases for tags. The workflow's presence does not mean a particular commit passed.
 
----
+Maven POM declares Apache-2.0 license metadata but **no root LICENSE file** was tracked at the inspected commit. Do not claim the repository itself is licensed solely on the basis of POM metadata.
 
-## 5. Maven Publication
+## Release verification checklist
 
-The SDK configures `maven-publish`.
+- [ ] Current intended release commit has green SDK test results.
+- [ ] SDK release AAR builds and uploads successfully.
+- [ ] Independent `samples/basic-android` consumer resolves the actual artifact and passes R8 build.
+- [ ] RobotNavigation canonical fixtures and typed/generic ACK semantics match the SDK.
+- [ ] Reconnection, cancellation, timeout, authentication, map recovery and motion safety behavior are verified.
+- [ ] Credential redaction and appropriate `wss://` deployment are confirmed.
+- [ ] A repository license file is approved and added.
+- [ ] Exact SDK/gateway pairing is entered in the [compatibility matrix](compatibility.md) with run evidence.
+- [ ] Release tag and attached artifact are verified.
 
-Coordinates:
-
-```text
-groupId    = com.alokrathava
-artifactId = robot-sdk
-version    = 0.2.0
-```
-
-Release publication includes a sources JAR.
-
-POM metadata includes:
-- project name
-- description
-- project URL
-- Apache-2.0 license metadata
-- developer identity
-
-> The repository currently has Apache-2.0 metadata in the POM but no root `LICENSE` file. Add the actual license file before broad public package distribution so repository licensing and published metadata agree.
-
----
-
-## 6. AAR Output
-
-Release AAR task:
-
-```bash
-./gradlew :robot:sdk:assembleRelease
-```
-
-Expected output directory:
-
-```text
-robot/sdk/build/outputs/aar/
-```
-
-The SDK ships consumer ProGuard/R8 rules to preserve:
-- public SDK entry points
-- data/error models
-- protocol serialization types
-- Kotlin serialization metadata
-
----
-
-## 7. GitHub Actions
-
-Workflow:
-
-```text
-.github/workflows/sdk-release.yml
-```
-
-### Build-and-test job
-
-Configured for:
-- pushes to master
-- pull requests targeting master
-- version tags
-- manual dispatch
-
-Steps:
-1. checkout
-2. install JDK 21
-3. run SDK unit tests
-4. assemble release AAR
-5. upload AAR artifact
-
-### Release job
-
-Runs for tags after the build-and-test job.
-
-It:
-1. downloads the AAR artifact
-2. determines whether the tag is a prerelease
-3. creates a GitHub Release
-4. attaches the AAR
-5. generates release notes
-
-Tags containing `alpha`, `beta`, or `rc` are marked as prereleases.
-
-This document describes the workflow configuration; it does not claim a particular commit has passed CI unless a corresponding run exists.
-
----
-
-## 8. Version Compatibility
-
-Current documented combination:
-
-| SDK | Protocol | Gateway | RobotNavigation |
-|---|---:|---|---|
-| 0.2.0 | 1 | 0.2.0 | 0.2.x |
-
-Protocol version is the hard compatibility boundary.
-
-Unknown compatible JSON fields are intended to be tolerated so minor schema evolution can occur without immediately breaking older clients.
-
-See [Compatibility Matrix](compatibility.md).
-
----
-
-## 9. Release Checklist
-
-Before a public SDK release:
-
-- [ ] Run SDK unit tests
-- [ ] Build release AAR
-- [ ] Build/minify a consumer application
-- [ ] Validate sample app against the published/local Maven artifact
-- [ ] Verify protocol fixtures against the robot-side implementation
-- [ ] Confirm gateway/SDK compatibility matrix
-- [ ] Confirm authentication tokens are absent from logs
-- [ ] Test reconnect behavior against a real gateway disconnect
-- [ ] Verify telemetry stale-state behavior
-- [ ] Verify emergency-stop semantics against the robot-side safety supervisor
-- [ ] Confirm R8/minification does not break serialization
-- [ ] Review CHANGELOG
-- [ ] Add/update repository LICENSE
-- [ ] Tag the release
-- [ ] Verify the GitHub Actions release artifact
-
----
-
-## 10. Integration Quality Signals
-
-The codebase intentionally includes:
-- explicit protocol versioning
-- capability negotiation
-- structured errors
-- typed command results
-- command timeouts
-- thread-safe pending-command correlation
-- telemetry freshness
-- automatic reconnect
-- state resynchronization request after connection
-- release minification rules
-- standalone consumer sample
-- cross-language fixtures
-- fake client/testkit
-
-These are the pieces that move a robot controller from a demo connection toward a reusable integration boundary.
+**These are required future checks, not accomplished validations.** This documentation edit does not repair runtime code or generate tests.
